@@ -5,24 +5,66 @@
 }
 
 body {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #0a0a1a;
+  overflow-x: hidden;
 }
 
 #root {
   min-height: 100vh;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.message-row {
-  animation: fadeIn 0.3s ease-in;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0,255,15,0.2);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,255,15,0.4);
+}
+
+/* Placeholder & selection */
+::placeholder {
+  color: rgba(255,255,255,0.2);
+}
+::selection {
+  background: rgba(0,255,15,0.2);
+  color: #fff;
+}
+
+/* Focus glow */
+input:focus {
+  border-color: #00ff0f !important;
+  box-shadow: 0 0 20px rgba(0,255,15,0.1) !important;
+}
+
+/* Button hover lift */
+button:hover {
+  transform: translateY(-1px);
 }

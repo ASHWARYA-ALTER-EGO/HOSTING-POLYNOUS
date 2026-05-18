@@ -13,7 +13,7 @@ from typing import Optional
 
 load_dotenv()
 
-app = FastAPI(title="Multi-Agent Research Assistant v3.0")
+app = FastAPI(title="POLYNOUS - Multi-Agent Research Assistant")
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,7 +38,8 @@ class QueryResponse(BaseModel):
 @app.get("/")
 async def root():
     return {
-        "message": "🤖 Multi-Agent Research Assistant v3.0",
+        "message": "🧠 POLYNOUS - Multi-Agent Research Assistant",
+        "tagline": "Many Minds, One Answer",
         "agents": ["Search", "Summariser", "Critic", "Writer", "Debate FOR", "Debate AGAINST", "Judge"],
         "modes": ["Research", "Debate"],
         "version": "3.0"
@@ -154,6 +155,28 @@ async def ask_stream(request: QueryRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
     )
+
+@app.get("/status")
+async def status():
+    """Check system status"""
+    import psutil
+    
+    return {
+        "system": "POLYNOUS",
+        "version": "3.0",
+        "status": "operational",
+        "agents": {
+            "search": "online",
+            "summariser": "online",
+            "critic": "online",
+            "writer": "online",
+            "debate_for": "online",
+            "debate_against": "online",
+            "judge": "online"
+        },
+        "memory_usage": f"{psutil.Process().memory_info().rss / 1024 / 1024:.1f}MB",
+        "endpoints": ["/ask", "/ask-stream", "/health", "/status"]
+    }
 
 if __name__ == "__main__":
     import uvicorn

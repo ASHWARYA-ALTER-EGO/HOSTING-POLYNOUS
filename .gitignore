@@ -35,3 +35,29 @@ build/
 
 # Pinecone
 .pinecone/
+
+# Environment variables (API keys)
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+*.egg-info/
+dist/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Database
+*.db
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

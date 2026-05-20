@@ -27,3 +27,7 @@ class AgentState(TypedDict):
     errors: List[str]
     warnings: List[str]
     current_agent: str
+
+    # NEW: Knowledge Graph fields
+    graph_context: str
+    graph_results: List[Dict]

@@ -1,9 +1,9 @@
+from app.knowledge_graph.graph_manager import kg
+from app.knowledge_graph.hybrid_search import hybrid
 from langgraph.graph import StateGraph, END
 from app.state import AgentState
 from app.agents.debate_agents import argue_for_position, argue_against_position, judge_debate
 from app.search_agent import search_web
-
-MAX_DEBATE_ROUNDS = 1  # Can increase for multi-round debates
 
 def debate_search_node(state: AgentState) -> AgentState:
     """Search for debate sources"""
@@ -13,8 +13,14 @@ def debate_search_node(state: AgentState) -> AgentState:
     
     results = search_web(state['query'])
     state['retrieved_docs'] = results
+
+    # NEW: Hybrid search for debate context
+    try:
+        hybrid_results = hybrid.hybrid_search(state['query'])
+        state['graph_context'] = hybrid_results.get('enhanced_context', '')
+    except:
+        state['graph_context'] = ''
     
-    # Create context strings
     context = [
         f"Source: {doc.get('title', 'Untitled')}\n{doc.get('content', '')[:1000]}"
         for doc in results
@@ -87,34 +93,48 @@ def judge_node(state: AgentState) -> AgentState:
     verdict = judge_debate(for_arg, against_arg, state['query'])
     state['judge_verdict'] = verdict
     
-    # Create final debate summary
+    # Build clean structured debate summary
     winner = verdict.get('winner', 'TIE')
-    reasoning = verdict.get('reasoning', '')
-    strongest = verdict.get('strongest_point', '')
+    reasoning = verdict.get('reasoning', 'No reasoning provided')
+    strongest = verdict.get('strongest_point', 'N/A')
     for_score = verdict.get('for_score', 5)
     against_score = verdict.get('against_score', 5)
+    for_strengths = verdict.get('for_strengths', [])
+    against_strengths = verdict.get('against_strengths', [])
+    for_weaknesses = verdict.get('for_weaknesses', [])
+    against_weaknesses = verdict.get('against_weaknesses', [])
     
-    debate_summary = f"""
-╔══════════════════════════════════════╗
-║        🏛️ DEBATE RESULTS           ║
-╠══════════════════════════════════════╣
-║                                      ║
-║  🟢 FOR ({for_score}/10)              ║
-║  {for_arg[:200]}...                 ║
-║                                      ║
-║  🔴 AGAINST ({against_score}/10)      ║
-║  {against_arg[:200]}...             ║
-║                                      ║
-║  ⚖️ WINNER: {winner}                ║
-║  💡 {strongest[:100]}              ║
-║  📝 {reasoning[:150]}              ║
-║                                      ║
-╚══════════════════════════════════════╝
+    # Clean structured format
+    debate_summary = f"""📋 DEBATE RESULT: {state['query']}
+
+🟢 FOR POSITION ({for_score}/10)
+{for_arg[:500]}
+
+🔴 AGAINST POSITION ({against_score}/10)
+{against_arg[:500]}
+
+⚖️ WINNER: {winner}
+
+💡 STRONGEST POINT
+{strongest}
+
+📝 JUDGE'S REASONING
+{reasoning}
+
+🎯 SCORES
+• FOR: {for_score}/10
+• AGAINST: {against_score}/10
+
+📚 SOURCES USED
 """
+    
+    # Add sources
+    for i, doc in enumerate(state.get('retrieved_docs', [])):
+        debate_summary += f"• [{i+1}] {doc.get('title', 'Untitled')}\n"
     
     state['final_answer'] = debate_summary
     
-    # Also store formatted citations
+    # Store formatted citations
     state['citations'] = [
         {'title': doc.get('title', 'Untitled'), 'url': doc.get('url', '')}
         for doc in state.get('retrieved_docs', [])

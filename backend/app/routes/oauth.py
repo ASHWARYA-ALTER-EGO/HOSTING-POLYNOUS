@@ -29,13 +29,18 @@ def get_or_create_user(db: Session, email: str, username: str, avatar_url: str =
     if not user:
         # Create new user with random password (they'll use OAuth)
         import secrets
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        import hashlib
+        import os
+
+        def hash_password(password: str) -> str:
+            salt = os.urandom(32).hex()
+            hashed = hashlib.sha256((password + salt).encode()).hexdigest()
+            return f"{salt}${hashed}"
         
         user = User(
             email=email,
             username=username or email.split('@')[0],
-            hashed_password=pwd_context.hash(secrets.token_urlsafe(32)),
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
             tier="free"
         )
         db.add(user)

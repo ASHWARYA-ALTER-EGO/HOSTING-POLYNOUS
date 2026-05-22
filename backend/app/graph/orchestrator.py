@@ -1,12 +1,12 @@
 from app.knowledge_graph.hybrid_search import hybrid
 from app.knowledge_graph.graph_manager import kg
+from app.knowledge_graph.user_memory import user_memory
 from langgraph.graph import StateGraph, END
 from app.state import AgentState
 from app.agents.summariser_agent import summariser_agent
 from app.agents.critic_agent import critic_agent
 from app.agents.writer_agent import writer_agent
 from app.search_agent import search_web
-import uuid
 
 def search_node(state: AgentState) -> AgentState:
     """Search Agent - Find relevant documents + graph context"""
@@ -16,32 +16,26 @@ def search_node(state: AgentState) -> AgentState:
     
     state['current_agent'] = 'search'
     
-    # Original web search
+    # Web search
     results = search_web(state['query'])
     state['retrieved_docs'] = results
     
-    # NEW: Hybrid search for enhanced context
+    # Hybrid search for enhanced context
     print("🧠 Running hybrid search...")
     try:
         hybrid_results = hybrid.hybrid_search(state['query'])
-        
-        # Extract entities from query for knowledge graph
         entities = hybrid._extract_entities(state['query'])
         if entities:
             print(f"📌 Detected entities: {entities}")
             kg.extract_and_link_entities(state['query'])
-        
-        # Add graph context to state for later use
         state['graph_context'] = hybrid_results.get('enhanced_context', '')
         state['graph_results'] = hybrid_results.get('graph_results', [])
-        
         graph_count = len(hybrid_results.get('graph_results', []))
-        print(f"✅ Found {len(results)} web sources + {graph_count} graph connections")
     except Exception as e:
         print(f"⚠️ Hybrid search unavailable: {e}")
         state['graph_context'] = ''
         state['graph_results'] = []
-        print(f"✅ Found {len(results)} web sources")
+        graph_count = 0
     
     # Extract citations
     state['citations'] = [
@@ -53,6 +47,7 @@ def search_node(state: AgentState) -> AgentState:
         for doc in results
     ]
     
+    print(f"✅ Found {len(results)} web sources + {graph_count} graph connections")
     return state
 
 def summarise_node(state: AgentState) -> AgentState:
@@ -113,7 +108,7 @@ def writer_node(state: AgentState) -> AgentState:
     )
     state['final_answer'] = answer
     
-    # NEW: Store research in knowledge graph for future queries
+    # ========== FIXED: Store research in knowledge graph ==========
     try:
         entities = hybrid._extract_entities(state['query'])
         kg.add_research_entry(
@@ -122,11 +117,27 @@ def writer_node(state: AgentState) -> AgentState:
             sources=state['citations'],
             confidence=state.get('critique', {}).get('overall_confidence', 0),
             topics=entities,
-            session_id=state.get('session_id', 'default')
+            session_id="guest_user"
         )
         print("🧠 Stored in Knowledge Graph")
     except Exception as e:
-        print(f"⚠️ Knowledge Graph storage unavailable: {e}")
+        print(f"⚠️ Knowledge Graph storage: {e}")
+    
+    # ========== FIXED: Record in user memory ==========
+    try:
+        entities = hybrid._extract_entities(state['query'])
+        user_memory.record_research(
+            user_id="guest_user",
+            query=state['query'],
+            answer=answer,
+            topics=entities,
+            confidence=state.get('critique', {}).get('overall_confidence', 0),
+            mode="research",
+            sources=state['citations']
+        )
+        print("🧠 Recorded in User Memory")
+    except Exception as e:
+        print(f"⚠️ User memory recording: {e}")
     
     print("✅ Final answer ready with graph insights!")
     print("="*60 + "\n")
@@ -137,13 +148,11 @@ def create_orchestrator():
     
     workflow = StateGraph(AgentState)
     
-    # Add all agent nodes
     workflow.add_node("search", search_node)
     workflow.add_node("summarise", summarise_node)
     workflow.add_node("critic", critic_node)
     workflow.add_node("write", writer_node)
     
-    # Define the flow: search → summarise → critic → write → END
     workflow.set_entry_point("search")
     workflow.add_edge("search", "summarise")
     workflow.add_edge("summarise", "critic")
@@ -152,6 +161,5 @@ def create_orchestrator():
     
     return workflow.compile()
 
-# Create the global orchestrator
 orchestrator = create_orchestrator()
 print("✅ Multi-Agent Orchestrator Ready!")

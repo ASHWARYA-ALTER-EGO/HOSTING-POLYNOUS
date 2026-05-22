@@ -1,16 +1,26 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 export default function OAuthCallback({ onLogin }) {
+  const navigate = useNavigate()
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const token = params.get('token')
     const username = params.get('username')
     const email = params.get('email')
 
-    if (token) {
+    if (token && username) {
       localStorage.setItem('polynous_token', token)
       localStorage.setItem('polynous_user', JSON.stringify({ username, email }))
-      onLogin({ token, username, email })
+      
+      if (onLogin) {
+        onLogin({ token, username, email })
+      }
+      
+      navigate('/dashboard')
+    } else {
+      navigate('/auth')
     }
   }, [])
 

@@ -25,42 +25,40 @@ class KnowledgeGraph:
     
     def add_research_entry(self, query: str, answer: str, sources: List[Dict], 
                            confidence: float, topics: List[str], session_id: str):
-        """Store a research session as graph nodes with relationships"""
+        """Store a research session as graph nodes with relationships - SIMPLIFIED VERSION"""
         if not self.driver:
             return False
         
         try:
             with self.driver.session() as session:
-                # Create query node
+                # Create topic nodes
+                for topic in topics:
+                    topic = topic.strip()
+                    if topic:
+                        session.run("MERGE (t:Topic {name: $topic})", topic=topic)
+                
+                # Create research node and link to user
                 session.run("""
-                    MERGE (q:Query {text: $query})
-                    SET q.session_id = $session_id,
-                        q.confidence = $confidence,
-                        q.timestamp = datetime()
-                    
-                    // Create answer node
-                    CREATE (a:Answer {
-                        text: $answer,
+                    MERGE (u:User {id: $session_id})
+                    CREATE (r:ResearchSession {
+                        query: $query, 
                         confidence: $confidence,
-                        session_id: $session_id,
                         timestamp: datetime()
                     })
-                    
-                    // Link query to answer
-                    CREATE (q)-[:GENERATED]->(a)
-                """, query=query[:200], answer=answer[:500], 
-                    confidence=confidence, session_id=session_id)
+                    CREATE (u)-[:CONDUCTED]->(r)
+                """, session_id=session_id, query=query[:200], confidence=confidence)
                 
-                # Create topic nodes and relationships
+                # Link research to topics
                 for topic in topics:
-                    session.run("""
-                        MERGE (t:Topic {name: $topic})
-                        WITH t
-                        MATCH (q:Query {text: $query})
-                        MERGE (q)-[:ABOUT]->(t)
-                    """, topic=topic.strip(), query=query[:200])
+                    topic = topic.strip()
+                    if topic:
+                        session.run("""
+                            MATCH (t:Topic {name: $topic})
+                            MATCH (r:ResearchSession {query: $query})
+                            CREATE (r)-[:ABOUT]->(t)
+                        """, topic=topic, query=query[:200])
                 
-                # Create source nodes
+                # Create source nodes and link
                 for i, source in enumerate(sources[:5]):
                     title = source.get('title', 'Untitled')[:200]
                     url = source.get('url', '')
@@ -69,15 +67,15 @@ class KnowledgeGraph:
                         MERGE (s:Source {url: $url})
                         SET s.title = $title
                         WITH s
-                        MATCH (q:Query {text: $query})
-                        MERGE (q)-[:CITES]->(s)
+                        MATCH (r:ResearchSession {query: $query})
+                        CREATE (r)-[:CITES]->(s)
                     """, url=url, title=title, query=query[:200])
                 
-                print(f"✅ Stored in Knowledge Graph: {len(topics)} topics, {len(sources)} sources")
+                print(f"✅ Stored in KG: {len(topics)} topics")
                 return True
                 
         except Exception as e:
-            print(f"❌ Graph storage error: {e}")
+            print(f"⚠️ KG error: {e}")
             return False
     
     def extract_and_link_entities(self, text: str) -> List[str]:

@@ -1,3 +1,4 @@
+from app.routes.semantic_search import router as search_router
 from app.routes.knowledge import router as knowledge_router
 from app.middleware.rate_limiter import check_rate_limit
 from app.routes.oauth import router as oauth_router
@@ -52,6 +53,7 @@ app.include_router(auth_router)
 app.include_router(conversations_router)
 app.include_router(oauth_router)
 app.include_router(knowledge_router)
+app.include_router(search_router)
 
 # ========== MODELS ==========
 class QueryRequest(BaseModel):
@@ -129,6 +131,17 @@ async def ask_question(request: QueryRequest):
         contradictions=critique.get('contradictions', []) if critique else [],
         debate_verdict=verdict if verdict else {}
     )
+
+@app.post("/memory/create-user")
+async def create_memory_user(user_id: str = "guest_user", username: str = "Guest"):
+    """Create user profile in memory system"""
+    try:
+        from app.knowledge_graph.user_memory import user_memory
+        user_memory.create_user_profile(user_id, username, f"{user_id}@polynous.ai")
+        return {"status": "ok", "user_id": user_id}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 
 @app.post("/ask-stream")
 async def ask_stream(request: QueryRequest):

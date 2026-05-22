@@ -1,241 +1,538 @@
-import { useState } from 'react'
+import { useRef, useEffect, useState } from "react";
 
-export default function AuthPage({ onLogin }) {
-  const [isLogin, setIsLogin] = useState(true)
-  const [email, setEmail] = useState('')
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+// ─── Design Tokens ────────────────────────────────────────────
+const C = {
+  green:   "#00ff0f",
+  cyan:    "#00ccff",
+  void:    "#0a0a1e",
+  surface: "#111125",
+  surfaceContainerLowest: "#0c0c20",
+  surfaceContainer: "#1e1e32",
+  onSurface: "#e2e0fc",
+  onSurfaceVariant: "#b9ccb0",
+  white10: "rgba(255,255,255,0.1)",
+  white5:  "rgba(255,255,255,0.05)",
+};
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+// ─── Global Styles ────────────────────────────────────────────
+function GlobalStyles() {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
-    try {
-      const endpoint = isLogin ? '/auth/login' : '/auth/register'
-      const body = isLogin 
-        ? { email, password }
-        : { email, username, password }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.detail || 'Something went wrong')
-        return
+      body {
+        background: #0a0a1e;
+        color: #e2e0fc;
+        font-family: 'Hanken Grotesk', sans-serif;
+        min-height: 100vh;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
-      // Save token
-      localStorage.setItem('polynous_token', data.token)
-      localStorage.setItem('polynous_user', JSON.stringify({
-        username: data.username || username,
-        email: email
-      }))
+      ::selection { background: rgba(0,255,15,0.25); }
 
-      // Call parent callback
-      if (onLogin) onLogin(data)
-    } catch (err) {
-      setError('Connection error. Is backend running?')
-    } finally {
-      setLoading(false)
-    }
-  }
+      @keyframes neural-pulse {
+        0%,100% { transform: scale(1);   filter: drop-shadow(0 0 10px rgba(0,255,15,0.4)); }
+        50%      { transform: scale(1.1); filter: drop-shadow(0 0 28px rgba(0,255,15,0.9)); }
+      }
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes blink { 50% { opacity: 0; } }
 
-  return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      background: 'radial-gradient(ellipse at center, #0a0a2e 0%, #0a0a1a 100%)',
-      fontFamily: 'Inter, Segoe UI, sans-serif'
-    }}>
-      <div style={{
-        background: 'rgba(255,255,255,0.03)',
-        borderRadius: '20px',
-        padding: '40px',
-        width: '100%',
-        maxWidth: '420px',
-        border: '1px solid rgba(255,255,255,0.08)',
-        backdropFilter: 'blur(20px)'
-      }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '8px' }}>🧠</div>
-          <h1 style={{ color: '#fff', fontSize: '1.8em', margin: '0 0 4px' }}>POLYNOUS</h1>
-          <p style={{ color: '#888', fontSize: '13px' }}>
-            {isLogin ? 'Welcome back' : 'Create your account'}
-          </p>
-        </div>
+      .pulse-brain  { animation: neural-pulse 3s infinite ease-in-out; display: inline-block; }
+      .fade-up      { animation: fadeUp 0.5s ease forwards; }
 
-        {/* Toggle */}
-        <div style={{ display: 'flex', marginBottom: '24px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '4px' }}>
-          <button
-            onClick={() => { setIsLogin(true); setError('') }}
-            style={{
-              flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-              background: isLogin ? '#00ff0f' : 'transparent',
-              color: isLogin ? '#0a0a1a' : '#888',
-              fontWeight: 600, fontSize: '14px', transition: 'all 0.3s'
-            }}
-          >
-            Login
-          </button>
-          <button
-            onClick={() => { setIsLogin(false); setError('') }}
-            style={{
-              flex: 1, padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-              background: !isLogin ? '#00ff0f' : 'transparent',
-              color: !isLogin ? '#0a0a1a' : '#888',
-              fontWeight: 600, fontSize: '14px', transition: 'all 0.3s'
-            }}
-          >
-            Sign Up
-          </button>
-        </div>
+      .neural-border {
+        background: rgba(10,10,30,0.8);
+        border: 1px solid rgba(0,204,255,0.3);
+        transition: border-color 0.3s, box-shadow 0.3s;
+      }
+      .neural-border:hover {
+        border-color: #00ccff;
+        box-shadow: 0 0 15px rgba(0,204,255,0.4);
+      }
 
-        {/* Error */}
-        {error && (
-          <div style={{
-            padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,50,50,0.1)',
-            border: '1px solid rgba(255,50,50,0.3)', color: '#ff4444', fontSize: '13px', marginBottom: '16px'
-          }}>
-            {error}
-          </div>
-        )}
+      .btn-glow-green {
+        background: #00ff0f;
+        color: #003a00;
+        box-shadow: 0 0 10px rgba(0,255,15,0.5);
+        transition: box-shadow 0.3s, transform 0.3s;
+      }
+      .btn-glow-green:hover {
+        box-shadow: 0 0 28px rgba(0,255,15,0.85);
+        transform: translateY(-2px);
+      }
+      .btn-glow-green:active { transform: translateY(0); }
 
-        {/* Form */}
-        <form onSubmit={handleSubmit}>
-          {!isLogin && (
-            <input
-              type="text"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required={!isLogin}
-              style={inputStyle}
-            />
-          )}
-          
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={inputStyle}
-          />
-          
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={inputStyle}
-          />
+      .footer-link { transition: color 0.2s; }
+      .footer-link:hover { color: #00ccff !important; }
 
-          {/* OAuth Buttons - Added Here */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
-              <span style={{ color: '#666', fontSize: '12px' }}>or continue with</span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
-            </div>
-            
-            <div style={{ display: 'flex', gap: '10px' }}>
-              {/* Google Button */}
-              <button
-                type="button"
-                onClick={() => window.location.href = 'http://localhost:8000/oauth/google'}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: '10px',
-                  border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)',
-                  color: '#fff', cursor: 'pointer', fontSize: '14px', fontWeight: 600,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                  transition: 'all 0.3s'
-                }}
-                onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
-                onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                Google
-              </button>
+      .register-link:hover { text-decoration: underline; }
+      .forgot-link:hover   { text-decoration: underline; }
 
-              {/* GitHub Button */}
-              <button
-                type="button"
-                onClick={() => window.location.href = 'http://localhost:8000/oauth/github'}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: '10px',
-                  border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)',
-                  color: '#fff', cursor: 'pointer', fontSize: '14px', fontWeight: 600,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                  transition: 'all 0.3s'
-                }}
-                onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
-                onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
-                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
-                </svg>
-                GitHub
-              </button>
-            </div>
-          </div>
+      .remember-label:hover span { color: #00ff0f; }
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
-              background: loading ? '#333' : '#00ff0f',
-              color: loading ? '#888' : '#0a0a1a',
-              fontWeight: 700, fontSize: '15px', cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: '8px', transition: 'all 0.3s'
-            }}
-          >
-            {loading ? 'Please wait...' : isLogin ? 'Login' : 'Create Account'}
-          </button>
-        </form>
-
-        {/* Skip */}
-        <button
-          onClick={() => onLogin({ skip: true })}
-          style={{
-            width: '100%', padding: '10px', background: 'transparent', border: 'none',
-            color: '#666', cursor: 'pointer', fontSize: '12px', marginTop: '16px'
-          }}
-        >
-          Skip for now → Continue as guest
-        </button>
-      </div>
-    </div>
-  )
+      input[type="checkbox"] {
+        accent-color: #00ff0f;
+        width: 14px;
+        height: 14px;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+    `}</style>
+  );
 }
 
-const inputStyle = {
-  width: '100%',
-  padding: '14px 16px',
-  borderRadius: '10px',
-  border: '1px solid rgba(255,255,255,0.1)',
-  background: 'rgba(255,255,255,0.05)',
-  color: '#fff',
-  fontSize: '14px',
-  outline: 'none',
-  marginBottom: '12px',
-  display: 'block'
+// ─── Material Icon ────────────────────────────────────────────
+function Icon({ name, style }) {
+  return (
+    <span
+      style={{
+        fontFamily: "Material Symbols Outlined",
+        fontVariationSettings: "'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24",
+        lineHeight: 1,
+        userSelect: "none",
+        ...style,
+      }}
+    >
+      {name}
+    </span>
+  );
+}
+
+// ─── Synapse Dot ──────────────────────────────────────────────
+function SynapseDot({ style }) {
+  return (
+    <div style={{
+      position: "absolute", width: 4, height: 4,
+      background: C.green, borderRadius: "50%",
+      boxShadow: `0 0 8px ${C.green}`, ...style,
+    }} />
+  );
+}
+
+// ─── Neural Canvas ────────────────────────────────────────────
+function NeuralCanvas() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas.getContext("2d");
+    let particles = [], animId;
+    const N = 120, maxDist = 150;
+
+    const resize = () => {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    window.addEventListener("resize", () => { resize(); init(); });
+    resize();
+
+    class P {
+      constructor() {
+        this.x  = Math.random() * canvas.width;
+        this.y  = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.5;
+        this.vy = (Math.random() - 0.5) * 0.5;
+        this.r  = Math.random() * 2 + 1;
+      }
+      update() {
+        this.x += this.vx; this.y += this.vy;
+        if (this.x < 0 || this.x > canvas.width)  this.vx *= -1;
+        if (this.y < 0 || this.y > canvas.height)  this.vy *= -1;
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(0,255,15,0.4)";
+        ctx.fill();
+      }
+    }
+
+    function init() { particles = Array.from({ length: N }, () => new P()); }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach((p, i) => {
+        p.update(); p.draw();
+        for (let j = i + 1; j < particles.length; j++) {
+          const q = particles[j];
+          const dx = p.x - q.x, dy = p.y - q.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < maxDist) {
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(0,204,255,${0.1 * (1 - dist / maxDist)})`;
+            ctx.lineWidth = 1;
+            ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+          }
+        }
+      });
+      animId = requestAnimationFrame(animate);
+    }
+
+    init(); animate();
+
+    const onMove = (e) => {
+      particles.forEach(p => {
+        const dx = e.clientX - p.x, dy = e.clientY - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 200) { p.vx += dx * 0.00005; p.vy += dy * 0.00005; }
+      });
+    };
+    window.addEventListener("mousemove", onMove);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener("mousemove", onMove);
+    };
+  }, []);
+
+  return (
+    <canvas ref={ref} style={{
+      position: "fixed", top: 0, left: 0,
+      width: "100%", height: "100%",
+      zIndex: 0, pointerEvents: "none",
+    }} />
+  );
+}
+
+// ─── Focused Input ────────────────────────────────────────────
+function NeuralInput({ type, placeholder, icon, label, value, onChange }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <label style={{
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 13, color: C.onSurfaceVariant, marginLeft: 8,
+      }}>
+        {label}
+      </label>
+      <div style={{ position: "relative" }}>
+        <Icon
+          name={icon}
+          style={{
+            position: "absolute", left: 16,
+            top: "50%", transform: "translateY(-50%)",
+            color: C.cyan, fontSize: 20,
+          }}
+        />
+        <input
+          type={type}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            width: "100%",
+            background: "rgba(12,12,32,0.5)",
+            border: `1px solid ${focused ? C.cyan : C.white10}`,
+            borderRadius: 9999,
+            padding: "12px 24px 12px 48px",
+            color: "#fff",
+            fontFamily: "'Hanken Grotesk', sans-serif",
+            fontSize: 16,
+            outline: "none",
+            boxShadow: focused ? `0 0 12px rgba(0,204,255,0.4)` : "none",
+            transition: "border-color 0.2s, box-shadow 0.2s",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── OAuth Button ─────────────────────────────────────────────
+function OAuthButton({ label, children, onClick }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="neural-border"
+      style={{
+        borderRadius: 9999,
+        padding: "12px 24px",
+        display: "flex", alignItems: "center",
+        justifyContent: "center", gap: 12,
+        cursor: "pointer", background: "rgba(10,10,30,0.8)",
+        transition: "border-color 0.3s, box-shadow 0.3s",
+      }}
+    >
+      {children}
+      <span style={{
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 13, color: "#fff",
+      }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
+// ─── Banner ───────────────────────────────────────────────────
+function Banner({ type, message }) {
+  if (!message) return null;
+  const isError = type === "error";
+  return (
+    <div style={{
+      background: isError ? "rgba(255,32,64,0.1)" : "rgba(0,255,15,0.08)",
+      border: `1px solid ${isError ? "rgba(255,32,64,0.35)" : "rgba(0,255,15,0.35)"}`,
+      borderRadius: 10, padding: "10px 16px",
+      color: isError ? "#ff2040" : C.green,
+      fontFamily: "'JetBrains Mono', monospace", fontSize: 13,
+    }}>
+      {isError ? "⚠ " : "✓ "}{message}
+    </div>
+  );
+}
+
+// ─── Login Card ───────────────────────────────────────────────
+function LoginCard() {
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [success, setSuccess]   = useState("");
+
+  const handleSubmit = async () => {
+    setError(""); setSuccess("");
+    if (!email || !password) { setError("All fields are required."); return; }
+    setLoading(true);
+    try {
+      const res = await fetch("http://localhost:8000/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, remember }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Authentication failed.");
+      if (data.access_token) localStorage.setItem("token", data.access_token);
+      setSuccess(`Synapse active. Welcome, ${data.user?.name || "Researcher"}.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOAuth = (provider) => {
+    window.location.href = `http://localhost:8000/auth/${provider}`;
+  };
+
+  return (
+    <div
+      className="fade-up"
+      style={{
+        background: "rgba(10,10,30,0.6)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        border: `1px solid ${C.white10}`,
+        borderRadius: 16,
+        padding: "40px 40px",
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: "0 25px 60px rgba(0,0,0,0.6), 0 0 15px rgba(0,255,15,0.1)",
+        width: "100%",
+      }}
+    >
+      {/* Corner dots */}
+      <SynapseDot style={{ top: 16, left: 16 }} />
+      <SynapseDot style={{ top: 16, right: 16 }} />
+      <SynapseDot style={{ bottom: 16, left: 16 }} />
+      <SynapseDot style={{ bottom: 16, right: 16 }} />
+
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div className="pulse-brain" style={{ fontSize: 56, marginBottom: 12, lineHeight: 1 }}>🧠</div>
+        <h1 style={{
+          fontFamily: "'Sora', sans-serif", fontSize: 38,
+          fontWeight: 700, color: C.green, letterSpacing: "-0.03em", marginBottom: 4,
+        }}>
+          POLYNOUS
+        </h1>
+        <p style={{
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+          color: C.onSurfaceVariant, textTransform: "uppercase", letterSpacing: "0.2em",
+        }}>
+          Cerebral Vitality Engine
+        </p>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* OAuth buttons */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <OAuthButton label="Google" onClick={() => handleOAuth("google")}>
+            <svg width="20" height="20" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff" />
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff" />
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#fff" />
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff" />
+            </svg>
+          </OAuthButton>
+          <OAuthButton label="GitHub" onClick={() => handleOAuth("github")}>
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24" style={{ color: "#fff" }}>
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.042-1.416-4.042-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22v3.293c0 .319.192.694.805.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+            </svg>
+          </OAuthButton>
+        </div>
+
+        {/* Divider */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ flex: 1, borderTop: `1px solid ${C.white10}` }} />
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+            color: C.onSurfaceVariant, textTransform: "uppercase",
+            letterSpacing: "0.12em", whiteSpace: "nowrap",
+          }}>
+            Or connect via neural link
+          </span>
+          <div style={{ flex: 1, borderTop: `1px solid ${C.white10}` }} />
+        </div>
+
+        {/* Form */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <NeuralInput
+            label="Neural Identity (Email)"
+            type="email"
+            placeholder="researcher@neural.bank"
+            icon="alternate_email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+          />
+          <NeuralInput
+            label="Cortex Key (Password)"
+            type="password"
+            placeholder="••••••••"
+            icon="fingerprint"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+          />
+
+          {/* Remember + Forgot */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px" }}>
+            <label
+              className="remember-label"
+              style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+            >
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={e => setRemember(e.target.checked)}
+              />
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 12, color: C.onSurfaceVariant, transition: "color 0.2s",
+              }}>
+                Keep Synapse Active
+              </span>
+            </label>
+            <a
+              href="#"
+              className="forgot-link"
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 12, color: C.cyan, textDecoration: "none",
+              }}
+            >
+              Lost Cortex Access?
+            </a>
+          </div>
+
+          <Banner type="error"   message={error}   />
+          <Banner type="success" message={success} />
+
+          {/* Submit */}
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="btn-glow-green"
+            style={{
+              width: "100%", border: "none", cursor: loading ? "not-allowed" : "pointer",
+              borderRadius: 9999, padding: "14px 32px",
+              fontFamily: "'Sora', sans-serif", fontSize: 16,
+              fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+              marginTop: 8, opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? "Connecting..." : "Connect to Brain"}
+            {!loading && <Icon name="bolt" style={{ fontSize: 20, color: "#003a00" }} />}
+          </button>
+        </div>
+
+        {/* Register */}
+        <p style={{
+          textAlign: "center",
+          fontFamily: "'Hanken Grotesk', sans-serif",
+          fontSize: 15, color: C.onSurfaceVariant,
+        }}>
+          New research stream?{" "}
+          <a
+            href="/register"
+            className="register-link"
+            style={{ color: C.green, fontWeight: 700, textDecoration: "none" }}
+          >
+            Initialize Profile
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Footer ───────────────────────────────────────────────────
+function Footer() {
+  const links = ["Privacy Neural Protocol", "System Integrity", "Contact Core"];
+  return (
+    <div style={{
+      display: "flex", justifyContent: "center",
+      alignItems: "center", gap: 24, marginTop: 24,
+    }}>
+      {links.map((l, i) => (
+        <span key={l} style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          <a
+            href="#"
+            className="footer-link"
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 11, color: C.onSurfaceVariant, textDecoration: "none",
+            }}
+          >
+            {l}
+          </a>
+          {i < links.length - 1 && (
+            <span style={{ color: C.white10 }}>|</span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ─── Root App ─────────────────────────────────────────────────
+export default function PolynousLoginV2() {
+  return (
+    <>
+      <GlobalStyles />
+      <NeuralCanvas />
+
+      <main style={{
+        position: "relative", zIndex: 10,
+        width: "100%", maxWidth: 480,
+        padding: "0 16px",
+        display: "flex", flexDirection: "column",
+      }}>
+        <LoginCard />
+        <Footer />
+      </main>
+    </>
+  );
 }

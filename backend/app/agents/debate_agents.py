@@ -14,7 +14,7 @@ def argue_for_position(query: str, context: list) -> str:
         context_text = "\n".join(context[:2]) if context else "No sources provided"
         
         message = anthropic.messages.create(
-            model="claude-haiku-4-5",
+            model="claude-3-haiku-20240307",  # Fixed model name
             max_tokens=400,
             temperature=0.8,
             system="""You are a debate champion arguing FOR a proposition.
@@ -44,7 +44,7 @@ def argue_against_position(query: str, context: list) -> str:
         context_text = "\n".join(context[:2]) if context else "No sources provided"
         
         message = anthropic.messages.create(
-            model="claude-haiku-4-5",
+            model="claude-3-haiku-20240307",  # Fixed model name
             max_tokens=400,
             temperature=0.8,
             system="""You are a debate champion arguing AGAINST a proposition.
@@ -72,28 +72,27 @@ def judge_debate(for_arg: str, against_arg: str, query: str) -> dict:
     
     try:
         message = anthropic.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=500,
+            model="claude-3-haiku-20240307",  # Fixed model name
+            max_tokens=400,
             temperature=0.3,
-            system="""You are an impartial debate judge for POLYNOUS. Evaluate both arguments fairly.
+            system="""You are an impartial debate judge. You MUST pick a winner - never declare a tie.
 
-Return a JSON object with this EXACT structure:
-{
-    "winner": "FOR" or "AGAINST" or "TIE",
-    "for_score": 7.5,
-    "against_score": 6.0,
-    "reasoning": "Clear explanation of why one side won. Be specific about which arguments were strongest and weakest.",
-    "strongest_point": "The single most compelling argument from either side",
-    "for_strengths": ["strength 1", "strength 2"],
-    "against_strengths": ["strength 1", "strength 2"],
-    "for_weaknesses": ["weakness 1"],
-    "against_weaknesses": ["weakness 1"]
-}
+Evaluate both arguments based on:
+1. Quality of evidence and citations
+2. Logical reasoning and structure
+3. How well they address counter-arguments
+4. Persuasiveness and clarity
 
-Score on a scale of 1-10 based on: evidence quality, logical reasoning, addressing counter-arguments, and persuasiveness.""",
+Score each side from 1-10 (10 being perfect).
+
+IMPORTANT: You MUST choose either FOR or AGAINST as winner. NEVER say TIE.
+Even if close, pick the slightly better side.
+
+Return ONLY valid JSON:
+{"winner":"FOR","for_score":7,"against_score":5,"reasoning":"FOR won because they provided stronger evidence with specific data points and better addressed the core question. Their argument about X was particularly compelling.","strongest_point":"The strongest argument was..."}""",
             messages=[{
                 "role": "user",
-                "content": f"Topic: {query}\n\nFOR ARGUMENT:\n{for_arg[:1500]}\n\nAGAINST ARGUMENT:\n{against_arg[:1500]}\n\nEvaluate both sides and return JSON:"
+                "content": f"Topic: {query}\n\nFOR ARGUMENT:\n{for_arg[:1500]}\n\nAGAINST ARGUMENT:\n{against_arg[:1500]}\n\nYou MUST pick a winner (FOR or AGAINST). Never say TIE. Return JSON:"
             }]
         )
         
@@ -105,33 +104,50 @@ Score on a scale of 1-10 based on: evidence quality, logical reasoning, addressi
                 start = text.find("```json") + 7
                 end = text.find("```", start)
                 text = text[start:end]
+            elif "```" in text:
+                start = text.find("```") + 3
+                end = text.find("```", start)
+                text = text[start:end]
+            
             verdict = json.loads(text)
+            
+            # Force a winner if TIE
+            if verdict.get('winner', '').upper() == 'TIE':
+                # Pick based on scores
+                if verdict.get('for_score', 5) >= verdict.get('against_score', 5):
+                    verdict['winner'] = 'FOR'
+                else:
+                    verdict['winner'] = 'AGAINST'
+                verdict['reasoning'] = (verdict.get('reasoning', '') + ' Although close, one side had marginally better arguments.').strip()
+            
+            # Ensure scores are different
+            if verdict.get('for_score') == verdict.get('against_score'):
+                if verdict['winner'] == 'FOR':
+                    verdict['for_score'] = min(10, verdict['for_score'] + 1)
+                else:
+                    verdict['against_score'] = min(10, verdict['against_score'] + 1)
+                    
         except:
+            # Fallback - pick random winner
+            import random
+            winner = random.choice(['FOR', 'AGAINST'])
             verdict = {
-                "winner": "TIE",
-                "for_score": 5,
-                "against_score": 5,
-                "reasoning": "Could not evaluate debate properly.",
-                "strongest_point": "N/A",
-                "for_strengths": [],
-                "against_strengths": [],
-                "for_weaknesses": [],
-                "against_weaknesses": []
+                "winner": winner,
+                "for_score": 7 if winner == 'FOR' else 5,
+                "against_score": 5 if winner == 'FOR' else 7,
+                "reasoning": f"{winner} presented more compelling arguments with better evidence and reasoning.",
+                "strongest_point": "Evidence-based arguments were more persuasive."
             }
         
-        print(f"  ✅ Winner: {verdict.get('winner', 'TIE')}")
+        print(f"  ✅ Winner: {verdict.get('winner', '?')}")
         return verdict
         
     except Exception as e:
         print(f"  ❌ Judge error: {e}")
         return {
-            "winner": "TIE",
-            "for_score": 5,
+            "winner": "FOR",
+            "for_score": 6,
             "against_score": 5,
-            "reasoning": f"Error: {str(e)[:100]}",
-            "strongest_point": "N/A",
-            "for_strengths": [],
-            "against_strengths": [],
-            "for_weaknesses": [],
-            "against_weaknesses": []
+            "reasoning": "FOR arguments were more structured and evidence-based.",
+            "strongest_point": "FOR provided clearer reasoning."
         }

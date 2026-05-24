@@ -1,3 +1,4 @@
+import PdfLabPage from './components/PdfLabPage';
 import SemanticSearchPage from './components/SemanticSearchPage'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -148,7 +149,7 @@ export default function App() {
           } 
         />
 
-        {/* Knowledge Graph */}
+        {/* Knowledge Graph - UPDATED with all props */}
         <Route 
           path="/graph" 
           element={
@@ -156,6 +157,8 @@ export default function App() {
               ? <KnowledgeGraphPage 
                   user={user} 
                   onStartResearch={(topic) => window.location.href = `/research?query=${encodeURIComponent(topic)}`}
+                  onNavigate={(path) => window.location.href = path}
+                  onLogout={handleLogout}
                 />
               : <Navigate to="/auth" />
           } 
@@ -180,6 +183,20 @@ export default function App() {
                   user={user} 
                   onStartResearch={(topic) => window.location.href = `/research?query=${encodeURIComponent(topic)}`}
                   onNavigate={(path) => window.location.href = path}
+                />
+              : <Navigate to="/auth" />
+          } 
+        />
+
+        {/* PDF Lab - Research Paper Processing */}
+        <Route 
+          path="/pdf-lab" 
+          element={
+            isLoggedIn 
+              ? <PdfLabPage 
+                  user={user} 
+                  onNavigate={(p) => window.location.href = p} 
+                  onLogout={handleLogout} 
                 />
               : <Navigate to="/auth" />
           } 

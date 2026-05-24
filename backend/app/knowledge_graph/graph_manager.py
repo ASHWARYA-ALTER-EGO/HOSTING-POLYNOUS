@@ -78,9 +78,101 @@ class KnowledgeGraph:
             print(f"⚠️ KG error: {e}")
             return False
     
+    def link_entities(self, entity1: str, entity2: str, context: str = ""):
+        """Create a relationship between two entities that appear in the same research"""
+        if not self.driver:
+            return
+        
+        try:
+            with self.driver.session() as session:
+                session.run("""
+                    MERGE (e1:Entity {name: $e1})
+                    MERGE (e2:Entity {name: $e2})
+                    MERGE (e1)-[r:CO_OCCURS_WITH]-(e2)
+                    SET r.count = coalesce(r.count, 0) + 1,
+                        r.last_seen = datetime(),
+                        r.context = $context
+                """, e1=entity1.strip(), e2=entity2.strip(), context=context[:200])
+        except Exception as e:
+            print(f"  ⚠️ Link error: {e}")
+
+    def get_all_entities_with_relationships(self) -> Dict:
+        """Get ALL entities and their relationships for the knowledge graph"""
+        if not self.driver:
+            return {"nodes": [], "edges": []}
+        
+        try:
+            with self.driver.session() as session:
+                # Get entity nodes
+                nodes_result = session.run("""
+                    MATCH (e:Entity)
+                    OPTIONAL MATCH (e)-[r:CO_OCCURS_WITH]-()
+                    RETURN e.name as name, count(r) as connections
+                    ORDER BY connections DESC
+                    LIMIT 40
+                """)
+                
+                nodes = []
+                for record in nodes_result:
+                    connections = record["connections"] if record["connections"] is not None else 0
+                    nodes.append({
+                        "id": record["name"],
+                        "label": record["name"],
+                        "size": min(40, connections * 5 + 15),
+                        "type": "entity",
+                        "connections": connections
+                    })
+                
+                # Get edges between entities
+                edges_result = session.run("""
+                    MATCH (e1:Entity)-[r:CO_OCCURS_WITH]-(e2:Entity)
+                    WHERE e1.name < e2.name
+                    RETURN e1.name as source, e2.name as target, r.count as weight
+                    ORDER BY r.count DESC
+                    LIMIT 80
+                """)
+                
+                edges = [
+                    {"source": record["source"], "target": record["target"], "weight": record["weight"]}
+                    for record in edges_result
+                ]
+                
+                # Also get topic nodes from research
+                topics_result = session.run("""
+                    MATCH (t:Topic)
+                    OPTIONAL MATCH (q:Query)-[:ABOUT]->(t)
+                    WITH t, count(q) as cnt
+                    WHERE cnt > 0
+                    RETURN t.name as name, cnt as research_count
+                    ORDER BY cnt DESC
+                    LIMIT 20
+                """)
+                
+                for record in topics_result:
+                    research_count = record["research_count"] if record["research_count"] is not None else 0
+                    # Check if topic already exists as entity
+                    if not any(n["id"] == record["name"] for n in nodes):
+                        nodes.append({
+                            "id": record["name"],
+                            "label": record["name"],
+                            "size": min(35, research_count * 8 + 15),
+                            "type": "major" if research_count > 2 else "minor",
+                            "connections": research_count
+                        })
+                
+                # If no edges from Neo4j, generate from word overlap
+                if not edges and len(nodes) >= 2:
+                    edges = self._generate_edges_from_labels(nodes)
+                
+                print(f"✅ KG Data: {len(nodes)} nodes, {len(edges)} edges")
+                return {"nodes": nodes, "edges": edges}
+                
+        except Exception as e:
+            print(f"❌ Entity graph error: {e}")
+            return {"nodes": [], "edges": []}
+    
     def extract_and_link_entities(self, text: str) -> List[str]:
-        """Extract entities from text and link them in graph"""
-        # Simple entity extraction (capitalized phrases)
+        """Extract entities from text and link them in graph using the new link_entities method"""
         import re
         entities = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', text)
         unique_entities = list(set(entities))[:8]
@@ -89,22 +181,10 @@ class KnowledgeGraph:
             return unique_entities
         
         try:
-            with self.driver.session() as session:
-                # Create entity nodes
-                for entity in unique_entities:
-                    session.run("""
-                        MERGE (e:Entity {name: $name})
-                    """, name=entity)
-                
-                # Create relationships between entities that appear together
-                for i in range(len(unique_entities)):
-                    for j in range(i+1, len(unique_entities)):
-                        session.run("""
-                            MATCH (e1:Entity {name: $name1})
-                            MATCH (e2:Entity {name: $name2})
-                            MERGE (e1)-[r:MENTIONED_WITH]->(e2)
-                            SET r.count = coalesce(r.count, 0) + 1
-                        """, name1=unique_entities[i], name2=unique_entities[j])
+            # Link each pair of entities using the new method
+            for i in range(len(unique_entities)):
+                for j in range(i+1, len(unique_entities)):
+                    self.link_entities(unique_entities[i], unique_entities[j], context=text[:200])
                 
             print(f"✅ Linked {len(unique_entities)} entities in graph")
         except Exception as e:
@@ -172,49 +252,101 @@ class KnowledgeGraph:
             return []
     
     def get_user_knowledge_graph(self, session_id: str = None) -> Dict:
-        """Get the user's knowledge graph as nodes and edges"""
+        """Get complete knowledge graph with REAL edges"""
         if not self.driver:
             return {"nodes": [], "edges": []}
         
         try:
             with self.driver.session() as session:
-                # Get topic nodes with size based on research count
+                # Get entity nodes
                 nodes_result = session.run("""
-                    MATCH (t:Topic)
-                    OPTIONAL MATCH (q:Query)-[:ABOUT]->(t)
-                    RETURN t.name as name, count(q) as size,
-                           CASE WHEN count(q) > 3 THEN 'major' ELSE 'minor' END as type
-                    ORDER BY size DESC
+                    MATCH (e:Entity)
+                    OPTIONAL MATCH (e)-[r:CO_OCCURS_WITH]-()
+                    RETURN e.name as name, count(r) as connections
+                    ORDER BY connections DESC
                     LIMIT 30
                 """)
                 
-                nodes = [
-                    {"id": record["name"], "label": record["name"], 
-                     "size": record["size"] * 10 + 20, "type": record["type"]}
-                    for record in nodes_result
-                ]
+                nodes = []
+                for record in nodes_result:
+                    connections = record["connections"] if record["connections"] is not None else 0
+                    nodes.append({
+                        "id": record["name"],
+                        "label": record["name"],
+                        "size": min(35, connections * 6 + 15),
+                        "type": "entity",
+                        "connections": connections
+                    })
                 
-                # Get edges between topics
+                # Get topic nodes too
+                topics_result = session.run("""
+                    MATCH (t:Topic)
+                    OPTIONAL MATCH (q:Query)-[:ABOUT]->(t)
+                    WITH t, count(q) as cnt
+                    WHERE cnt > 0
+                    RETURN t.name as name, cnt as research_count
+                    ORDER BY cnt DESC
+                    LIMIT 15
+                """)
+                
+                for record in topics_result:
+                    research_count = record["research_count"] if record["research_count"] is not None else 0
+                    if not any(n["id"] == record["name"] for n in nodes):
+                        nodes.append({
+                            "id": record["name"],
+                            "label": record["name"],
+                            "size": min(30, research_count * 8 + 12),
+                            "type": "topic",
+                            "connections": research_count
+                        })
+                
+                # Get edges between entities
                 edges_result = session.run("""
-                    MATCH (t1:Topic)<-[:ABOUT]-(q:Query)-[:ABOUT]->(t2:Topic)
-                    WHERE t1.name < t2.name
-                    RETURN t1.name as source, t2.name as target, 
-                           count(q) as weight
-                    ORDER BY weight DESC
+                    MATCH (e1:Entity)-[r:CO_OCCURS_WITH]-(e2:Entity)
+                    WHERE e1.name < e2.name
+                    RETURN e1.name as source, e2.name as target, r.count as weight
+                    ORDER BY r.count DESC
                     LIMIT 50
                 """)
                 
                 edges = [
-                    {"source": record["source"], "target": record["target"],
-                     "weight": record["weight"]}
+                    {"source": record["source"], "target": record["target"], "weight": record["weight"]}
                     for record in edges_result
                 ]
                 
+                # If no edges from Neo4j, generate from word overlap
+                if not edges and len(nodes) >= 2:
+                    edges = self._generate_edges_from_labels(nodes)
+                
+                print(f"✅ KG: {len(nodes)} nodes, {len(edges)} edges")
                 return {"nodes": nodes, "edges": edges}
                 
         except Exception as e:
-            print(f"❌ Knowledge graph query error: {e}")
+            print(f"❌ Graph error: {e}")
             return {"nodes": [], "edges": []}
+    
+    def _generate_edges_from_labels(self, nodes: List[Dict]) -> List[Dict]:
+        """Fallback: Generate edges based on word overlap in labels"""
+        edges = []
+        stop_words = {'the', 'and', 'of', 'in', 'to', 'a', 'is', 'for', 'on', 'with', 'ai'}
+        
+        for i in range(len(nodes)):
+            words_i = set(nodes[i]['label'].lower().replace(',', '').split())
+            words_i = {w for w in words_i if len(w) > 2 and w not in stop_words}
+            
+            for j in range(i + 1, len(nodes)):
+                words_j = set(nodes[j]['label'].lower().replace(',', '').split())
+                words_j = {w for w in words_j if len(w) > 2 and w not in stop_words}
+                
+                overlap = words_i & words_j
+                if overlap:
+                    edges.append({
+                        "source": nodes[i]['id'],
+                        "target": nodes[j]['id'],
+                        "weight": len(overlap)
+                    })
+        
+        return edges
 
 # Global instance
 kg = KnowledgeGraph()

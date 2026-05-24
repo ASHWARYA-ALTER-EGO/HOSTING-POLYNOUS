@@ -294,28 +294,41 @@ function Banner({ type, message }) {
 }
 
 // ─── Login Card ───────────────────────────────────────────────
-function LoginCard() {
+function LoginCard({ onLogin }) {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
   const [success, setSuccess]   = useState("");
+  const [isLogin, setIsLogin]   = useState(true);  // ← ADDED for Sign Up toggle
 
   const handleSubmit = async () => {
     setError(""); setSuccess("");
     if (!email || !password) { setError("All fields are required."); return; }
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/auth/login", {
+      const endpoint = isLogin ? '/auth/login' : '/auth/register'
+      const body = isLogin ? { email, password, remember } : { email, username: email.split('@')[0], password }
+      
+      const res = await fetch(`http://localhost:8000${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, remember }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Authentication failed.");
-      if (data.access_token) localStorage.setItem("token", data.access_token);
-      setSuccess(`Synapse active. Welcome, ${data.user?.name || "Researcher"}.`);
+      
+      localStorage.setItem('polynous_token', data.token)
+      localStorage.setItem('polynous_user', JSON.stringify({ username: data.username || email.split('@')[0], email }))
+      
+      setSuccess('Synapse active. Welcome, Researcher.')
+      
+      if (onLogin) {
+        onLogin(data)
+      } else {
+        window.location.href = '/dashboard'
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -324,7 +337,15 @@ function LoginCard() {
   };
 
   const handleOAuth = (provider) => {
-    window.location.href = `http://localhost:8000/auth/${provider}`;
+    window.location.href = `http://localhost:8000/oauth/${provider}`;
+  };
+
+  const handleGuest = () => {
+    const guest = { skip: true, username: 'Guest', email: 'guest@polynous.ai' }
+    localStorage.setItem('polynous_token', 'guest_' + Date.now())
+    localStorage.setItem('polynous_user', JSON.stringify(guest))
+    if (onLogin) onLogin(guest)
+    else window.location.href = '/dashboard'
   };
 
   return (
@@ -343,30 +364,25 @@ function LoginCard() {
         width: "100%",
       }}
     >
-      {/* Corner dots */}
       <SynapseDot style={{ top: 16, left: 16 }} />
       <SynapseDot style={{ top: 16, right: 16 }} />
       <SynapseDot style={{ bottom: 16, left: 16 }} />
       <SynapseDot style={{ bottom: 16, right: 16 }} />
 
-      {/* Header */}
       <div style={{ textAlign: "center", marginBottom: 32 }}>
         <div className="pulse-brain" style={{ fontSize: 56, marginBottom: 12, lineHeight: 1 }}>🧠</div>
-        <h1 style={{
-          fontFamily: "'Sora', sans-serif", fontSize: 38,
-          fontWeight: 700, color: C.green, letterSpacing: "-0.03em", marginBottom: 4,
-        }}>
-          POLYNOUS
-        </h1>
-        <p style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-          color: C.onSurfaceVariant, textTransform: "uppercase", letterSpacing: "0.2em",
-        }}>
-          Cerebral Vitality Engine
-        </p>
+        <h1 style={{ fontFamily: "'Sora', sans-serif", fontSize: 38, fontWeight: 700, color: C.green, letterSpacing: "-0.03em", marginBottom: 4 }}>POLYNOUS</h1>
+        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.onSurfaceVariant, textTransform: "uppercase", letterSpacing: "0.2em" }}>Cerebral Vitality Engine</p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        
+        {/* Toggle: Login / Sign Up */}
+        <div style={{ display: "flex", background: C.white5, borderRadius: 14, padding: 4 }}>
+          <button onClick={() => { setIsLogin(true); setError(''); setSuccess('') }} style={{ flex: 1, padding: '10px', borderRadius: 12, border: 'none', cursor: 'pointer', background: isLogin ? C.green : 'transparent', color: isLogin ? C.void : C.onSurfaceVariant, fontWeight: 600, fontSize: 14, fontFamily: "'Sora', sans-serif" }}>Login</button>
+          <button onClick={() => { setIsLogin(false); setError(''); setSuccess('') }} style={{ flex: 1, padding: '10px', borderRadius: 12, border: 'none', cursor: 'pointer', background: !isLogin ? C.green : 'transparent', color: !isLogin ? C.void : C.onSurfaceVariant, fontWeight: 600, fontSize: 14, fontFamily: "'Sora', sans-serif" }}>Sign Up</button>
+        </div>
+
         {/* OAuth buttons */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <OAuthButton label="Google" onClick={() => handleOAuth("google")}>
@@ -387,102 +403,36 @@ function LoginCard() {
         {/* Divider */}
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ flex: 1, borderTop: `1px solid ${C.white10}` }} />
-          <span style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-            color: C.onSurfaceVariant, textTransform: "uppercase",
-            letterSpacing: "0.12em", whiteSpace: "nowrap",
-          }}>
-            Or connect via neural link
-          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: C.onSurfaceVariant, textTransform: "uppercase", letterSpacing: "0.12em", whiteSpace: "nowrap" }}>Or connect via neural link</span>
           <div style={{ flex: 1, borderTop: `1px solid ${C.white10}` }} />
         </div>
 
-        {/* Form */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <NeuralInput
-            label="Neural Identity (Email)"
-            type="email"
-            placeholder="researcher@neural.bank"
-            icon="alternate_email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-          />
-          <NeuralInput
-            label="Cortex Key (Password)"
-            type="password"
-            placeholder="••••••••"
-            icon="fingerprint"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-          />
+        {/* Form - Added Enter key support */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }} onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit() }}>
+          <NeuralInput label="Neural Identity (Email)" type="email" placeholder="researcher@neural.bank" icon="alternate_email" value={email} onChange={e => setEmail(e.target.value)} />
+          <NeuralInput label="Cortex Key (Password)" type="password" placeholder="••••••••" icon="fingerprint" value={password} onChange={e => setPassword(e.target.value)} />
 
-          {/* Remember + Forgot */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px" }}>
-            <label
-              className="remember-label"
-              style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
-            >
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={e => setRemember(e.target.checked)}
-              />
-              <span style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 12, color: C.onSurfaceVariant, transition: "color 0.2s",
-              }}>
-                Keep Synapse Active
-              </span>
+            <label className="remember-label" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.onSurfaceVariant }}>Keep Synapse Active</span>
             </label>
-            <a
-              href="#"
-              className="forgot-link"
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 12, color: C.cyan, textDecoration: "none",
-              }}
-            >
-              Lost Cortex Access?
-            </a>
+            <a href="#" className="forgot-link" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.cyan, textDecoration: "none" }}>Lost Cortex Access?</a>
           </div>
 
-          <Banner type="error"   message={error}   />
+          <Banner type="error" message={error} />
           <Banner type="success" message={success} />
 
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="btn-glow-green"
-            style={{
-              width: "100%", border: "none", cursor: loading ? "not-allowed" : "pointer",
-              borderRadius: 9999, padding: "14px 32px",
-              fontFamily: "'Sora', sans-serif", fontSize: 16,
-              fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-              marginTop: 8, opacity: loading ? 0.6 : 1,
-            }}
-          >
-            {loading ? "Connecting..." : "Connect to Brain"}
+          <button onClick={handleSubmit} disabled={loading} className="btn-glow-green" style={{ width: "100%", border: "none", cursor: loading ? "not-allowed" : "pointer", borderRadius: 9999, padding: "14px 32px", fontFamily: "'Sora', sans-serif", fontSize: 16, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 8, opacity: loading ? 0.6 : 1 }}>
+            {loading ? "Connecting..." : isLogin ? "Connect to Brain" : "Initialize Profile"}
             {!loading && <Icon name="bolt" style={{ fontSize: 20, color: "#003a00" }} />}
           </button>
         </div>
 
-        {/* Register */}
-        <p style={{
-          textAlign: "center",
-          fontFamily: "'Hanken Grotesk', sans-serif",
-          fontSize: 15, color: C.onSurfaceVariant,
-        }}>
-          New research stream?{" "}
-          <a
-            href="/register"
-            className="register-link"
-            style={{ color: C.green, fontWeight: 700, textDecoration: "none" }}
-          >
-            Initialize Profile
-          </a>
-        </p>
+        {/* Skip Button - Continue as guest */}
+        <button onClick={handleGuest} style={{ width: '100%', padding: '12px', background: 'transparent', border: `1px solid ${C.white10}`, borderRadius: 14, color: '#888', cursor: 'pointer', fontSize: 13, fontFamily: "'JetBrains Mono', monospace", transition: 'all 0.3s' }} onMouseEnter={e => { e.target.style.borderColor = '#00ccff'; e.target.style.color = '#00ccff' }} onMouseLeave={e => { e.target.style.borderColor = C.white10; e.target.style.color = '#888' }}>
+          Skip for now → Continue as guest
+        </button>
       </div>
     </div>
   );
@@ -518,7 +468,7 @@ function Footer() {
 }
 
 // ─── Root App ─────────────────────────────────────────────────
-export default function PolynousLoginV2() {
+export default function PolynousLoginV2({ onLogin }) {
   return (
     <>
       <GlobalStyles />
@@ -530,7 +480,7 @@ export default function PolynousLoginV2() {
         padding: "0 16px",
         display: "flex", flexDirection: "column",
       }}>
-        <LoginCard />
+        <LoginCard onLogin={onLogin} />
         <Footer />
       </main>
     </>

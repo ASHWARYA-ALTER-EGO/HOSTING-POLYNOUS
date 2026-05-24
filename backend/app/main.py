@@ -1,3 +1,4 @@
+from app.routes.pdfs import router as pdfs_router
 from app.routes.semantic_search import router as search_router
 from app.routes.knowledge import router as knowledge_router
 from app.middleware.rate_limiter import check_rate_limit
@@ -54,6 +55,7 @@ app.include_router(conversations_router)
 app.include_router(oauth_router)
 app.include_router(knowledge_router)
 app.include_router(search_router)
+app.include_router(pdfs_router)
 
 # ========== MODELS ==========
 class QueryRequest(BaseModel):

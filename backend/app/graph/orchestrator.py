@@ -1,3 +1,4 @@
+from app.semantic_search import semantic_search
 from app.knowledge_graph.hybrid_search import hybrid
 from app.knowledge_graph.graph_manager import kg
 from app.knowledge_graph.user_memory import user_memory
@@ -108,9 +109,14 @@ def writer_node(state: AgentState) -> AgentState:
     )
     state['final_answer'] = answer
     
-    # ========== FIXED: Store research in knowledge graph ==========
+    # Extract entities for storage
     try:
         entities = hybrid._extract_entities(state['query'])
+    except:
+        entities = []
+    
+    # ========== Store in Knowledge Graph ==========
+    try:
         kg.add_research_entry(
             query=state['query'],
             answer=answer,
@@ -123,9 +129,8 @@ def writer_node(state: AgentState) -> AgentState:
     except Exception as e:
         print(f"⚠️ Knowledge Graph storage: {e}")
     
-    # ========== FIXED: Record in user memory ==========
+    # ========== Record in User Memory ==========
     try:
-        entities = hybrid._extract_entities(state['query'])
         user_memory.record_research(
             user_id="guest_user",
             query=state['query'],
@@ -138,6 +143,19 @@ def writer_node(state: AgentState) -> AgentState:
         print("🧠 Recorded in User Memory")
     except Exception as e:
         print(f"⚠️ User memory recording: {e}")
+    
+    # ========== NEW: Index in Semantic Search ==========
+    try:
+        semantic_search.add_to_index(
+            query=state['query'],
+            answer=answer,
+            mode="research",
+            confidence=state.get('critique', {}).get('overall_confidence', 0),
+            sources=state.get('citations', [])
+        )
+        print("🔍 Indexed for Semantic Search")
+    except Exception as e:
+        print(f"⚠️ Search indexing: {e}")
     
     print("✅ Final answer ready with graph insights!")
     print("="*60 + "\n")

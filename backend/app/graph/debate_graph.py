@@ -3,6 +3,7 @@ from app.state import AgentState
 from app.agents.debate_agents import argue_for_position, argue_against_position, judge_debate
 from app.search_agent import search_web
 from app.knowledge_graph.user_memory import user_memory
+from app.semantic_search import semantic_search  # ← ADD THIS IMPORT
 
 def debate_search_node(state: AgentState) -> AgentState:
     """Search for debate sources"""
@@ -121,7 +122,7 @@ def judge_node(state: AgentState) -> AgentState:
         for doc in state.get('retrieved_docs', [])
     ]
     
-    # ========== FIXED: Store debate in memory ==========
+    # ========== Store debate in user memory ==========
     print(f"📌 Storing debate for user_id: guest_user")
     try:
         user_memory.record_debate(
@@ -134,6 +135,19 @@ def judge_node(state: AgentState) -> AgentState:
         print("  ✅ Stored in User Memory")
     except Exception as e:
         print(f"  ⚠️ Memory storage error: {e}")
+    
+    # ========== NEW: Index debate in semantic search ==========
+    try:
+        semantic_search.add_to_index(
+            query=state['query'],
+            answer=state.get('final_answer', ''),
+            mode="debate",
+            confidence=for_score * 10,  # Convert 1-10 to 10-100 scale
+            sources=state.get('citations', [])
+        )
+        print("  🔍 Indexed debate for Semantic Search")
+    except Exception as e:
+        print(f"  ⚠️ Search indexing error: {e}")
     
     print(f"✅ Debate complete! Winner: {winner}")
     print("="*60 + "\n")

@@ -1,3 +1,4 @@
+import LandingPage2 from './components/LandingPage2';
 import PdfLabPage from './components/PdfLabPage';
 import SemanticSearchPage from './components/SemanticSearchPage'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -82,6 +83,16 @@ export default function App() {
     setUser(null)
   }
 
+  // ========== HANDLE GET STARTED - CHECKS TOKEN FIRST ==========
+  const handleGetStarted = () => {
+    const token = localStorage.getItem('polynous_token');
+    if (token) {
+      window.location.href = '/research';
+    } else {
+      window.location.href = '/auth';
+    }
+  };
+
   // Don't render until initial check is done
   if (!initialCheckDone) {
     return (
@@ -94,10 +105,17 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Landing Page */}
+        {/* Landing Page - Using new LandingPage2 with integrated get started handler */}
         <Route 
           path="/" 
-          element={isLoggedIn ? <Navigate to="/dashboard" /> : <LandingPage />} 
+          element={
+            isLoggedIn 
+              ? <Navigate to="/research" /> 
+              : <LandingPage2 
+                  onNavigate={(path) => window.location.href = path} 
+                  onGetStarted={handleGetStarted}
+                />
+          } 
         />
         
         {/* Auth Page */}
@@ -105,7 +123,7 @@ export default function App() {
           path="/auth" 
           element={
             isLoggedIn 
-              ? <Navigate to="/dashboard" /> 
+              ? <Navigate to="/research" /> 
               : <AuthPage onLogin={handleLogin} />
           } 
         />

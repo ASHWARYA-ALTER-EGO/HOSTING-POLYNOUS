@@ -93,7 +93,8 @@ function Sidebar({ onNavigate, user, onLogout }) {
     { icon: "account_tree", label: "Knowledge Graph", path: "/graph" },
     { icon: "travel_explore", label: "Semantic Search", path: "/search" },
     { icon: "database", label: "Memory Bank", path: "/memory", active: true },
-    { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" }
+    { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" },
+    { icon: "analytics", label: "Analytics", path: "/analytics" },
   ];
 
   const handleNav = (path) => { if (onNavigate) onNavigate(path); else window.location.href = path; };

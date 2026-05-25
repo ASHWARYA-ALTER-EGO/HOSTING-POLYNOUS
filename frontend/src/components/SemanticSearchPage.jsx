@@ -11,7 +11,7 @@ function Icon({ name, style }) {
   return <span style={{ fontFamily: "Material Symbols Outlined", fontVariationSettings: "'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24", lineHeight: 1, ...(style || {}) }}>{name}</span>
 }
 
-// ─── SMOOTH COLLAPSIBLE SIDEBAR ───────────────────────────────
+// ─── SMOOTH COLLAPSIBLE SIDEBAR WITH BLUE THEME ───────────────────────────────
 function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
   const NAV = [
     { icon: "travel_explore", label: "Research", path: "/research" },
@@ -19,7 +19,8 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
     { icon: "account_tree", label: "Knowledge Graph", path: "/graph" },
     { icon: "search", label: "Semantic Search", path: "/search", active: true },
     { icon: "database", label: "Memory Bank", path: "/memory" },
-    { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" }
+    { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" },
+    { icon: "analytics", label: "Analytics", path: "/analytics" },
   ];
 
   const handleNav = (path) => onNavigate ? onNavigate(path) : window.location.href = path;
@@ -39,20 +40,20 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
     }}>
       {collapsed ? (
         <>
-          <button onClick={() => setCollapsed(false)} style={{ background: "none", border: "none", color: C.green, cursor: "pointer", marginBottom: 32, display: "flex", justifyContent: "center" }} title="Expand">
+          <button onClick={() => setCollapsed(false)} style={{ background: "none", border: "none", color: C.cyan, cursor: "pointer", marginBottom: 32, display: "flex", justifyContent: "center" }} title="Expand">
             <Icon name="chevron_right" style={{ fontSize: 22 }} />
           </button>
           {NAV.map(({ icon, label, path, active }) => (
-            <div key={label} onClick={() => handleNav(path)} title={label} style={{ padding: "12px 0", cursor: "pointer", color: active ? C.green : C.onSurfaceVariant, width: "100%", display: "flex", justifyContent: "center" }}>
+            <div key={label} onClick={() => handleNav(path)} title={label} style={{ padding: "12px 0", cursor: "pointer", color: active ? C.cyan : C.onSurfaceVariant, width: "100%", display: "flex", justifyContent: "center" }}>
               <Icon name={icon} style={{ fontSize: 20, color: "inherit" }} />
             </div>
           ))}
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-            <div onClick={() => handleNav('/research')} title="New Research" style={{ width: 34, height: 34, borderRadius: "50%", background: C.green, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <div onClick={() => handleNav('/research')} title="New Research" style={{ width: 34, height: 34, borderRadius: "50%", background: C.cyan, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <Icon name="add" style={{ fontSize: 16, color: C.void }} />
             </div>
-            <div title={user?.username || 'Guest'} style={{ width: 30, height: 30, borderRadius: "50%", background: C.surfaceContainer, border: "1px solid rgba(0,255,15,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name="face" style={{ color: C.green, fontSize: 14 }} />
+            <div title={user?.username || 'Guest'} style={{ width: 30, height: 30, borderRadius: "50%", background: C.surfaceContainer, border: "1px solid rgba(0,204,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="face" style={{ color: C.cyan, fontSize: 14 }} />
             </div>
             <div onClick={handleLogout} title="Disconnect" style={{ cursor: "pointer", color: C.crimson }}>
               <Icon name="logout" style={{ fontSize: 14 }} />
@@ -63,7 +64,8 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
         <>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40, minWidth: 0 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h1 style={{ fontFamily: "'Sora',sans-serif", fontSize: 28, fontWeight: 800, color: C.green, letterSpacing: "-0.03em", whiteSpace: "nowrap" }}>POLYNOUS</h1>
+              {/* POLYNOUS text changed to BLUE (C.cyan) */}
+              <h1 style={{ fontFamily: "'Sora',sans-serif", fontSize: 28, fontWeight: 800, color: C.cyan, letterSpacing: "-0.03em", whiteSpace: "nowrap" }}>POLYNOUS</h1>
               <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: C.onSurfaceVariant, textTransform: "uppercase", letterSpacing: "0.2em", opacity: 0.7, whiteSpace: "nowrap" }}>Cerebral Vitality Engine</p>
             </div>
             <button onClick={() => setCollapsed(true)} style={{ background: "none", border: "none", color: C.textSecondary, cursor: "pointer", padding: 4, flexShrink: 0, marginLeft: 8 }}
@@ -73,8 +75,8 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
           </div>
           <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4, overflow: "hidden" }}>
             {NAV.map(({ icon, label, path, active }) => (
-              <div key={label} onClick={() => handleNav(path)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderRadius: 9999, cursor: "pointer", color: active ? C.green : C.onSurfaceVariant, background: active ? "rgba(0,255,15,0.08)" : "transparent", fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: active ? 700 : 400, transition: "all 0.2s", whiteSpace: "nowrap", overflow: "hidden" }}
-                onMouseEnter={e => { if (!active) { e.target.style.color = C.green; e.target.style.background = "rgba(255,255,255,0.05)" } }}
+              <div key={label} onClick={() => handleNav(path)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderRadius: 9999, cursor: "pointer", color: active ? C.cyan : C.onSurfaceVariant, background: active ? "rgba(0,204,255,0.08)" : "transparent", fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: active ? 700 : 400, transition: "all 0.2s", whiteSpace: "nowrap", overflow: "hidden" }}
+                onMouseEnter={e => { if (!active) { e.target.style.color = C.cyan; e.target.style.background = "rgba(255,255,255,0.05)" } }}
                 onMouseLeave={e => { if (!active) { e.target.style.color = C.onSurfaceVariant; e.target.style.background = "transparent" } }}>
                 <Icon name={icon} style={{ fontSize: 20, color: "inherit", flexShrink: 0 }} />
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
@@ -82,13 +84,13 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
             ))}
           </nav>
           <div style={{ borderTop: "1px solid " + C.white5, paddingTop: 24, marginTop: 24 }}>
-            <button onClick={() => handleNav('/research')} style={{ width: "100%", padding: "12px", background: C.green, color: C.void, fontWeight: 700, borderRadius: 9999, border: "none", cursor: "pointer", fontFamily: "'Sora',sans-serif", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.2s", whiteSpace: "nowrap" }}
+            <button onClick={() => handleNav('/research')} style={{ width: "100%", padding: "12px", background: C.cyan, color: C.void, fontWeight: 700, borderRadius: 9999, border: "none", cursor: "pointer", fontFamily: "'Sora',sans-serif", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.2s", whiteSpace: "nowrap" }}
               onMouseEnter={e => e.target.style.transform = "scale(1.03)"} onMouseLeave={e => e.target.style.transform = "scale(1)"}>
               <Icon name="add" style={{ fontSize: 18, color: C.void, flexShrink: 0 }} />New Research
             </button>
             <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.surfaceContainer, border: "1px solid rgba(0,255,15,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon name="face" style={{ color: C.green, fontSize: 22 }} />
+              <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.surfaceContainer, border: "1px solid rgba(0,204,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="face" style={{ color: C.cyan, fontSize: 22 }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.username || 'Guest'}</p>
@@ -259,9 +261,29 @@ export default function SemanticSearchPage({ user, onStartResearch, onNavigate, 
             </div>
           </div>
 
-          {selectedResult&&(<div style={{background:'rgba(10,10,30,0.8)',backdropFilter:'blur(20px)',border:'1px solid rgba(0,255,15,0.3)',borderRadius:'20px',padding:'28px',position:'relative',boxShadow:'0 0 30px rgba(0,255,15,0.15)',animation:'fadeSlideUp 0.4s ease'}}>{['2px 2px','2px auto','auto 2px','auto auto'].map((p,i)=><div key={i} style={{position:'absolute',[p.includes('2px')?'top':'bottom']:'8px',[i<2?'left':'right']:'8px',width:'6px',height:'6px',borderRadius:'50%',background:C.green,boxShadow:'0 0 8px '+C.green}}/>)}
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'20px'}}><div><span style={{fontFamily:"'JetBrains Mono',monospace",background:'rgba(0,255,15,0.1)',color:C.green,border:'1px solid rgba(0,255,15,0.3)',padding:'4px 12px',borderRadius:'20px',fontSize:'11px',textTransform:'uppercase',display:'inline-block',marginBottom:'12px'}}>{selectedResult.mode==='debate'?'🗣️ Debate Node':'🔬 Research Node'}</span><h3 style={{fontFamily:"'Sora',sans-serif",fontSize:'1.3em',color:'#fff',margin:0}}>{selectedResult.query}</h3></div><button onClick={handleCloseDetail} style={{background:'none',border:'none',color:C.textSecondary,cursor:'pointer',fontSize:'20px'}}>✕</button></div>
-            <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'24px',marginBottom:'20px'}}><p style={{fontFamily:"'Hanken Grotesk',sans-serif",color:'#c8d6e5',fontSize:'14px',lineHeight:1.7}}>{selectedResult.answer||'No additional details available.'}</p><div style={{background:'rgba(255,255,255,0.03)',borderRadius:'12px',padding:'16px',border:'1px solid rgba(255,255,255,0.06)'}}><div style={{marginBottom:'16px'}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:'10px',color:'#555',textTransform:'uppercase',marginBottom:'4px'}}>Similarity</div><div style={{fontFamily:"'Sora',sans-serif",fontSize:'1.4em',fontWeight:800,color:C.green}}>{selectedResult.score}%</div></div><div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:'10px',color:'#555',textTransform:'uppercase',marginBottom:'4px'}}>Confidence</div><div style={{fontFamily:"'Sora',sans-serif",fontSize:'1.2em',fontWeight:700,color:C.cyan}}>{selectedResult.confidence||'N/A'}%</div></div></div></div>
+          {selectedResult&&(<div style={{background:'rgba(10,10,30,0.8)',backdropFilter:'blur(20px)',border:'1px solid rgba(0,255,15,0.3)',borderRadius:'20px',padding:'28px',position:'relative',boxShadow:'0 0 30px rgba(0,255,15,0.15)',animation:'fadeSlideUp 0.4s ease'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'20px'}}>
+              <div>
+                <span style={{fontFamily:"'JetBrains Mono',monospace",background:'rgba(0,255,15,0.1)',color:C.green,border:'1px solid rgba(0,255,15,0.3)',padding:'4px 12px',borderRadius:'20px',fontSize:'11px',textTransform:'uppercase',display:'inline-block',marginBottom:'12px'}}>
+                  {selectedResult.mode==='debate'?'🗣️ Debate Node':'🔬 Research Node'}
+                </span>
+                <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:'1.3em',color:'#fff',margin:0}}>{selectedResult.query}</h3>
+              </div>
+              <button onClick={handleCloseDetail} style={{background:'none',border:'none',color:C.textSecondary,cursor:'pointer',fontSize:'20px'}}>✕</button>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'24px',marginBottom:'20px'}}>
+              <p style={{fontFamily:"'Hanken Grotesk',sans-serif",color:'#c8d6e5',fontSize:'14px',lineHeight:1.7}}>{selectedResult.answer||'No additional details available.'}</p>
+              <div style={{background:'rgba(255,255,255,0.03)',borderRadius:'12px',padding:'16px',border:'1px solid rgba(255,255,255,0.06)'}}>
+                <div style={{marginBottom:'16px'}}>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:'10px',color:'#555',textTransform:'uppercase',marginBottom:'4px'}}>Similarity</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:'1.4em',fontWeight:800,color:C.green}}>{selectedResult.score}%</div>
+                </div>
+                <div>
+                  <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:'10px',color:'#555',textTransform:'uppercase',marginBottom:'4px'}}>Confidence</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:'1.2em',fontWeight:700,color:C.cyan}}>{selectedResult.confidence||'N/A'}%</div>
+                </div>
+              </div>
+            </div>
             <button onClick={handleInitiateStream} style={{fontFamily:"'Sora',sans-serif",background:C.green,color:C.void,padding:'14px 32px',borderRadius:'50px',border:'none',fontWeight:700,fontSize:'15px',cursor:'pointer'}}>Initiate Stream →</button>
           </div>)}
 

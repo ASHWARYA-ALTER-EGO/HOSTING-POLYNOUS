@@ -156,6 +156,7 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
     { icon: "search", label: "Semantic Search", path: "/search" },
     { icon: "database", label: "Memory Bank", path: "/memory" },
     { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" },
+    { icon: "analytics", label: "Analytics", path: "/analytics" },
   ];
   const handleNav = (p) => onNavigate ? onNavigate(p) : window.location.href = p;
   const handleLogout = () => onLogout ? onLogout() : (localStorage.clear(), window.location.href = '/');

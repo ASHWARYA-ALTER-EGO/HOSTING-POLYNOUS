@@ -11,6 +11,7 @@ import MemoryBank from './components/MemoryBank';
 import ResearchInterface from './components/ResearchInterface';
 import DebateInterface from './components/DebateInterface';
 import KnowledgeGraphPage from './components/KnowledgeGraphPage';
+import PolynousDashboard from './components/PolynousDashboard'
 
 // ========== MAIN APP WRAPPER (for pages with sidebar) ==========
 function DashboardWrapper({ user, onLogout }) {
@@ -214,6 +215,20 @@ export default function App() {
               ? <PdfLabPage 
                   user={user} 
                   onNavigate={(p) => window.location.href = p} 
+                  onLogout={handleLogout} 
+                />
+              : <Navigate to="/auth" />
+          } 
+        />
+
+        {/* Analytics Dashboard */}
+        <Route 
+          path="/analytics" 
+          element={
+            isLoggedIn 
+              ? <PolynousDashboard 
+                  user={user} 
+                  onNavigate={(path) => window.location.href = path} 
                   onLogout={handleLogout} 
                 />
               : <Navigate to="/auth" />

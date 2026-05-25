@@ -1,508 +1,378 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import EmptyGraphState from './EmptyGraphState';
+import { useState, useEffect, useRef, useCallback } from "react";
 
 const C = {
-  green: "#00ff0f", cyan: "#00ccff", crimson: "#ff2040",
-  void: "#0a0a1e", surface: "#111125", surfaceContainer: "#1e1e32",
-  onSurface: "#e2e0fc", onSurfaceVariant: "#b9ccb0",
+  green: "#00ff0f", cyan: "#00ccff", crimson: "#ff2040", purple: "#a855f7",
+  gold: "#ffd700", amber: "#ffaa00", void: "#0a0a1e", surface: "#111125",
+  surfaceContainer: "#1e1e32", onSurface: "#e2e0fc", onSurfaceVariant: "#b9ccb0",
   textSecondary: "#8899aa", white10: "rgba(255,255,255,0.1)", white5: "rgba(255,255,255,0.05)",
 };
 
-const NODE_COLORS = {
-  concept: { fill: "#7c6fdd", glow: "#7c6fdd", ring: "#a99fff", text: "#c8c0ff" },
-  entity:  { fill: "#1dab82", glow: "#1dab82", ring: "#5fffc8", text: "#8fffd8" },
-  topic:   { fill: "#e06c45", glow: "#e06c45", ring: "#ff9e72", text: "#ffc4a8" },
-  core:    { fill: "#a855f7", glow: "#a855f7", ring: "#d4a5ff", text: "#e2d4ff" },
-  major:   { fill: C.green, glow: C.green, ring: "#6eff6e", text: "#b4ffb4" },
-  debate:  { fill: C.crimson, glow: C.crimson, ring: "#ff6b82", text: "#ffb3c0" },
-  default: { fill: "#5878d4", glow: "#5878d4", ring: "#8aaeff", text: "#aac4ff" },
-};
-
-function hexToRgb(hex) {
-  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-  return [r,g,b];
-}
-
 function Icon({ name, style }) {
-  return <span style={{ fontFamily: "Material Symbols Outlined", fontVariationSettings: "'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24", lineHeight: 1, ...(style || {}) }}>{name}</span>
-}
-
-// ─── Force-Directed Physics Constants ────────────────────────
-const REPULSION_STRENGTH = 600;
-const ATTRACTION_STRENGTH = 0.008;
-const DAMPING = 0.82;
-const CENTER_GRAVITY = 0.001;
-const EDGE_IDEAL_LENGTH = 150;
-
-function runForceSimulation(nodes, edges, width, height, iterations = 80) {
-  const simNodes = nodes.map((n) => ({
-    ...n,
-    x: width/2 + (Math.random() - 0.5) * 300,
-    y: height/2 + (Math.random() - 0.5) * 300,
-    vx: 0, vy: 0,
-    color: (NODE_COLORS[n.type] || NODE_COLORS.default).fill,
-    glow: (NODE_COLORS[n.type] || NODE_COLORS.default).glow,
-    size: Math.min(38, Math.max(14, n.size || 20)),
-    connections: n.connections || 0,
-  }));
-
-  for (let iter = 0; iter < iterations; iter++) {
-    // Repulsion between ALL nodes
-    for (let i = 0; i < simNodes.length; i++) {
-      for (let j = i + 1; j < simNodes.length; j++) {
-        const dx = simNodes[i].x - simNodes[j].x;
-        const dy = simNodes[i].y - simNodes[j].y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const minDist = (simNodes[i].size + simNodes[j].size) * 1.5;
-        if (dist < minDist) {
-          const force = (minDist - dist) / minDist * 2;
-          const fx = (dx / dist) * force;
-          const fy = (dy / dist) * force;
-          simNodes[i].vx += fx; simNodes[i].vy += fy;
-          simNodes[j].vx -= fx; simNodes[j].vy -= fy;
-        }
-      }
-    }
-
-    // Attraction along edges (stronger pull)
-    edges.forEach(edge => {
-      const src = simNodes.find(n => n.id === edge.source);
-      const tgt = simNodes.find(n => n.id === edge.target);
-      if (!src || !tgt) return;
-      const dx = tgt.x - src.x, dy = tgt.y - src.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const targetDist = EDGE_IDEAL_LENGTH + src.size + tgt.size;
-      const delta = dist - targetDist;
-      const force = delta * ATTRACTION_STRENGTH * (edge.weight || 1);
-      const fx = (dx / dist) * force, fy = (dy / dist) * force;
-      src.vx += fx; src.vy += fy;
-      tgt.vx -= fx; tgt.vy -= fy;
-    });
-
-    // Update positions
-    simNodes.forEach(n => {
-      n.vx += (width/2 - n.x) * CENTER_GRAVITY;
-      n.vy += (height/2 - n.y) * CENTER_GRAVITY;
-      n.vx *= DAMPING; n.vy *= DAMPING;
-      n.x += n.vx; n.y += n.vy;
-      n.x = Math.max(40, Math.min(width - 40, n.x));
-      n.y = Math.max(40, Math.min(height - 40, n.y));
-    });
-  }
-
-  return simNodes;
-}
-
-// ─── Neural Background Particles ─────────────────────────────
-function NeuralParticleBackground({ canvasRef }) {
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let particles = [], animId;
-    const N = 80;
-
-    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
-    window.addEventListener('resize', resize); resize();
-
-    for (let i = 0; i < N; i++) {
-      particles.push({
-        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
-        size: Math.random() * 2 + 1, opacity: Math.random() * 0.4 + 0.1
-      });
-    }
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach((p, i) => {
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
-        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0,255,15,${p.opacity})`; ctx.fill();
-        for (let j = i + 1; j < particles.length; j++) {
-          const d = Math.hypot(p.x - particles[j].x, p.y - particles[j].y);
-          if (d < 100) {
-            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(0,204,255,${0.06 * (1 - d/100)})`; ctx.lineWidth = 0.3; ctx.stroke();
-          }
-        }
-      });
-      animId = requestAnimationFrame(animate);
-    };
-    animate();
-    return () => cancelAnimationFrame(animId);
-  }, [canvasRef]);
-
-  return null;
-}
-
-// ─── Metric Row ──────────────────────────────────────────────
-function MetricRow({ label, value, color = C.green }) {
   return (
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'3px 0'}}>
-      <span style={{fontSize:10,color:C.textSecondary,fontFamily:"'JetBrains Mono',monospace"}}>{label}</span>
-      <span style={{fontSize:11,fontWeight:700,color,fontFamily:"'JetBrains Mono',monospace"}}>{value}</span>
+    <span style={{
+      fontFamily: "Material Symbols Outlined",
+      fontVariationSettings: "'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24",
+      lineHeight: 1, display: "inline-block", ...(style || {})
+    }}>{name}</span>
+  );
+}
+
+function Styles() {
+  return <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Hanken+Grotesk:wght@400;500;600&family=Material+Symbols+Outlined&display=swap');
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0a0a1e;color:#e2e0fc;font-family:'Hanken Grotesk',sans-serif;overflow-x:hidden}
+    ::selection{background:rgba(255,32,64,0.25)}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    @keyframes fadeSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulse-crimson{0%,100%{box-shadow:0 0 10px rgba(255,32,64,0.2)}50%{box-shadow:0 0 25px rgba(255,32,64,0.6)}}
+    .pulse-input{animation:pulse-crimson 2s infinite}
+    .fade-up{animation:fadeSlideUp 0.5s ease forwards}
+    .custom-scrollbar::-webkit-scrollbar{width:4px}
+    .custom-scrollbar::-webkit-scrollbar-track{background:transparent}
+    .custom-scrollbar::-webkit-scrollbar-thumb{background:rgba(255,32,64,0.2);border-radius:10px}
+    .nav-link{transition:all 0.2s;cursor:pointer}
+    .nav-link:hover{color:#ff2040!important;background:rgba(255,255,255,0.05)!important}
+  `}</style>;
+}
+
+// ─── Neural Particle Background ───────────────────────────────
+function NeuralCanvas({ debateActive }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current; const ctx = canvas.getContext("2d");
+    let particles = [], animId; const N = 120;
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight };
+    window.addEventListener("resize", resize); resize();
+    for (let i = 0; i < N; i++) particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: (Math.random()-0.5)*(debateActive?0.8:0.4), vy: (Math.random()-0.5)*(debateActive?0.8:0.4), size: Math.random()*2+1, opacity: Math.random()*0.4+(debateActive?0.3:0.1) });
+    const loop = () => { ctx.clearRect(0,0,canvas.width,canvas.height); particles.forEach((p,i)=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>canvas.width)p.vx*=-1;if(p.y<0||p.y>canvas.height)p.vy*=-1;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fillStyle=`rgba(255,32,64,${p.opacity})`;ctx.fill();for(let j=i+1;j<particles.length;j++){const d=Math.hypot(p.x-particles[j].x,p.y-particles[j].y);if(d<100){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(particles[j].x,particles[j].y);ctx.strokeStyle=`rgba(255,32,64,${0.08*(1-d/100)})`;ctx.lineWidth=0.3;ctx.stroke()}}});animId=requestAnimationFrame(loop)};loop();
+    return () => { cancelAnimationFrame(animId); window.removeEventListener("resize", resize); };
+  }, [debateActive]);
+  return <canvas ref={ref} style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", zIndex: 0, pointerEvents: "none" }} />;
+}
+
+// ─── ALL DEBATE TOPICS (for shuffling pills) ────────────────────────────────
+const ALL_DEBATE_TOPICS = [
+  "Should AI development be regulated globally?",
+  "Is nuclear energy the solution to climate change?",
+  "Should we colonize Mars?",
+  "Are cryptocurrencies the future of finance?",
+  "Should genetic engineering be allowed in humans?",
+  "Is universal basic income economically viable?",
+  "Should social media platforms be regulated like public utilities?",
+  "Is remote work better for productivity than office work?",
+  "Should animal testing be banned entirely?",
+  "Is space exploration worth the cost?",
+  "Should voting be mandatory?",
+  "Is free speech absolute on the internet?",
+  "Should we ban fossil fuels by 2030?",
+  "Is artificial consciousness possible?",
+  "Should billionaires exist?",
+  "Is capitalism sustainable long-term?",
+  "Should we bring back extinct species?",
+  "Is privacy more important than security?",
+  "Should schools teach cryptocurrency?",
+  "Is telemedicine as effective as in-person care?",
+];
+
+// Shuffle helper
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ─── Shuffling Pills Component ────────────────────────────────────────────────
+function ShufflingPills({ onSelect }) {
+  const VISIBLE = 6;
+  const [displayed, setDisplayed] = useState(() => shuffleArray(ALL_DEBATE_TOPICS).slice(0, VISIBLE));
+  const [fadingOut, setFadingOut] = useState(false);
+  const intervalRef = useRef(null);
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setFadingOut(true);
+      setTimeout(() => {
+        setDisplayed(shuffleArray(ALL_DEBATE_TOPICS).slice(0, VISIBLE));
+        setFadingOut(false);
+      }, 420);
+    }, 4000);
+    return () => clearInterval(intervalRef.current);
+  }, []);
+
+  return (
+    <div style={{
+      display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", marginBottom: 32,
+      opacity: fadingOut ? 0 : 1, transform: fadingOut ? "translateY(6px)" : "translateY(0)",
+      transition: "opacity 0.42s ease, transform 0.42s ease",
+    }}>
+      {displayed.map((pill, i) => (
+        <button
+          key={pill}
+          onClick={() => onSelect(pill)}
+          style={{
+            padding: "11px 22px", borderRadius: 30, background: "rgba(10,10,30,0.7)",
+            backdropFilter: "blur(20px)", border: "1px solid rgba(255,32,64,0.18)",
+            color: "rgba(200,210,230,0.85)", cursor: "pointer",
+            fontFamily: "'Hanken Grotesk',sans-serif", fontSize: 14, fontWeight: 500,
+            transition: "all 0.22s ease", animation: `fadeSlideUp 0.4s ${i * 60}ms ease both`,
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = "rgba(255,32,64,0.1)";
+            e.currentTarget.style.borderColor = "rgba(255,32,64,0.5)";
+            e.currentTarget.style.color = "#fff";
+            e.currentTarget.style.transform = "translateY(-2px)";
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = "rgba(10,10,30,0.7)";
+            e.currentTarget.style.borderColor = "rgba(255,32,64,0.18)";
+            e.currentTarget.style.color = "rgba(200,210,230,0.85)";
+            e.currentTarget.style.transform = "translateY(0)";
+          }}
+        >
+          {pill}
+        </button>
+      ))}
     </div>
   );
 }
 
-// ─── Collapsible Sidebar ─────────────────────────────────────
-function Sidebar({ onNavigate, user, onLogout, currentPage }) {
-  const [collapsed, setCollapsed] = useState(false);
+// ─── RED THEMED COLLAPSIBLE SIDEBAR ──────────────────────────────────────
+function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
   const NAV = [
     { icon: "travel_explore", label: "Research", path: "/research" },
-    { icon: "forum", label: "Debate Chamber", path: "/debate" },
-    { icon: "account_tree", label: "Knowledge Graph", path: "/graph", active: currentPage === "graph" },
+    { icon: "forum", label: "Debate Chamber", path: "/debate", active: true },
+    { icon: "account_tree", label: "Knowledge Graph", path: "/graph" },
     { icon: "search", label: "Semantic Search", path: "/search" },
     { icon: "database", label: "Memory Bank", path: "/memory" },
-    { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" }
+    { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" },
+    { icon: "analytics", label: "Analytics", path: "/analytics" },
   ];
   const handleNav = (p) => onNavigate ? onNavigate(p) : window.location.href = p;
   const handleLogout = () => onLogout ? onLogout() : (localStorage.clear(), window.location.href = '/');
 
   if (collapsed) return (
-    <aside style={{position:"fixed",left:0,top:0,height:"100%",width:56,background:"rgba(10,10,30,0.6)",backdropFilter:"blur(24px)",borderRight:"1px solid "+C.white10,display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",zIndex:20}}>
-      <button onClick={()=>setCollapsed(false)} style={{background:"none",border:"none",color:C.green,cursor:"pointer",marginBottom:24}}><Icon name="chevron_right" style={{fontSize:22}}/></button>
-      {NAV.map(({icon,label,path,active})=><div key={label} onClick={()=>handleNav(path)} title={label} style={{padding:"10px 0",cursor:"pointer",color:active?C.green:C.onSurfaceVariant,width:"100%",display:"flex",justifyContent:"center"}}><Icon name={icon} style={{fontSize:20,color:"inherit"}}/></div>)}
-      <div style={{marginTop:"auto",display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
-        <div onClick={()=>handleNav('/research')} title="New Research" style={{width:36,height:36,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="add" style={{fontSize:18,color:C.void}}/></div>
-        <div title={user?.username||'Guest'} style={{width:32,height:32,borderRadius:"50%",background:C.surface,border:"1px solid rgba(0,255,15,0.3)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="face" style={{color:C.green,fontSize:16}}/></div>
-        <div onClick={handleLogout} title="Disconnect" style={{cursor:"pointer",color:C.crimson}}><Icon name="logout" style={{fontSize:16}}/></div>
+    <aside style={{ position:"fixed",left:0,top:0,height:"100%",width:56,background:"rgba(10,10,30,0.6)",backdropFilter:"blur(24px)",borderRight:"1px solid "+C.white10,display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",zIndex:20 }}>
+      <button onClick={()=>setCollapsed(false)} style={{ background:"none", border:"none", color: C.crimson, cursor:"pointer", marginBottom:32 }}><Icon name="chevron_right" style={{fontSize:22}}/></button>
+      {NAV.map(({icon,label,path,active})=><div key={label} onClick={()=>handleNav(path)} title={label} style={{padding:"12px 0",cursor:"pointer",color:active?C.crimson:C.onSurfaceVariant,width:"100%",display:"flex",justifyContent:"center"}}><Icon name={icon} style={{fontSize:20,color:"inherit"}}/></div>)}
+      <div style={{marginTop:"auto",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
+        <div onClick={()=>handleNav('/research')} style={{width:34,height:34,borderRadius:"50%",background:C.crimson,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="add" style={{fontSize:16,color:C.void}}/></div>
+        <div title={user?.username||'Guest'} style={{width:30,height:30,borderRadius:"50%",background:C.surfaceContainer,border:`1px solid ${C.crimson}`}}><Icon name="face" style={{color:C.crimson,fontSize:14}}/></div>
+        <div onClick={handleLogout} title="Disconnect" style={{cursor:"pointer",color:C.crimson}}><Icon name="logout" style={{fontSize:14}}/></div>
       </div>
     </aside>
   );
 
   return (
-    <aside style={{position:"fixed",left:0,top:0,height:"100%",width:320,background:"rgba(10,10,30,0.6)",backdropFilter:"blur(24px)",borderRight:"1px solid "+C.white10,boxShadow:"0 0 20px rgba(0,255,15,0.1)",display:"flex",flexDirection:"column",padding:24,zIndex:20}}>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:40}}>
-        <div><h1 style={{fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,color:C.green}}>POLYNOUS</h1><p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.onSurfaceVariant,textTransform:"uppercase",opacity:0.7}}>Cerebral Vitality Engine</p></div>
-        <button onClick={()=>setCollapsed(true)} style={{background:"none",border:"none",color:C.textSecondary,cursor:"pointer"}}><Icon name="chevron_left" style={{fontSize:20}}/></button>
+    <aside style={{ position:"fixed",left:0,top:0,height:"100%",width:320,background:"rgba(10,10,30,0.6)",backdropFilter:"blur(24px)",borderRight:"1px solid "+C.white10,boxShadow:"0 0 20px rgba(255,32,64,0.1)",display:"flex",flexDirection:"column",padding:24,zIndex:20,transition:"width 0.35s cubic-bezier(0.4,0,0.2,1),padding 0.35s cubic-bezier(0.4,0,0.2,1)",overflow:"hidden"}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:40,minWidth:0}}>
+        <div style={{flex:1,minWidth:0}}>
+          <h1 style={{ fontFamily:"'Sora',sans-serif", fontSize:28, fontWeight:800, color:C.crimson, letterSpacing:"-0.03em", whiteSpace:"nowrap" }}>POLYNOUS</h1>
+          <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.onSurfaceVariant,textTransform:"uppercase",letterSpacing:"0.2em",opacity:0.7,whiteSpace:"nowrap"}}>Cerebral Vitality Engine</p>
+        </div>
+        <button onClick={()=>setCollapsed(true)} style={{background:"none",border:"none",color:C.textSecondary,cursor:"pointer",padding:4,flexShrink:0,marginLeft:8}} onMouseEnter={e=>e.target.style.color="#fff"} onMouseLeave={e=>e.target.style.color=C.textSecondary}>
+          <Icon name="chevron_left" style={{fontSize:20}}/>
+        </button>
       </div>
-      <nav style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
-        {NAV.map(({icon,label,path,active})=><div key={label} onClick={()=>handleNav(path)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderRadius:9999,cursor:"pointer",color:active?C.green:C.onSurfaceVariant,background:active?"rgba(0,255,15,0.08)":"transparent",fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:active?700:400}}><Icon name={icon} style={{fontSize:20,color:"inherit"}}/>{label}</div>)}
+      <nav style={{flex:1,display:"flex",flexDirection:"column",gap:4,overflow:"hidden"}}>
+        {NAV.map(({icon,label,path,active})=><div key={label} onClick={()=>handleNav(path)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderRadius:9999,cursor:"pointer",color:active?C.crimson:C.onSurfaceVariant,background:active?`${C.crimson}15`:"transparent",fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:active?700:400,transition:"all 0.2s",whiteSpace:"nowrap",overflow:"hidden"}} onMouseEnter={e=>{if(!active){e.target.style.color=C.crimson;e.target.style.background="rgba(255,255,255,0.05)"}}} onMouseLeave={e=>{if(!active){e.target.style.color=C.onSurfaceVariant;e.target.style.background="transparent"}}}><Icon name={icon} style={{fontSize:20,color:"inherit",flexShrink:0}}/><span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{label}</span></div>)}
       </nav>
       <div style={{borderTop:"1px solid "+C.white5,paddingTop:24,marginTop:24}}>
-        <button onClick={()=>handleNav('/research')} style={{width:"100%",padding:"12px",background:C.green,color:C.void,fontWeight:700,borderRadius:9999,border:"none",cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Icon name="add" style={{fontSize:18,color:C.void}}/>New Research</button>
+        <button onClick={()=>handleNav('/research')} style={{width:"100%",padding:"12px",background:C.crimson,color:C.void,fontWeight:700,borderRadius:9999,border:"none",cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"transform 0.2s",whiteSpace:"nowrap"}} onMouseEnter={e=>e.target.style.transform="scale(1.03)"} onMouseLeave={e=>e.target.style.transform="scale(1)"}><Icon name="add" style={{fontSize:18,color:C.void,flexShrink:0}}/>New Research</button>
         <div style={{marginTop:20,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:40,height:40,borderRadius:"50%",background:C.surface,border:"1px solid rgba(0,255,15,0.3)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="face" style={{color:C.green,fontSize:22}}/></div>
-          <div style={{flex:1}}><p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:'#fff'}}>{user?.username||'Guest'}</p><button onClick={handleLogout} style={{fontSize:10,color:C.crimson,background:'none',border:'none',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace"}}>Disconnect</button></div>
+          <div style={{width:40,height:40,borderRadius:"50%",background:C.surfaceContainer,border:`1px solid ${C.crimson}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="face" style={{color:C.crimson,fontSize:22}}/></div>
+          <div style={{flex:1,minWidth:0}}><p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user?.username||'Guest'}</p><button onClick={handleLogout} style={{fontSize:10,color:C.crimson,background:'none',border:'none',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",padding:0}}>Disconnect</button></div>
         </div>
       </div>
     </aside>
   );
 }
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────
-export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, onLogout, graphData: propData }) {
-  const graphCanvasRef = useRef(null);
-  const bgCanvasRef = useRef(null);
-  const [graphData, setGraphData] = useState(propData || { nodes: [], edges: [] });
-  const [positions, setPositions] = useState([]);
-  const [hovered, setHovered] = useState(null);
-  const [selectedNode, setSelectedNode] = useState(null);
-  const [nodeDetails, setNodeDetails] = useState(null);
-  const [nodeResearch, setNodeResearch] = useState([]);
-  const [loading, setLoading] = useState(!propData);
-  const [filter, setFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const animRef = useRef(null);
+// ─── MAIN COMPONENT ───────────────────────────────────────────
+export default function DebateInterface({ user, onNavigate, onStartResearch, onLogout }) {
+  const [topic, setTopic] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [debateResult, setDebateResult] = useState(null);
+  const [forPoints, setForPoints] = useState([]);
+  const [againstPoints, setAgainstPoints] = useState([]);
+  const [verdict, setVerdict] = useState(null);
+  const [agentStatus, setAgentStatus] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const inputRef = useRef(null);
+  const [history, setHistory] = useState([]);
+  const [mounted, setMounted] = useState(false);
 
-  // Load from API
-  useEffect(() => {
-    if (propData) return;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch('http://localhost:8000/knowledge/graph');
-        if (res.ok) setGraphData(await res.json());
-      } catch(e) { console.error(e); }
-      finally { setLoading(false); }
-    })();
-  }, [propData]);
+  useEffect(() => { requestAnimationFrame(() => setMounted(true)); }, []);
 
-  // Run force simulation
-  useEffect(() => {
-    if (!graphData.nodes?.length) return;
-    const canvas = graphCanvasRef.current;
-    if (!canvas) return;
-    const W = canvas.offsetWidth || 800;
-    const H = canvas.offsetHeight || 600;
-    const simNodes = runForceSimulation(graphData.nodes, graphData.edges || [], W, H, 80);
-    setPositions(simNodes);
-  }, [graphData]);
+  const startDebate = async (e) => {
+    e.preventDefault();
+    if (!topic.trim() || loading) return;
+    setLoading(true); setDebateResult(null); setForPoints([]); setAgainstPoints([]); setVerdict(null); setAgentStatus("Activating debate agents...");
 
-  // Fetch node details
-  const fetchNodeDetails = useCallback(async (node) => {
-    setSelectedNode(node);
     try {
-      const [detailRes, researchRes] = await Promise.all([
-        fetch(`http://localhost:8000/knowledge/node/${encodeURIComponent(node.label)}`),
-        fetch(`http://localhost:8000/knowledge/node/${encodeURIComponent(node.label)}/research`)
-      ]);
-      if (detailRes.ok) setNodeDetails(await detailRes.json());
-      if (researchRes.ok) setNodeResearch((await researchRes.json()).related_research || []);
-    } catch(e) { console.error(e); }
-  }, []);
-
-  const handleCanvasClick = useCallback(() => {
-    if (hovered) { fetchNodeDetails(hovered); }
-    else { setSelectedNode(null); setNodeDetails(null); setNodeResearch([]); }
-  }, [hovered, fetchNodeDetails]);
-
-  // Animation loop
-  useEffect(() => {
-    const canvas = graphCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
-    resize(); window.addEventListener('resize', resize);
-
-    const animate = () => {
-      if (!positions.length) { animRef.current = requestAnimationFrame(animate); return; }
-      const W = canvas.width, H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
-
-      // Draw edges
-      (graphData.edges || []).forEach(edge => {
-        const src = positions.find(n => n.id === edge.source);
-        const tgt = positions.find(n => n.id === edge.target);
-        if (!src || !tgt) return;
-        
-        // Check if edge should be highlighted
-        const edgeHighlighted = (hovered && (hovered.id === src.id || hovered.id === tgt.id)) ||
-                                (selectedNode && (selectedNode.id === src.id || selectedNode.id === tgt.id));
-        
-        // Check search highlight
-        const searchMatch = searchQuery && (
-          src.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          tgt.label.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-
-        ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(tgt.x, tgt.y);
-        
-        if (edgeHighlighted || searchMatch) {
-          const col = NODE_COLORS[src.type] || NODE_COLORS.default;
-          ctx.strokeStyle = `rgba(${hexToRgb(col.glow).join(',')},0.5)`;
-          ctx.lineWidth = 1.5;
-        } else if (searchQuery) {
-          ctx.strokeStyle = 'rgba(255,255,255,0.02)';
-          ctx.lineWidth = 0.3;
-        } else {
-          ctx.strokeStyle = `rgba(160,155,210,${0.04 + (edge.weight||1)*0.02})`;
-          ctx.lineWidth = 0.5;
-        }
-        ctx.stroke();
+      const res = await fetch("http://localhost:8000/ask", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: topic, debate_mode: true })
       });
+      const data = await res.json();
+      if (data.answer) {
+        const fullText = data.answer;
+        const forMatch = fullText.match(/FOR POSITION[\s\S]*?(?=AGAINST POSITION|$)/i);
+        const againstMatch = fullText.match(/AGAINST POSITION[\s\S]*?(?=WINNER|SCORES|JUDGE|VERDICT|$)/i);
+        
+        const forRaw = forMatch ? forMatch[0].replace(/FOR POSITION/i,"").replace(/\([\d.]+\/10\)/,"").trim() : "";
+        const againstRaw = againstMatch ? againstMatch[0].replace(/AGAINST POSITION/i,"").replace(/\([\d.]+\/10\)/,"").trim() : "";
+        
+        setForPoints(forRaw.split(/\n\s*[•\-]\s*/).filter(p => p.trim().length > 10).map(p => p.trim()));
+        setAgainstPoints(againstRaw.split(/\n\s*[•\-]\s*/).filter(p => p.trim().length > 10).map(p => p.trim()));
+        
+        setVerdict(data.debate_verdict || { winner: "TIE", for_score: 5, against_score: 5, reasoning: "Both sides presented valid arguments." });
+        setDebateResult(true);
+        setHistory(prev => [{ topic, verdict: data.debate_verdict, date: new Date().toLocaleDateString() }, ...prev].slice(0, 10));
+      }
+      setAgentStatus("");
+    } catch (e) { setAgentStatus("Connection error"); }
+    finally { setLoading(false); }
+  };
 
-      // Draw nodes
-      positions.forEach(n => {
-        const visible = filter === 'all' || n.type === filter;
-        
-        // Search filter
-        const matchesSearch = !searchQuery || 
-          n.label.toLowerCase().includes(searchQuery.toLowerCase());
-        
-        if (!visible && !matchesSearch) return;
-        
-        const isHovered = hovered?.id === n.id;
-        const isSelected = selectedNode?.id === n.id;
-        const isDimmed = (searchQuery && !matchesSearch) || 
-                        (!!selectedNode && !isSelected && !(graphData.edges || []).some(e =>
-                          (e.source === selectedNode.id && e.target === n.id) ||
-                          (e.target === selectedNode.id && e.source === n.id)));
-        
-        const pulse = Math.sin(Date.now() * 0.003 + (n.id?.charCodeAt(0) || 0)) * 1.5;
-        const r = n.size + pulse + (isHovered || isSelected ? 5 : 0);
-        
-        const col = NODE_COLORS[n.type] || NODE_COLORS.default;
-        const [fr,fg,fb] = hexToRgb(col.fill);
-        const [gr,gg,gb] = hexToRgb(col.glow);
-        
-        ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
-        
-        // Glow
-        const auraR = r + (isSelected ? 32 : isHovered ? 24 : 12);
-        const aura = ctx.createRadialGradient(n.x, n.y, r*0.3, n.x, n.y, auraR);
-        aura.addColorStop(0, `rgba(${gr},${gg},${gb},${isSelected?0.45:isHovered?0.3:0.08})`);
-        aura.addColorStop(1, `rgba(${gr},${gg},${gb},0)`);
-        ctx.beginPath(); ctx.arc(n.x, n.y, auraR, 0, Math.PI*2); ctx.fillStyle = aura; ctx.fill();
-        
-        // Node body
-        const grad = ctx.createRadialGradient(n.x-r*0.3, n.y-r*0.35, 0, n.x, n.y, r);
-        grad.addColorStop(0, `rgba(${Math.min(255,fr+70)},${Math.min(255,fg+70)},${Math.min(255,fb+70)},1)`);
-        grad.addColorStop(1, `rgba(${fr},${fg},${fb},0.85)`);
-        ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI*2); ctx.fillStyle = grad; ctx.fill();
-        
-        // Ring
-        ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI*2);
-        ctx.strokeStyle = isSelected ? '#fff' : isHovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.2)';
-        ctx.lineWidth = isSelected ? 2 : isHovered ? 1.5 : 0.5; ctx.stroke();
-        ctx.globalAlpha = 1;
-        
-        // Label
-        const label = (n.label?.length > 16 ? n.label.slice(0,15)+'…' : n.label) || '';
-        ctx.font = `${isHovered||isSelected?600:400} ${isHovered||isSelected?11:10}px 'JetBrains Mono', monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = (isHovered||isSelected||matchesSearch) ? '#fff' : (col.text || '#aac4ff');
-        ctx.fillText(label, n.x, n.y + r + 14);
-        
-        // Connection count
-        if (isHovered && n.connections > 0) {
-          ctx.font = "500 9px 'JetBrains Mono', monospace";
-          ctx.fillText(`${n.connections} links`, n.x, n.y - r - 8);
-        }
-      });
-      
-      animRef.current = requestAnimationFrame(animate);
-    };
-    animate();
-    return () => { cancelAnimationFrame(animRef.current); window.removeEventListener('resize', resize); };
-  }, [positions, hovered, selectedNode, filter, graphData.edges, searchQuery]);
-
-  // Mouse handlers
-  const handleMouseMove = useCallback((e) => {
-    const rect = graphCanvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    const found = positions.find(n => Math.hypot(n.x - mx, n.y - my) < n.size + 12);
-    setHovered(found || null);
-    graphCanvasRef.current.style.cursor = found ? "pointer" : "default";
-  }, [positions]);
-
-  const filterTypes = ["all", "concept", "entity", "topic", "major", "debate", "core"];
-
-  // Loading state
-  if (loading) {
-    return (
-      <div style={{minHeight:'100vh',background:C.void,position:'relative'}}>
-        <Sidebar onNavigate={onNavigate} user={user} onLogout={onLogout} currentPage="graph"/>
-        <div style={{marginLeft:320,height:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <div style={{textAlign:'center'}}>
-            <div style={{width:50,height:50,borderRadius:'50%',border:'3px solid rgba(0,255,15,0.15)',borderTop:'3px solid #00ff0f',animation:'spin 1s infinite',margin:'0 auto 20px'}}/>
-            <div style={{fontFamily:"'Sora',sans-serif",color:C.green,fontWeight:600,fontSize:15}}>Loading Neural Topology</div>
-          </div>
-        </div>
-        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-      </div>
-    );
-  }
-
-  // Empty state
-  if (!graphData.nodes?.length) {
-    return (
-      <div style={{minHeight:'100vh',background:C.void,position:'relative'}}>
-        <Sidebar onNavigate={onNavigate} user={user} onLogout={onLogout} currentPage="graph"/>
-        <div style={{marginLeft:320,height:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <EmptyGraphState onNavigate={onNavigate} graphData={graphData}/>
-        </div>
-      </div>
-    );
-  }
+  const handleSuggestion = (pill) => { setTopic(pill); startDebate({ preventDefault: () => {} }); };
+  const handleNewDebate = () => { setDebateResult(null); setTopic(""); setForPoints([]); setAgainstPoints([]); setVerdict(null); };
 
   return (
-    <div style={{minHeight:'100vh',background:C.void,position:'relative',overflow:'hidden'}}>
-      {/* Neural particle background */}
-      <canvas ref={bgCanvasRef} style={{position:'fixed',top:0,left:0,width:'100%',height:'100%',zIndex:0,pointerEvents:'none'}}/>
-      <NeuralParticleBackground canvasRef={bgCanvasRef}/>
-      
-      <Sidebar onNavigate={onNavigate} user={user} onLogout={onLogout} currentPage="graph"/>
-      
-      <div style={{marginLeft:320,position:'relative',zIndex:10,height:'100vh'}}>
-        <canvas ref={graphCanvasRef} style={{width:'100%',height:'100%',display:'block'}} onMouseMove={handleMouseMove} onClick={handleCanvasClick}/>
-        
-        {/* ========== SEARCH BAR ========== */}
-        <div style={{position:'absolute',top:50,left:12,zIndex:20}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',borderRadius:25,background:'rgba(10,8,22,0.85)',border:'0.5px solid rgba(255,255,255,0.15)',backdropFilter:'blur(10px)'}}>
-            <span style={{color:C.cyan,fontSize:14}}>🔍</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search nodes..."
-              style={{background:'none',border:'none',outline:'none',color:'#fff',fontSize:12,fontFamily:"'JetBrains Mono',monospace",width:160}}
-            />
-            {searchQuery && (
-              <button onClick={()=>setSearchQuery('')} style={{background:'none',border:'none',color:C.textSecondary,cursor:'pointer',fontSize:12}}>✕</button>
-            )}
+    <div style={{
+      minHeight: "100vh", background: C.void, position: "relative", overflow: "auto",
+      opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(18px)",
+      transition: "opacity 0.65s ease, transform 0.65s ease",
+    }}>
+      <Styles />
+      <NeuralCanvas debateActive={loading} />
+      <Sidebar onNavigate={onNavigate} user={user} onLogout={onLogout} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
+
+      <main style={{ 
+        marginLeft: sidebarCollapsed ? 56 : 320,
+        padding: "24px 32px", 
+        position: "relative", 
+        zIndex: 10, 
+        transition: "margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+        width: sidebarCollapsed ? "calc(100% - 56px)" : "calc(100% - 320px)",
+        maxWidth: "none",
+        boxSizing: "border-box"
+      }}>
+        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+          
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: 36, paddingTop: 10, animation: "fadeSlideUp 0.6s ease both" }}>
+            <h1 style={{ fontFamily: "'Sora',sans-serif", fontSize: "clamp(2rem,4.5vw,3rem)", fontWeight: 800, color: C.crimson, margin: "0 0 10px", letterSpacing: "-0.03em", textShadow: "0 0 40px rgba(255,32,64,0.3)" }}>⚖️ Debate Chamber</h1>
+            <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "3px" }}>Neural Argument Synthesis</p>
           </div>
-          {/* Search results count */}
-          {searchQuery && (
-            <div style={{fontSize:10,color:C.textSecondary,fontFamily:"'JetBrains Mono',monospace",marginTop:4,marginLeft:4}}>
-              {positions.filter(n => n.label.toLowerCase().includes(searchQuery.toLowerCase())).length} matches
+
+          {/* Proposition Input */}
+          {!debateResult && (
+            <div style={{ background: "rgba(10,10,30,0.6)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,32,64,0.2)", borderRadius: 20, padding: 32, marginBottom: 24, boxShadow: "0 0 30px rgba(255,32,64,0.1)", animation: "fadeSlideUp 0.6s 0.1s ease both" }}>
+              <label style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: C.crimson, textTransform: "uppercase", letterSpacing: "2px", display: "block", marginBottom: 12 }}>Enter Proposition</label>
+              <form onSubmit={startDebate} style={{ display: "flex", gap: 12 }}>
+                <input ref={inputRef} type="text" value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g., Should AI be regulated by governments worldwide?" style={{ flex: 1, padding: "16px 22px", borderRadius: 30, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#fff", fontFamily: "'Hanken Grotesk',sans-serif", fontSize: 15, outline: "none" }} disabled={loading} />
+                <button type="submit" disabled={loading || !topic.trim()} style={{ padding: "13px 32px", borderRadius: 30, border: "none", background: loading ? "#333" : C.crimson, color: "#fff", fontWeight: 700, fontFamily: "'Sora',sans-serif", fontSize: 15, cursor: loading ? "not-allowed" : "pointer", boxShadow: loading ? "none" : "0 0 25px rgba(255,32,64,0.3)", transition: "all 0.3s" }}>
+                  {loading ? agentStatus || "Debating..." : "Begin Debate →"}
+                </button>
+              </form>
             </div>
           )}
-        </div>
 
-        {/* Filter pills */}
-        <div style={{position:'absolute',top:12,left:12,display:'flex',gap:6,flexWrap:'wrap'}}>
-          {filterTypes.map(t => (
-            <button key={t} onClick={()=>setFilter(t)} style={{
-              background:filter===t?'rgba(255,255,255,0.12)':'rgba(255,255,255,0.04)',
-              border:'0.5px solid rgba(255,255,255,0.15)',borderRadius:20,padding:'5px 13px',fontSize:11,
-              color:filter===t?'#fff':'rgba(255,255,255,0.45)',cursor:'pointer',
-              fontFamily:"'JetBrains Mono',monospace",textTransform:'capitalize'
-            }}>{t}</button>
-          ))}
-        </div>
-
-        {/* Legend */}
-        <div style={{position:'absolute',bottom:14,right:14,display:'flex',flexDirection:'column',gap:6,background:'rgba(10,8,20,0.7)',border:'0.5px solid rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 14px'}}>
-          {["concept","entity","topic","core","major","debate"].filter(t => NODE_COLORS[t]).map(type => (
-            <div key={type} style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{width:8,height:8,borderRadius:'50%',background:NODE_COLORS[type]?.fill,flexShrink:0}}/>
-              <span style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontFamily:"'JetBrains Mono',monospace",textTransform:'uppercase'}}>{type}</span>
+          {/* Shuffling Pills */}
+          {!loading && !debateResult && (
+            <div style={{ animation: "fadeSlideUp 0.6s 0.2s ease both" }}>
+              <p style={{ textAlign: "center", fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16, opacity: 0.6 }}>— try one of these —</p>
+              <ShufflingPills onSelect={handleSuggestion} />
             </div>
-          ))}
-        </div>
+          )}
 
-        {/* Metrics Panel */}
-        <div style={{position:'absolute',top:12,right:12,width:260,display:'flex',flexDirection:'column',gap:10}}>
-          {selectedNode && nodeDetails ? (
-            <div style={{background:'rgba(10,8,22,0.92)',border:'0.5px solid rgba(255,255,255,0.2)',borderRadius:12,padding:'16px'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                <div style={{color:(NODE_COLORS[selectedNode.type]||NODE_COLORS.default).fill,fontWeight:700,fontSize:14,fontFamily:"'Sora',sans-serif"}}>📍 {nodeDetails.name}</div>
-                <button onClick={()=>{setSelectedNode(null);setNodeDetails(null);setNodeResearch([])}} style={{background:'none',border:'none',color:C.textSecondary,cursor:'pointer',fontSize:14}}>✕</button>
+          {/* Loading */}
+          {loading && (
+            <div style={{ textAlign: "center", padding: 40 }}>
+              <div style={{ width: 50, height: 50, borderRadius: "50%", border: "3px solid rgba(255,32,64,0.15)", borderTop: "3px solid " + C.crimson, animation: "spin 1s infinite", margin: "0 auto 16px" }} />
+              <div style={{ fontFamily: "'Sora',sans-serif", color: C.crimson, fontWeight: 600, fontSize: 15 }}>{agentStatus}</div>
+            </div>
+          )}
+
+          {/* Debate Result */}
+          {debateResult && verdict && (
+            <>
+              <div style={{ textAlign: "center", marginBottom: 20, padding: 14, background: "rgba(255,255,255,0.02)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.04)" }}>
+                <h2 style={{ fontFamily: "'Sora',sans-serif", fontSize: "1.2em", color: "#fff", margin: 0, fontWeight: 600 }}>{topic}</h2>
               </div>
-              <MetricRow label="Type" value={nodeDetails.type} color={C.cyan}/>
-              <MetricRow label="Connections" value={nodeDetails.total_connections||0} color={C.green}/>
-              {nodeDetails.avg_relationship_weight && <MetricRow label="Avg Weight" value={nodeDetails.avg_relationship_weight} color="#ffaa00"/>}
-              {nodeResearch.length > 0 && (
-                <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid rgba(255,255,255,0.08)'}}>
-                  <div style={{fontSize:10,color:C.textSecondary,textTransform:'uppercase',marginBottom:6,fontFamily:"'JetBrains Mono',monospace"}}>Related Research</div>
-                  {nodeResearch.map((r,i)=>(
-                    <div key={i} onClick={()=>onStartResearch?.(r.query)} style={{fontSize:10,color:C.onSurfaceVariant,padding:'3px 0',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",opacity:0.7}}>🔬 {r.query?.slice(0,50)}</div>
-                  ))}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+                {/* FOR Panel */}
+                <div style={{ background: "rgba(0,255,15,0.02)", border: "1px solid rgba(0,255,15,0.15)", borderRadius: 18, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                  <div style={{ background: "rgba(0,255,15,0.06)", padding: "14px 18px", borderBottom: "1px solid rgba(0,255,15,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: C.green, boxShadow: "0 0 8px " + C.green }} />
+                      <span style={{ fontFamily: "'Sora',sans-serif", color: C.green, fontWeight: 800, fontSize: 15 }}>ARGUMENT FOR</span>
+                    </div>
+                    <span style={{ fontFamily: "'JetBrains Mono',monospace", color: C.green, fontWeight: 700, fontSize: 13, background: "rgba(0,255,15,0.1)", padding: "4px 12px", borderRadius: 14 }}>{verdict.for_score}/10</span>
+                  </div>
+                  <div className="custom-scrollbar" style={{ padding: 16, overflowY: "auto", maxHeight: 350 }}>
+                    {forPoints.map((point, i) => (
+                      <div key={i} style={{ background: "rgba(0,255,15,0.04)", border: "1px solid rgba(0,255,15,0.08)", borderRadius: 10, padding: "12px 16px", marginBottom: 8, color: "#c8d6e5", fontFamily: "'Hanken Grotesk',sans-serif", fontSize: 14, lineHeight: 1.7 }}>
+                        <span style={{ color: C.green, fontWeight: 700, marginRight: 8 }}>•</span>{point}
+                      </div>
+                    ))}
+                    {forPoints.length === 0 && <div style={{ color: C.textSecondary, textAlign: "center", padding: 20 }}>No argument points parsed</div>}
+                  </div>
                 </div>
-              )}
-              <button onClick={()=>onStartResearch?.(selectedNode.label)} style={{width:'100%',marginTop:12,padding:'8px',borderRadius:8,border:'none',background:C.green,color:C.void,fontWeight:700,cursor:'pointer',fontSize:12,fontFamily:"'Sora',sans-serif"}}>Research This →</button>
-            </div>
-          ) : (
-            <div style={{background:'rgba(10,8,22,0.8)',border:'0.5px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'16px'}}>
-              <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:'#fff',marginBottom:10}}>📊 Graph Overview</div>
-              <MetricRow label="Total Nodes" value={graphData.nodes?.length||0} color={C.green}/>
-              <MetricRow label="Total Edges" value={graphData.edges?.length||0} color={C.cyan}/>
-              <MetricRow label="Synaptic Density" value={Math.min(95,(graphData.nodes?.length||0)*8)+'%'} color={C.green}/>
-              <div style={{fontSize:10,color:C.textSecondary,marginTop:8,fontFamily:"'JetBrains Mono',monospace",textAlign:'center'}}>Click a node for details</div>
-            </div>
-          )}
-        </div>
 
-        {/* Hover tooltip */}
-        {hovered && !selectedNode && (
-          <div style={{position:'absolute',bottom:12,left:'50%',transform:'translateX(-50%)',background:'rgba(10,8,22,0.9)',border:'0.5px solid rgba(255,255,255,0.2)',borderRadius:10,padding:'8px 16px',display:'flex',gap:16}}>
-            <span style={{color:'#fff',fontSize:12,fontFamily:"'JetBrains Mono',monospace"}}>{hovered.label}</span>
-            <span style={{color:(NODE_COLORS[hovered.type]||NODE_COLORS.default).fill,fontSize:11,textTransform:'uppercase'}}>{hovered.type}</span>
-            <span style={{color:C.textSecondary,fontSize:11}}>{hovered.connections||0} links</span>
-          </div>
-        )}
-      </div>
+                {/* AGAINST Panel */}
+                <div style={{ background: "rgba(255,32,64,0.02)", border: "1px solid rgba(255,32,64,0.15)", borderRadius: 18, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                  <div style={{ background: "rgba(255,32,64,0.06)", padding: "14px 18px", borderBottom: "1px solid rgba(255,32,64,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: C.crimson, boxShadow: "0 0 8px " + C.crimson }} />
+                      <span style={{ fontFamily: "'Sora',sans-serif", color: C.crimson, fontWeight: 800, fontSize: 15 }}>ARGUMENT AGAINST</span>
+                    </div>
+                    <span style={{ fontFamily: "'JetBrains Mono',monospace", color: C.crimson, fontWeight: 700, fontSize: 13, background: "rgba(255,32,64,0.1)", padding: "4px 12px", borderRadius: 14 }}>{verdict.against_score}/10</span>
+                  </div>
+                  <div className="custom-scrollbar" style={{ padding: 16, overflowY: "auto", maxHeight: 350 }}>
+                    {againstPoints.map((point, i) => (
+                      <div key={i} style={{ background: "rgba(255,32,64,0.04)", border: "1px solid rgba(255,32,64,0.08)", borderRadius: 10, padding: "12px 16px", marginBottom: 8, color: "#c8d6e5", fontFamily: "'Hanken Grotesk',sans-serif", fontSize: 14, lineHeight: 1.7 }}>
+                        <span style={{ color: C.crimson, fontWeight: 700, marginRight: 8 }}>•</span>{point}
+                      </div>
+                    ))}
+                    {againstPoints.length === 0 && <div style={{ color: C.textSecondary, textAlign: "center", padding: 20 }}>No argument points parsed</div>}
+                  </div>
+                </div>
+              </div>
 
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Hanken+Grotesk:wght@400;500;600&family=Material+Symbols+Outlined&display=swap');
-        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-      `}</style>
-    </div>
-  );
-}
+              {/* Score Bar */}
+              <div style={{ marginBottom: 24, padding: 16, background: "rgba(255,255,255,0.02)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.04)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>
+                  <span style={{ color: C.green }}>FOR: {verdict.for_score}/10</span>
+                  <span style={{ color: C.crimson }}>AGAINST: {verdict.against_score}/10</span>
+                </div>
+                <div style={{ height: 10, borderRadius: 5, background: "rgba(255,255,255,0.04)", display: "flex", overflow: "hidden" }}>
+                  <div style={{ width: `${(verdict.for_score/10)*100}%`, background: C.green, transition: "width 1s", borderRadius: "5px 0 0 5px" }} />
+                  <div style={{ width: `${(verdict.against_score/10)*100}%`, background: C.crimson, transition: "width 1s", borderRadius: "0 5px 5px 0" }} />
+                </div>
+              </div>
+
+              {/* Verdict */}
+              <div style={{ textAlign: "center", padding: 28, background: verdict.winner === "FOR" ? "rgba(0,255,15,0.04)" : verdict.winner === "AGAINST" ? "rgba(255,32,64,0.04)" : "rgba(168,85,247,0.04)", border: `1px solid ${verdict.winner==="FOR"?C.green:verdict.winner==="AGAINST"?C.crimson:C.purple}30`, borderRadius: 18, marginBottom: 24 }}>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 10 }}>Verdict</div>
+                <div style={{ fontFamily: "'Sora',sans-serif", fontSize: "1.8em", fontWeight: 900, color: verdict.winner === "FOR" ? C.green : verdict.winner === "AGAINST" ? C.crimson : C.purple, marginBottom: 8 }}>
+                  🏆 {verdict.winner} POSITION WINS
+                </div>
+                {verdict.reasoning && (
+                  <div style={{ fontFamily: "'Hanken Grotesk',sans-serif", fontSize: 14, color: C.textSecondary, lineHeight: 1.7, maxWidth: 600, margin: "0 auto", fontStyle: "italic" }}>
+                    {verdict.reasoning}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", marginBottom: 40 }}>
+                <button onClick={handleNewDebate} style={{ padding: "12px 24px", borderRadius: 30, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", color: "#ccc", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", fontSize: 13 }}>
+                  🔄 New Debate
+                </button>
+                <button onClick={() => navigator.clipboard.writeText(JSON.stringify({

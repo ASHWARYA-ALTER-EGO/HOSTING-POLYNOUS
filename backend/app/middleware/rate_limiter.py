@@ -20,11 +20,3 @@ class RateLimiter:
         
         self.requests[key].append(now)
         return True
-
-rate_limiter = RateLimiter(max_requests=20, window_seconds=60)  # 20 requests per minute
-
-async def check_rate_limit(request: Request):
-    """Middleware to check rate limits"""
-    client_ip = request.client.host
-    if not rate_limiter.is_allowed(client_ip):
-        raise HTTPException(status_code=429, detail="Too many requests. Please wait.")

@@ -1,3 +1,4 @@
+# app/graph/orchestrator.py
 from app.semantic_search import semantic_search
 from app.knowledge_graph.hybrid_search import hybrid
 from app.knowledge_graph.graph_manager import kg
@@ -8,7 +9,7 @@ from app.agents.summariser_agent import summariser_agent
 from app.agents.critic_agent import critic_agent
 from app.agents.writer_agent import writer_agent
 from app.search_agent import search_web
-from app.chat_history import save_chat  # ← ADD THIS IMPORT
+from app.chat_history import save_chat
 
 def search_node(state: AgentState) -> AgentState:
     """Search Agent - Find relevant documents + graph context"""
@@ -116,13 +117,16 @@ def writer_node(state: AgentState) -> AgentState:
     except:
         entities = []
     
+    # Get confidence
+    conf = state.get('critique', {}).get('overall_confidence', 0)
+    
     # ========== Store in Knowledge Graph ==========
     try:
         kg.add_research_entry(
             query=state['query'],
             answer=answer,
             sources=state['citations'],
-            confidence=state.get('critique', {}).get('overall_confidence', 0),
+            confidence=conf,
             topics=entities,
             session_id="guest_user"
         )
@@ -137,7 +141,7 @@ def writer_node(state: AgentState) -> AgentState:
             query=state['query'],
             answer=answer,
             topics=entities,
-            confidence=state.get('critique', {}).get('overall_confidence', 0),
+            confidence=conf,
             mode="research",
             sources=state['citations']
         )
@@ -151,20 +155,20 @@ def writer_node(state: AgentState) -> AgentState:
             query=state['query'],
             answer=answer,
             mode="research",
-            confidence=state.get('critique', {}).get('overall_confidence', 0),
+            confidence=conf,
             sources=state.get('citations', [])
         )
         print("🔍 Indexed for Semantic Search")
     except Exception as e:
         print(f"⚠️ Search indexing: {e}")
     
-    # ========== NEW: Save to Chat History ==========
+    # ========== Save to Chat History - CORRECTED: No topics parameter ==========
     try:
         save_chat(
-            session_id=state.get('session_id', 'guest_user'),
+            session_id="guest_user",  # ← EXPLICITLY "guest_user"
             query=state['query'],
             answer=answer,
-            confidence=state.get('critique', {}).get('overall_confidence', 0),
+            confidence=conf,
             sources=state.get('citations', [])
         )
         print("💾 Saved to Chat History")

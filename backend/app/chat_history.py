@@ -1,5 +1,7 @@
+# app/chat_history.py
 import sqlite3
 import os
+import json
 from datetime import datetime
 
 DB_PATH = "polynous_chats.db"
@@ -17,6 +19,7 @@ def init_db():
             mode TEXT DEFAULT 'research',
             confidence REAL DEFAULT 0,
             sources TEXT DEFAULT '[]',
+            topics TEXT DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -29,6 +32,7 @@ def init_db():
             against_score REAL DEFAULT 5,
             winner TEXT DEFAULT 'TIE',
             reasoning TEXT DEFAULT '',
+            sources TEXT DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -36,30 +40,31 @@ def init_db():
     conn.close()
     print("✅ SQLite Chat History Ready!")
 
-def save_chat(session_id: str, query: str, answer: str, mode: str = "research", 
-              confidence: float = 0, sources: list = None):
+def save_chat(session_id: str, query: str, answer: str, 
+              confidence: float = 0, sources: list = None, mode: str = "research"):
     """Save a chat entry"""
-    import json
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO chat_history (session_id, user_query, answer, mode, confidence, sources) VALUES (?, ?, ?, ?, ?, ?)",
-        (session_id, query, answer[:1000], mode, confidence, json.dumps(sources or []))
+        (session_id, query, answer[:5000] if answer else "", mode, confidence, json.dumps(sources or []))
     )
     conn.commit()
     conn.close()
+    print(f"💾 Chat saved: {query[:50]}...")
 
 def save_debate(session_id: str, topic: str, for_score: float, against_score: float, 
-                winner: str, reasoning: str = ""):
+                winner: str, reasoning: str = "", sources: list = None):
     """Save a debate entry"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO debate_history (session_id, topic, for_score, against_score, winner, reasoning) VALUES (?, ?, ?, ?, ?, ?)",
-        (session_id, topic, for_score, against_score, winner, reasoning)
+        "INSERT INTO debate_history (session_id, topic, for_score, against_score, winner, reasoning, sources) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (session_id, topic, for_score, against_score, winner, reasoning[:1000] if reasoning else "", json.dumps(sources or []))
     )
     conn.commit()
     conn.close()
+    print(f"✅ Saved debate: {topic[:50]}...")
 
 def get_chat_history(session_id: str = None, limit: int = 20):
     """Get chat history"""
@@ -72,8 +77,17 @@ def get_chat_history(session_id: str = None, limit: int = 20):
     rows = cursor.fetchall()
     conn.close()
     return [
-        {"id": r[0], "session_id": r[1], "query": r[2], "answer": r[3][:200], 
-         "mode": r[4], "confidence": r[5], "created_at": r[7]}
+        {
+            "id": r[0], 
+            "session_id": r[1], 
+            "query": r[2], 
+            "answer": r[3][:500] if r[3] else "", 
+            "mode": r[4], 
+            "confidence": r[5], 
+            "sources": json.loads(r[6]) if r[6] else [],
+            "topics": json.loads(r[7]) if len(r) > 7 and r[7] else [],
+            "timestamp": r[8] if len(r) > 8 else None
+        }
         for r in rows
     ]
 
@@ -88,8 +102,17 @@ def get_debate_history(session_id: str = None, limit: int = 20):
     rows = cursor.fetchall()
     conn.close()
     return [
-        {"id": r[0], "session_id": r[1], "topic": r[2], "for_score": r[3],
-         "against_score": r[4], "winner": r[5], "reasoning": r[6], "created_at": r[7]}
+        {
+            "id": r[0], 
+            "session_id": r[1], 
+            "topic": r[2], 
+            "for_score": r[3],
+            "against_score": r[4], 
+            "winner": r[5], 
+            "reasoning": r[6][:500] if r[6] else "",
+            "sources": json.loads(r[7]) if len(r) > 7 and r[7] else [],
+            "timestamp": r[8] if len(r) > 8 else None
+        }
         for r in rows
     ]
 

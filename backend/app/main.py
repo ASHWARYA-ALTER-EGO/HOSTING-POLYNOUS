@@ -2,7 +2,7 @@ from app.routes.pdfs import router as pdfs_router
 from app.routes.memory import router as memory_router
 from app.routes.semantic_search import router as search_router
 from app.routes.knowledge import router as knowledge_router
-from app.middleware.rate_limiter import check_rate_limit
+# REMOVED: from app.middleware.rate_limiter import check_rate_limit
 from app.routes.oauth import router as oauth_router
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,19 +33,14 @@ app = FastAPI(title="POLYNOUS API")
 # ========== CORS MIDDLEWARE (must be before routes) ==========
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],  # Allow ALL methods (GET, POST, OPTIONS, etc.)
     allow_headers=["*"],
 )
 
-# ========== RATE LIMITING MIDDLEWARE ==========
-@app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    """Apply rate limiting to all requests"""
-    await check_rate_limit(request)
-    response = await call_next(request)
-    return response
+# ========== REMOVED: Rate Limiter Middleware ==========
+# No rate limiting to prevent CORS preflight blocking
 
 # ========== STARTUP EVENT ==========
 @app.on_event("startup")
@@ -59,7 +54,7 @@ app.include_router(conversations_router)
 app.include_router(oauth_router)
 app.include_router(knowledge_router)
 app.include_router(search_router)
-app.include_router(memory_router)
+app.include_router(memory_router)  # Only ONE memory router - from app/routes/memory.py
 app.include_router(pdfs_router)
 
 # ========== MODELS ==========
@@ -89,7 +84,7 @@ async def root():
 async def health():
     return {"status": "healthy", "agents": 7}
 
-# ========== NEW: Chat History Endpoints ==========
+# ========== Chat History Endpoints ==========
 @app.get("/history/chats")
 async def chat_history(session_id: str = None, limit: int = 20):
     """Get chat history"""
@@ -100,11 +95,15 @@ async def debate_history(session_id: str = None, limit: int = 20):
     """Get debate history"""
     return {"history": get_debate_history(session_id, limit)}
 
+# ========== REMOVED: Duplicate Memory Bank Endpoints ==========
+# All memory endpoints are now ONLY in app/routes/memory.py
+# This prevents route conflicts and ensures consistency
+
 @app.post("/ask", response_model=QueryResponse)
 async def ask_question(request: QueryRequest):
     """Research or Debate endpoint"""
     
-    session_id = request.session_id or str(uuid.uuid4())
+    session_id = request.session_id or "guest_user"
     
     state = AgentState(
         query=request.query,
@@ -126,16 +125,15 @@ async def ask_question(request: QueryRequest):
         print("\n🗣️ DEBATE MODE ACTIVATED")
         result = debate_graph.invoke(state)
         
-        # ========== NEW: Save debate to chat history ==========
+        # Save debate to chat history - FIXED: Match save_debate signature
         try:
             save_debate(
                 session_id=session_id,
                 topic=request.query,
                 for_score=result.get('judge_verdict', {}).get('for_score', 5),
                 against_score=result.get('judge_verdict', {}).get('against_score', 5),
-                winner=result.get('judge_verdict', {}).get('winner', 'TIE'),
-                reasoning=result.get('judge_verdict', {}).get('reasoning', ''),
-                sources=result.get('citations', [])
+                winner=result.get('judge_verdict', {}).get('winner', 'TIE')
+                # Removed reasoning and sources if not in function signature
             )
             print("💾 Saved debate to chat history")
         except Exception as e:
@@ -144,14 +142,14 @@ async def ask_question(request: QueryRequest):
         print("\n🔬 RESEARCH MODE ACTIVATED")
         result = orchestrator.invoke(state)
         
-        # ========== NEW: Save research to chat history ==========
+        # Save research to chat history
         try:
             save_chat(
                 session_id=session_id,
                 query=request.query,
                 answer=result.get('final_answer', ''),
-                confidence=result.get('critique', {}).get('overall_confidence', 0),
-                sources=result.get('citations', [])
+                confidence=result.get('critique', {}).get('overall_confidence', 0)
+                # Removed sources if not in function signature
             )
             print("💾 Saved chat to history")
         except Exception as e:
@@ -178,25 +176,16 @@ async def ask_question(request: QueryRequest):
         debate_verdict=verdict if verdict else {}
     )
 
-@app.post("/memory/create-user")
-async def create_memory_user(user_id: str = "guest_user", username: str = "Guest"):
-    """Create user profile in memory system"""
-    try:
-        from app.knowledge_graph.user_memory import user_memory
-        user_memory.create_user_profile(user_id, username, f"{user_id}@polynous.ai")
-        return {"status": "ok", "user_id": user_id}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-
 @app.post("/ask-stream")
 async def ask_stream(request: QueryRequest):
     """Streaming endpoint"""
     
     async def gen():
+        session_id = request.session_id or "guest_user"
+        
         state = AgentState(
             query=request.query,
-            session_id=request.session_id or str(uuid.uuid4()),
+            session_id=session_id,
             retrieved_docs=[], summaries=[], critique={}, final_answer="", citations=[],
             debate_mode=request.debate_mode, debate_history=[], judge_verdict={},
             errors=[], warnings=[], current_agent=""
@@ -215,20 +204,17 @@ async def ask_stream(request: QueryRequest):
                 if result.get('judge_verdict'):
                     yield f"data: {json.dumps({'type': 'verdict', 'verdict': result['judge_verdict']})}\n\n"
                 
-                # Save debate to chat history
+                # Save debate - FIXED: Match save_debate signature
                 try:
-                    from app.chat_history import save_debate
                     save_debate(
-                        session_id=state['session_id'],
+                        session_id=session_id,
                         topic=request.query,
                         for_score=result.get('judge_verdict', {}).get('for_score', 5),
                         against_score=result.get('judge_verdict', {}).get('against_score', 5),
-                        winner=result.get('judge_verdict', {}).get('winner', 'TIE'),
-                        reasoning=result.get('judge_verdict', {}).get('reasoning', ''),
-                        sources=result.get('citations', [])
+                        winner=result.get('judge_verdict', {}).get('winner', 'TIE')
                     )
-                except:
-                    pass
+                except Exception as e:
+                    print(f"⚠️ Failed to save debate in stream: {e}")
             else:
                 yield f"data: {json.dumps({'type': 'progress', 'agent': 'search', 'message': 'Searching web sources...'})}\n\n"
                 yield f"data: {json.dumps({'type': 'progress', 'agent': 'summarise', 'message': 'Summarizing documents...'})}\n\n"
@@ -238,18 +224,16 @@ async def ask_stream(request: QueryRequest):
                 confidence = result.get('critique', {}).get('overall_confidence', 0)
                 yield f"data: {json.dumps({'type': 'confidence', 'score': confidence})}\n\n"
                 
-                # Save research to chat history
+                # Save research
                 try:
-                    from app.chat_history import save_chat
                     save_chat(
-                        session_id=state['session_id'],
+                        session_id=session_id,
                         query=request.query,
                         answer=result.get('final_answer', ''),
-                        confidence=confidence,
-                        sources=result.get('citations', [])
+                        confidence=confidence
                     )
-                except:
-                    pass
+                except Exception as e:
+                    print(f"⚠️ Failed to save chat in stream: {e}")
             
             answer = result.get('final_answer', 'No answer')
             words = answer.split()

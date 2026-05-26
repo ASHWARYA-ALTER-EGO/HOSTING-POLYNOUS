@@ -4,7 +4,7 @@ from app.agents.debate_agents import argue_for_position, argue_against_position,
 from app.search_agent import search_web
 from app.knowledge_graph.user_memory import user_memory
 from app.semantic_search import semantic_search
-from app.chat_history import save_debate  # ← ADD THIS IMPORT
+from app.chat_history import save_debate
 
 def debate_search_node(state: AgentState) -> AgentState:
     """Search for debate sources"""
@@ -143,17 +143,17 @@ def judge_node(state: AgentState) -> AgentState:
             query=state['query'],
             answer=state.get('final_answer', ''),
             mode="debate",
-            confidence=for_score * 10,  # Convert 1-10 to 10-100 scale
+            confidence=for_score * 10,
             sources=state.get('citations', [])
         )
         print("  🔍 Indexed debate for Semantic Search")
     except Exception as e:
         print(f"  ⚠️ Search indexing error: {e}")
     
-    # ========== NEW: Save debate to chat history ==========
+    # ========== Save debate to chat history - Using "guest_user" explicitly ==========
     try:
         save_debate(
-            session_id=state.get('session_id', 'guest_user'),
+            session_id="guest_user",  # ← EXPLICITLY "guest_user", NOT state.get()
             topic=state['query'],
             for_score=for_score,
             against_score=against_score,

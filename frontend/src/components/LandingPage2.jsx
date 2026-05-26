@@ -431,7 +431,7 @@ const TECH = [
   {icon:"bolt",          title:"STREAMING ARCHITECTURE", color:C.green,   cls:"",                desc:"Server-Sent Events deliver real-time token streaming with agent progress visualization."},
   {icon:"extension",     title:"MODULAR AGENT DESIGN",   color:C.purple,  cls:"glow-tile-purple", desc:"LangGraph state machine orchestrates specialized agents with clear responsibilities."},
   {icon:"database",      title:"PERSISTENT MEMORY",      color:C.cyan,    cls:"glow-tile-cyan",   desc:"Neo4j graph database stores sessions while Pinecone enables semantic vector search."},
-  {icon:"token",         title:"PRODUCTION READY",       color:C.crimson, cls:"glow-tile-crimson", desc:"Docker containerization, rate limiting, and CORS support. Deploy anywhere with ease."},
+  {icon:"token",         title:"PRODUCTION READY",       color:C.crimson, cls:"glow-tile-crimson", desc:"Docker containerization, iting, and CORS support. Deploy anywhere with ease."},
   {icon:"api",           title:"API-FIRST DESIGN",       color:C.green,   cls:"",                desc:"FastAPI backend with automatic OpenAPI docs. Every feature exposed via REST."},
   {icon:"verified_user", title:"SELF-CRITIQUING",        color:C.gold,    cls:"glow-tile-gold",   desc:"Built-in contradiction detection catches inconsistencies between diverse data sources."},
 ];

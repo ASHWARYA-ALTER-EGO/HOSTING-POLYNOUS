@@ -22,9 +22,10 @@ if not tavily_key:
 tavily = TavilyClient(api_key=tavily_key)
 anthropic = Anthropic(api_key=anthropic_key)
 
-def search_web(query: str):
+def search_web(query: str, session_id: str = "guest_user"):
     """Search the web using Tavily"""
     try:
+        print(f"🔍 Searching for: {query} (session: {session_id})")
         response = tavily.search(
             query=query,
             search_depth="basic",
@@ -51,11 +52,12 @@ def format_search_results(results):
     
     return "\n---\n".join(formatted)
 
-def ask_claude_with_context(query: str, context: str) -> str:
+def ask_claude_with_context(query: str, context: str, session_id: str = "guest_user") -> str:
     """Ask Claude AI with search context"""
     try:
+        print(f"🤖 Asking Claude about: {query} (session: {session_id})")
         message = anthropic.messages.create(
-            model="claude-haiku-4-5",
+            model="claude-3-haiku-20240307",  # Fixed model name
             max_tokens=500,
             temperature=0.3,
             system="You are a research assistant. Use the provided search results to answer questions. Always cite your sources by number [1], [2], etc. If search results don't contain the answer, say so.",

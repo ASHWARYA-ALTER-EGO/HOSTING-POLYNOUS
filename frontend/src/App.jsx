@@ -1,9 +1,8 @@
-import LandingPage2 from './components/LandingPage2';
-import PdfLabPage from './components/PdfLabPage';
-import SemanticSearchPage from './components/SemanticSearchPage'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import LandingPage from './components/LandingPage';
+
+// Page imports
+import LandingPage2 from './components/LandingPage2';
 import AuthPage from './components/AuthPage';
 import OAuthCallback from './components/OAuthCallback';
 import MainApp from './components/MainApp';
@@ -11,16 +10,9 @@ import MemoryBank from './components/MemoryBank';
 import ResearchInterface from './components/ResearchInterface';
 import DebateInterface from './components/DebateInterface';
 import KnowledgeGraphPage from './components/KnowledgeGraphPage';
-import PolynousDashboard from './components/PolynousDashboard'
-
-// ========== MAIN APP WRAPPER (for pages with sidebar) ==========
-function DashboardWrapper({ user, onLogout }) {
-  return <MainApp user={user} onLogout={onLogout} currentPage="dashboard" />
-}
-
-function MemoryWrapper({ user }) {
-  return <MemoryBank user={user} />
-}
+import SemanticSearchPage from './components/SemanticSearchPage';
+import PdfLabPage from './components/PdfLabPage';
+import PolynousDashboard from './components/PolynousDashboard';
 
 // ========== GLOBAL AUTH STATE ==========
 export default function App() {
@@ -45,17 +37,13 @@ export default function App() {
       } catch (e) {
         localStorage.clear()
       }
-    } else {
-      localStorage.clear()
     }
     
     setInitialCheckDone(true)
   }, [])
 
-  // Login handler
+  // ========== AUTH HANDLERS ==========
   const handleLogin = (data) => {
-    console.log('🔑 handleLogin called with:', data)
-
     if (data?.skip) {
       const guestUser = { username: 'Guest', email: 'guest@polynous.ai', isGuest: true }
       localStorage.setItem('polynous_token', 'guest_' + Date.now())
@@ -77,28 +65,47 @@ export default function App() {
     }
   }
 
-  // Logout handler
   const handleLogout = () => {
     localStorage.clear()
     setIsLoggedIn(false)
     setUser(null)
+    window.location.href = '/'
   }
 
-  // ========== HANDLE GET STARTED - CHECKS TOKEN FIRST ==========
   const handleGetStarted = () => {
-    const token = localStorage.getItem('polynous_token');
+    const token = localStorage.getItem('polynous_token')
     if (token) {
-      window.location.href = '/research';
+      window.location.href = '/research'
     } else {
-      window.location.href = '/auth';
+      window.location.href = '/auth'
     }
-  };
+  }
 
-  // Don't render until initial check is done
+  // ========== NAVIGATION HELPERS ==========
+  const navigateTo = (path) => {
+    window.location.href = path
+  }
+
+  const startResearch = (topic) => {
+    window.location.href = `/research?query=${encodeURIComponent(topic)}`
+  }
+
+  // ========== LOADING STATE ==========
   if (!initialCheckDone) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#0a0a1a' }}>
-        <div style={{ textAlign: 'center', color: '#00ff0f', fontSize: '24px' }}>🧠</div>
+      <div style={{ 
+        minHeight: '100vh', display: 'flex', justifyContent: 'center', 
+        alignItems: 'center', background: '#0a0a1e', flexDirection: 'column', gap: 16 
+      }}>
+        <div style={{ 
+          width: 40, height: 40, borderRadius: '50%', 
+          border: '3px solid rgba(0,255,15,0.15)', borderTop: '3px solid #00ff0f',
+          animation: 'spin 1s linear infinite' 
+        }} />
+        <div style={{ color: '#00ff0f', fontFamily: "'Sora',sans-serif", fontWeight: 600, fontSize: 14 }}>
+          Initializing POLYNOUS
+        </div>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       </div>
     )
   }
@@ -106,16 +113,15 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Landing Page - Using new LandingPage2 with integrated get started handler */}
+        {/* ========== PUBLIC ROUTES ========== */}
+        
+        {/* Landing Page */}
         <Route 
           path="/" 
           element={
             isLoggedIn 
-              ? <Navigate to="/research" /> 
-              : <LandingPage2 
-                  onNavigate={(path) => window.location.href = path} 
-                  onGetStarted={handleGetStarted}
-                />
+              ? <Navigate to="/research" replace /> 
+              : <LandingPage2 onNavigate={navigateTo} onGetStarted={handleGetStarted} />
           } 
         />
         
@@ -124,7 +130,7 @@ export default function App() {
           path="/auth" 
           element={
             isLoggedIn 
-              ? <Navigate to="/research" /> 
+              ? <Navigate to="/research" replace /> 
               : <AuthPage onLogin={handleLogin} />
           } 
         />
@@ -134,24 +140,21 @@ export default function App() {
           path="/auth/callback" 
           element={<OAuthCallback onLogin={handleLogin} />} 
         />
-        
-        {/* Dashboard */}
-        <Route 
-          path="/dashboard" 
-          element={
-            isLoggedIn 
-              ? <DashboardWrapper user={user} onLogout={handleLogout} /> 
-              : <Navigate to="/auth" />
-          } 
-        />
 
+        {/* ========== PROTECTED ROUTES ========== */}
+        
         {/* Research Interface */}
         <Route 
           path="/research" 
           element={
             isLoggedIn 
-              ? <ResearchInterface user={user} onNavigate={(path) => window.location.href = path} />
-              : <Navigate to="/auth" />
+              ? <ResearchInterface 
+                  user={user} 
+                  onNavigate={navigateTo} 
+                  onStartResearch={startResearch}
+                  onLogout={handleLogout}
+                />
+              : <Navigate to="/auth" replace />
           } 
         />
 
@@ -162,24 +165,25 @@ export default function App() {
             isLoggedIn 
               ? <DebateInterface 
                   user={user} 
-                  onNavigate={(path) => window.location.href = path} 
+                  onNavigate={navigateTo}
+                  onLogout={handleLogout}
                 />
-              : <Navigate to="/auth" />
+              : <Navigate to="/auth" replace />
           } 
         />
 
-        {/* Knowledge Graph - UPDATED with all props */}
+        {/* Knowledge Graph */}
         <Route 
           path="/graph" 
           element={
             isLoggedIn 
               ? <KnowledgeGraphPage 
                   user={user} 
-                  onStartResearch={(topic) => window.location.href = `/research?query=${encodeURIComponent(topic)}`}
-                  onNavigate={(path) => window.location.href = path}
+                  onStartResearch={startResearch}
+                  onNavigate={navigateTo}
                   onLogout={handleLogout}
                 />
-              : <Navigate to="/auth" />
+              : <Navigate to="/auth" replace />
           } 
         />
 
@@ -188,8 +192,13 @@ export default function App() {
           path="/memory" 
           element={
             isLoggedIn 
-              ? <MemoryWrapper user={user} /> 
-              : <Navigate to="/auth" />
+              ? <MemoryBank 
+                  user={user}
+                  onNavigate={navigateTo}
+                  onStartResearch={startResearch}
+                  onLogout={handleLogout}
+                />
+              : <Navigate to="/auth" replace />
           } 
         />
 
@@ -200,24 +209,25 @@ export default function App() {
             isLoggedIn 
               ? <SemanticSearchPage 
                   user={user} 
-                  onStartResearch={(topic) => window.location.href = `/research?query=${encodeURIComponent(topic)}`}
-                  onNavigate={(path) => window.location.href = path}
+                  onStartResearch={startResearch}
+                  onNavigate={navigateTo}
+                  onLogout={handleLogout}
                 />
-              : <Navigate to="/auth" />
+              : <Navigate to="/auth" replace />
           } 
         />
 
-        {/* PDF Lab - Research Paper Processing */}
+        {/* PDF Lab */}
         <Route 
           path="/pdf-lab" 
           element={
             isLoggedIn 
               ? <PdfLabPage 
                   user={user} 
-                  onNavigate={(p) => window.location.href = p} 
-                  onLogout={handleLogout} 
+                  onNavigate={navigateTo}
+                  onLogout={handleLogout}
                 />
-              : <Navigate to="/auth" />
+              : <Navigate to="/auth" replace />
           } 
         />
 
@@ -228,15 +238,15 @@ export default function App() {
             isLoggedIn 
               ? <PolynousDashboard 
                   user={user} 
-                  onNavigate={(path) => window.location.href = path} 
-                  onLogout={handleLogout} 
+                  onNavigate={navigateTo}
+                  onLogout={handleLogout}
                 />
-              : <Navigate to="/auth" />
+              : <Navigate to="/auth" replace />
           } 
         />
         
-        {/* Catch all */}
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* ========== CATCH-ALL ========== */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   )

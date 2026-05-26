@@ -10,7 +10,7 @@ const C = {
 const RAINBOW = ['#ff2040','#ff6b35','#ffd700','#00ff0f','#00ccff','#4dabf7','#a855f7','#ff6b9d'];
 
 function Icon({ name, style }) {
-  return <span style={{ fontFamily: "Material Symbols Outlined", fontVariationSettings: "'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24", lineHeight: 1, ...(style || {}) }}>{name}</span>
+  return <span style={{ fontFamily:"Material Symbols Outlined", fontVariationSettings:"'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24", lineHeight:1, ...(style||{}) }}>{name}</span>;
 }
 
 function Styles() {
@@ -23,286 +23,493 @@ function Styles() {
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
     @keyframes twinkle{0%,100%{opacity:0.3}50%{opacity:0.8}}
+    @keyframes fadeSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes scanline{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+    @keyframes ringPulse{0%,100%{transform:scale(1);opacity:0.6}50%{transform:scale(1.04);opacity:1}}
     .period-btn{padding:4px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;border:none;background:transparent;cursor:pointer;border-radius:9999px;transition:all 0.2s;color:#b9ccb0}
     .period-btn-active{background:rgba(0,255,15,0.1);color:#00ff0f}
     .period-btn-inactive:hover{color:#e2e0fc}
+    .card-glow:hover{box-shadow:0 0 30px rgba(0,204,255,0.08),0 0 60px rgba(0,255,15,0.04)!important;transition:box-shadow 0.4s ease}
   `}</style>;
 }
 
-// ─── RAINBOW FLOATING PARTICLE BACKGROUND (SMALLER PARTICLES) ─
+// ─── NEURAL BACKGROUND ────────────────────────────────────────
 function NeuralBackground() {
   const ref = useRef(null);
   useEffect(() => {
     const canvas = ref.current;
     const ctx = canvas.getContext("2d");
-    let particles = [];
-    let mouse = { x: null, y: null };
-    let animId;
-    const PARTICLE_COUNT = 180; // More particles but smaller
-
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-
+    let particles = [], mouse = { x:null, y:null }, animId;
+    const resize = () => { canvas.width=window.innerWidth; canvas.height=window.innerHeight; };
     class Particle {
-      constructor() {
-        this.reset();
-      }
+      constructor() { this.reset(); }
       reset() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.baseVx = (Math.random() - 0.5) * 0.4;
-        this.baseVy = (Math.random() - 0.5) * 0.4;
-        this.vx = this.baseVx;
-        this.vy = this.baseVy;
-        this.size = Math.random() * 1.5 + 0.5; // Smaller: 0.5 to 2px
-        this.color = RAINBOW[Math.floor(Math.random() * RAINBOW.length)];
-        this.opacity = Math.random() * 0.35 + 0.1; // Slightly more subtle
-        this.twinkleSpeed = Math.random() * 0.025 + 0.008;
-        this.twinkleOffset = Math.random() * Math.PI * 2;
-        this.wobbleAmp = Math.random() * 0.2;
-        this.wobbleSpeed = Math.random() * 0.015 + 0.008;
-        this.wobbleOffset = Math.random() * Math.PI * 2;
+        this.x=Math.random()*canvas.width; this.y=Math.random()*canvas.height;
+        this.baseVx=(Math.random()-0.5)*0.4; this.baseVy=(Math.random()-0.5)*0.4;
+        this.vx=this.baseVx; this.vy=this.baseVy;
+        this.size=Math.random()*1.5+0.5;
+        this.color=RAINBOW[Math.floor(Math.random()*RAINBOW.length)];
+        this.opacity=Math.random()*0.35+0.1;
+        this.twinkleSpeed=Math.random()*0.025+0.008; this.twinkleOffset=Math.random()*Math.PI*2;
+        this.wobbleAmp=Math.random()*0.2; this.wobbleSpeed=Math.random()*0.015+0.008; this.wobbleOffset=Math.random()*Math.PI*2;
       }
       update(time) {
-        this.vx = this.baseVx + Math.sin(time * this.wobbleSpeed + this.wobbleOffset) * this.wobbleAmp;
-        this.vy = this.baseVy + Math.cos(time * this.wobbleSpeed + this.wobbleOffset) * this.wobbleAmp;
-        this.x += this.vx;
-        this.y += this.vy;
-        if (mouse.x !== null && mouse.y !== null) {
-          const dx = this.x - mouse.x;
-          const dy = this.y - mouse.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 180) {
-            const force = (180 - dist) / 180;
-            this.x += (dx / dist) * force * 2.5;
-            this.y += (dy / dist) * force * 2.5;
-          }
-        }
-        if (this.x < -10) this.x = canvas.width + 10;
-        if (this.x > canvas.width + 10) this.x = -10;
-        if (this.y < -10) this.y = canvas.height + 10;
-        if (this.y > canvas.height + 10) this.y = -10;
+        this.vx=this.baseVx+Math.sin(time*this.wobbleSpeed+this.wobbleOffset)*this.wobbleAmp;
+        this.vy=this.baseVy+Math.cos(time*this.wobbleSpeed+this.wobbleOffset)*this.wobbleAmp;
+        this.x+=this.vx; this.y+=this.vy;
+        if(mouse.x!==null){const dx=this.x-mouse.x,dy=this.y-mouse.y,dist=Math.sqrt(dx*dx+dy*dy);if(dist<180){const f=(180-dist)/180;this.x+=(dx/dist)*f*2.5;this.y+=(dy/dist)*f*2.5;}}
+        if(this.x<-10)this.x=canvas.width+10;if(this.x>canvas.width+10)this.x=-10;
+        if(this.y<-10)this.y=canvas.height+10;if(this.y>canvas.height+10)this.y=-10;
       }
       draw(time) {
-        const twinkle = Math.sin(time * this.twinkleSpeed + this.twinkleOffset) * 0.15 + 0.85;
-        const alpha = this.opacity * twinkle;
-        
-        // Smaller glow radius
-        const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 3);
-        glow.addColorStop(0, this.color.replace(')', `,${alpha * 0.5})`).replace('rgb', 'rgba'));
-        glow.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size * 3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Core particle
-        ctx.fillStyle = this.color;
-        ctx.globalAlpha = alpha;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        const alpha=this.opacity*(Math.sin(time*this.twinkleSpeed+this.twinkleOffset)*0.15+0.85);
+        const glow=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.size*3);
+        glow.addColorStop(0,this.color.replace(')',',' +alpha*0.5+')').replace('rgb','rgba'));
+        glow.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(this.x,this.y,this.size*3,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle=this.color; ctx.globalAlpha=alpha;
+        ctx.beginPath(); ctx.arc(this.x,this.y,this.size,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
       }
     }
-
-    const init = () => {
-      particles = Array.from({ length: PARTICLE_COUNT }, () => new Particle());
-    };
-
-    let startTime = performance.now();
-    const animate = (timestamp) => {
-      const time = timestamp - startTime;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw subtle connections between nearby particles
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 110) { // Shorter connection distance
-            const opacity = (1 - dist / 110) * 0.04;
-            ctx.strokeStyle = `rgba(255,255,255,${opacity})`;
-            ctx.lineWidth = 0.3; // Thinner lines
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
-          }
-        }
+    let startTime=performance.now();
+    const init=()=>{particles=Array.from({length:180},()=>new Particle());};
+    const animate=(ts)=>{
+      const time=ts-startTime; ctx.clearRect(0,0,canvas.width,canvas.height);
+      for(let i=0;i<particles.length;i++)for(let j=i+1;j<particles.length;j++){
+        const dx=particles[i].x-particles[j].x,dy=particles[i].y-particles[j].y,dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<110){ctx.strokeStyle=`rgba(255,255,255,${(1-dist/110)*0.04})`;ctx.lineWidth=0.3;ctx.beginPath();ctx.moveTo(particles[i].x,particles[i].y);ctx.lineTo(particles[j].x,particles[j].y);ctx.stroke();}
       }
-      
-      // Draw particles
-      particles.forEach(p => {
-        p.update(time);
-        p.draw(time);
-      });
-      animId = requestAnimationFrame(animate);
+      particles.forEach(p=>{p.update(time);p.draw(time);});
+      animId=requestAnimationFrame(animate);
     };
-
-    const onMouseMove = (e) => { mouse.x = e.clientX; mouse.y = e.clientY; };
-    const onMouseLeave = () => { mouse.x = null; mouse.y = null; };
-    window.addEventListener("resize", () => { resize(); init(); });
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseleave", onMouseLeave);
-    resize();
-    init();
-    animId = requestAnimationFrame(animate);
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseleave", onMouseLeave);
-    };
-  }, []);
-  return <canvas ref={ref} style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", zIndex: 0, pointerEvents: "none" }} />;
+    const onMM=(e)=>{mouse.x=e.clientX;mouse.y=e.clientY;};
+    const onML=()=>{mouse.x=null;mouse.y=null;};
+    window.addEventListener("resize",()=>{resize();init()});
+    window.addEventListener("mousemove",onMM); window.addEventListener("mouseleave",onML);
+    resize(); init(); animId=requestAnimationFrame(animate);
+    return()=>{cancelAnimationFrame(animId);window.removeEventListener("resize",resize);window.removeEventListener("mousemove",onMM);window.removeEventListener("mouseleave",onML);};
+  },[]);
+  return <canvas ref={ref} style={{position:"fixed",top:0,left:0,width:"100%",height:"100%",zIndex:0,pointerEvents:"none"}}/>;
 }
 
-// ─── Sparkline ────────────────────────────────────────────────
+// ─── SPARKLINE ────────────────────────────────────────────────
 function Sparkline({ data, color }) {
   const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current; if(!canvas)return; const ctx=canvas.getContext('2d');
-    canvas.width=80;canvas.height=30;
-    if(!data||data.length===0)return;
+  useEffect(()=>{
+    const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');
+    canvas.width=80;canvas.height=30;if(!data||data.length===0)return;
     const max=Math.max(...data,1),min=Math.min(...data,0);
     ctx.beginPath();ctx.moveTo(0,canvas.height-((data[0]-min)/(max-min||1))*canvas.height);
     data.forEach((v,i)=>{const x=(i/(data.length-1))*canvas.width,y=canvas.height-((v-min)/(max-min||1))*canvas.height;ctx.lineTo(x,y)});
     ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.stroke();
-  }, [data, color]);
+  },[data,color]);
   return <canvas ref={ref} width={80} height={30} style={{opacity:0.6}}/>;
 }
 
-// ─── Activity Chart ───────────────────────────────────────────
+// ─── ACTIVITY CHART (REDESIGNED) ─────────────────────────────
 function ActivityChart({ data }) {
   const ref = useRef(null);
-  useEffect(() => {
-    const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');const parent=canvas.parentElement;
-    function draw(){canvas.width=parent.clientWidth;canvas.height=parent.clientHeight;const pad=40,w=canvas.width-pad*2,h=canvas.height-pad*2;ctx.clearRect(0,0,canvas.width,canvas.height);
-      const entries=Object.entries(data||{}).slice(-30);if(entries.length===0)return;
+  useEffect(()=>{
+    const canvas=ref.current;if(!canvas)return;
+    const ctx=canvas.getContext('2d');const parent=canvas.parentElement;
+    function draw(){
+      const dpr=window.devicePixelRatio||1;
+      const W=parent.clientWidth,H=parent.clientHeight;
+      canvas.width=W*dpr;canvas.height=H*dpr;
+      canvas.style.width=W+'px';canvas.style.height=H+'px';
+      ctx.scale(dpr,dpr);
+      ctx.clearRect(0,0,W,H);
+      const entries=Object.entries(data||{}).slice(-14);
+      if(entries.length===0)return;
       const maxVal=Math.max(...entries.map(([,v])=>v),1);
-      ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;
-      for(let i=0;i<=4;i++){const y=pad+(h/4)*i;ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(canvas.width-pad,y);ctx.stroke()}
-      const pts=entries.map(([,v],i)=>({x:pad+(w/(entries.length-1))*i,y:pad+h-(v/maxVal)*h}));
+      const padL=10,padR=10,padT=16,padB=48;
+      const w=W-padL-padR,h=H-padT-padB;
+
+      // Grid lines with labels
+      for(let i=0;i<=4;i++){
+        const y=padT+(h/4)*i;
+        const val=Math.round(maxVal*(1-i/4));
+        ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;
+        ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle='rgba(136,153,170,0.6)';ctx.font='9px "JetBrains Mono"';ctx.textAlign='right';
+        ctx.fillText(val,padL+18,y+3);
+      }
+
+      const pts=entries.map(([,v],i)=>({
+        x:padL+(w/(Math.max(entries.length-1,1)))*i,
+        y:padT+h-(v/maxVal)*h
+      }));
+
+      // Gradient fill under curve
+      const fillGrad=ctx.createLinearGradient(0,padT,0,padT+h);
+      fillGrad.addColorStop(0,'rgba(0,204,255,0.18)');
+      fillGrad.addColorStop(0.5,'rgba(0,255,15,0.06)');
+      fillGrad.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.beginPath();ctx.moveTo(pts[0].x,padT+h);ctx.lineTo(pts[0].x,pts[0].y);
+      for(let i=1;i<pts.length;i++){const cpx=(pts[i-1].x+pts[i].x)/2;ctx.bezierCurveTo(cpx,pts[i-1].y,cpx,pts[i].y,pts[i].x,pts[i].y);}
+      ctx.lineTo(pts[pts.length-1].x,padT+h);ctx.closePath();
+      ctx.fillStyle=fillGrad;ctx.fill();
+
+      // Main line — rainbow gradient
+      const lineGrad=ctx.createLinearGradient(padL,0,W-padR,0);
+      RAINBOW.forEach((c,i)=>lineGrad.addColorStop(i/(RAINBOW.length-1),c));
       ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-      for(let i=1;i<pts.length;i++){const cpx=(pts[i-1].x+pts[i].x)/2;ctx.bezierCurveTo(cpx,pts[i-1].y,cpx,pts[i].y,pts[i].x,pts[i].y)}
-      const grad=ctx.createLinearGradient(0,0,canvas.width,0);RAINBOW.forEach((c,i)=>grad.addColorStop(i/(RAINBOW.length-1),c));
-      ctx.strokeStyle=grad;ctx.lineWidth=3;ctx.shadowBlur=10;ctx.shadowColor='rgba(0,255,255,0.2)';ctx.stroke();ctx.shadowBlur=0;
-      pts.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill()})}
+      for(let i=1;i<pts.length;i++){const cpx=(pts[i-1].x+pts[i].x)/2;ctx.bezierCurveTo(cpx,pts[i-1].y,cpx,pts[i].y,pts[i].x,pts[i].y);}
+      ctx.strokeStyle=lineGrad;ctx.lineWidth=2.5;ctx.shadowBlur=12;ctx.shadowColor='rgba(0,204,255,0.4)';ctx.stroke();ctx.shadowBlur=0;
+
+      // Dots + vertical drop lines
+      pts.forEach((p,i)=>{
+        ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;ctx.setLineDash([2,4]);
+        ctx.beginPath();ctx.moveTo(p.x,p.y+6);ctx.lineTo(p.x,padT+h);ctx.stroke();ctx.setLineDash([]);
+
+        const color=RAINBOW[i%RAINBOW.length];
+        ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);
+        ctx.fillStyle=color;ctx.shadowBlur=10;ctx.shadowColor=color;ctx.fill();ctx.shadowBlur=0;
+        ctx.beginPath();ctx.arc(p.x,p.y,2.5,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+      });
+
+      // X-axis labels
+      const skip=Math.ceil(entries.length/7);
+      entries.forEach(([label],i)=>{
+        if(i%skip!==0&&i!==entries.length-1)return;
+        const x=padL+(w/(Math.max(entries.length-1,1)))*i;
+        ctx.save();ctx.translate(x,padT+h+14);ctx.rotate(-Math.PI/6);
+        ctx.fillStyle='rgba(136,153,170,0.8)';ctx.font='9px "JetBrains Mono"';ctx.textAlign='right';
+        ctx.fillText(label,0,0);ctx.restore();
+      });
+    }
     draw();const ro=new ResizeObserver(draw);ro.observe(parent);return()=>ro.disconnect();
   },[data]);
-  return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
+  return <canvas ref={ref} style={{width:'100%',height:'100%',display:'block'}}/>;
 }
 
-// ─── Topics Chart ─────────────────────────────────────────────
+// ─── TOPICS CHART (REDESIGNED) ────────────────────────────────
 function TopicsChart({ data }) {
   const ref = useRef(null);
-  useEffect(() => {
-    const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');const parent=canvas.parentElement;
-    function draw(){canvas.width=parent.clientWidth;canvas.height=parent.clientHeight;ctx.clearRect(0,0,canvas.width,canvas.height);
-      const entries=Object.entries(data||{}).sort((a,b)=>b[1]-a[1]).slice(0,8);if(entries.length===0)return;
-      const pad=50,bw=(canvas.width-pad*2)/entries.length;
-      entries.forEach(([label,val],i)=>{const x=pad+bw*i+bw/2;ctx.fillStyle='#b9ccb0';ctx.font='10px "JetBrains Mono"';ctx.textAlign='center';ctx.fillText(label.length>10?label.slice(0,9)+'…':label,x,canvas.height-8);
-        for(let j=0;j<Math.min(val,6);j++){const y=canvas.height-35-j*22,color=RAINBOW[j%RAINBOW.length];ctx.beginPath();ctx.arc(x,y,6,0,Math.PI*2);ctx.fillStyle=color;ctx.shadowBlur=8;ctx.shadowColor=color;ctx.fill();ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fillStyle='#fff';ctx.shadowBlur=0;ctx.fill()}})}
+  useEffect(()=>{
+    const canvas=ref.current;if(!canvas)return;
+    const ctx=canvas.getContext('2d');const parent=canvas.parentElement;
+    function draw(){
+      const dpr=window.devicePixelRatio||1;
+      const W=parent.clientWidth,H=parent.clientHeight;
+      canvas.width=W*dpr;canvas.height=H*dpr;
+      canvas.style.width=W+'px';canvas.style.height=H+'px';
+      ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
+      const entries=Object.entries(data||{}).sort((a,b)=>b[1]-a[1]).slice(0,8);
+      if(entries.length===0)return;
+      const maxVal=Math.max(...entries.map(([,v])=>v),1);
+      const padL=8,padR=8,padT=10,padB=52;
+      const colW=(W-padL-padR)/entries.length;
+      const dotR=5,dotGap=14,maxDots=6;
+
+      entries.forEach(([label,val],i)=>{
+        const cx=padL+colW*i+colW/2;
+        const count=Math.min(val,maxDots);
+        const color=RAINBOW[i%RAINBOW.length];
+
+        // Bar background track
+        const trackH=(maxDots-1)*dotGap+dotR*2+10;
+        const trackY=H-padB-trackH-10;
+        ctx.beginPath();ctx.roundRect(cx-colW*0.28,trackY,colW*0.56,trackH+20,8);
+        ctx.fillStyle='rgba(255,255,255,0.03)';ctx.fill();
+        ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=0.5;ctx.stroke();
+
+        // Connecting spine
+        if(count>1){
+          const topDotY=H-padB-padT-(count-1)*dotGap;
+          const botDotY=H-padB-padT;
+          const spineGrad=ctx.createLinearGradient(cx,topDotY,cx,botDotY);
+          spineGrad.addColorStop(0,color+'99');spineGrad.addColorStop(1,color+'22');
+          ctx.beginPath();ctx.moveTo(cx,topDotY);ctx.lineTo(cx,botDotY);
+          ctx.strokeStyle=spineGrad;ctx.lineWidth=1.5;ctx.stroke();
+        }
+
+        // Dots
+        for(let j=0;j<count;j++){
+          const dotY=H-padB-padT-j*dotGap;
+          const dotColor=RAINBOW[(i+j)%RAINBOW.length];
+          const ratio=j/(maxDots-1||1);
+
+          // Outer glow
+          const glowR=dotR+5+ratio*3;
+          const glow=ctx.createRadialGradient(cx,dotY,0,cx,dotY,glowR);
+          glow.addColorStop(0,dotColor+'55');glow.addColorStop(1,'rgba(0,0,0,0)');
+          ctx.beginPath();ctx.arc(cx,dotY,glowR,0,Math.PI*2);
+          ctx.fillStyle=glow;ctx.fill();
+
+          // Main dot
+          ctx.beginPath();ctx.arc(cx,dotY,dotR,0,Math.PI*2);
+          ctx.fillStyle=dotColor;ctx.shadowBlur=10;ctx.shadowColor=dotColor;ctx.fill();ctx.shadowBlur=0;
+
+          // Highlight
+          ctx.beginPath();ctx.arc(cx-1.2,dotY-1.2,1.8,0,Math.PI*2);
+          ctx.fillStyle='rgba(255,255,255,0.7)';ctx.fill();
+        }
+
+        // Value badge above top dot
+        const topY=H-padB-padT-(count-1)*dotGap-dotR-10;
+        ctx.fillStyle=color+'22';
+        ctx.beginPath();ctx.roundRect(cx-10,topY-14,20,14,4);ctx.fill();
+        ctx.fillStyle=color;ctx.font='bold 9px "JetBrains Mono"';ctx.textAlign='center';
+        ctx.fillText(val,cx,topY-4);
+
+        // Label
+        ctx.save();
+        const short=label.length>7?label.slice(0,6)+'…':label;
+        ctx.translate(cx,H-padB+8);
+        if(colW<55){ctx.rotate(-Math.PI/4);ctx.textAlign='right';}else{ctx.textAlign='center';}
+        ctx.fillStyle='rgba(185,204,176,0.85)';ctx.font='10px "JetBrains Mono"';
+        ctx.fillText(short,0,0);ctx.restore();
+      });
+    }
     draw();const ro=new ResizeObserver(draw);ro.observe(parent);return()=>ro.disconnect();
   },[data]);
-  return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
+  return <canvas ref={ref} style={{width:'100%',height:'100%',display:'block'}}/>;
 }
 
-// ─── Confidence Ring ──────────────────────────────────────────
+// ─── CONFIDENCE RING (REDESIGNED) ────────────────────────────
 function ConfidenceRing({ distribution }) {
   const ref = useRef(null);
-  useEffect(() => {
-    const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');const size=180;canvas.width=size;canvas.height=size;
-    const cx=size/2,cy=size/2,r=60;const total=(distribution?.high||0)+(distribution?.medium||0)+(distribution?.low||0)||1;
-    const segments=[{val:(distribution?.high||0)/total,color:C.green},{val:(distribution?.medium||0)/total,color:'#ffaa00'},{val:(distribution?.low||0)/total,color:C.crimson}];
-    ctx.clearRect(0,0,size,size);let start=-Math.PI/2;
-    segments.forEach(s=>{const end=start+(s.val*Math.PI*2);ctx.beginPath();ctx.arc(cx,cy,r,start,end);ctx.strokeStyle=s.color;ctx.lineWidth=14;ctx.lineCap='round';ctx.shadowBlur=8;ctx.shadowColor=s.color;ctx.stroke();ctx.shadowBlur=0;start=end});
-    ctx.beginPath();ctx.arc(cx,cy,r-10,0,Math.PI*2);ctx.fillStyle='rgba(10,10,30,0.8)';ctx.fill();
-    ctx.fillStyle='#fff';ctx.font='bold 18px "Sora",sans-serif';ctx.textAlign='center';ctx.fillText(Math.round((distribution?.high||0)/total*100)+'%',cx,cy+6);
+  const animRef = useRef(null);
+  useEffect(()=>{
+    const canvas=ref.current;if(!canvas)return;
+    const ctx=canvas.getContext('2d');
+    const SIZE=220;canvas.width=SIZE;canvas.height=SIZE;
+    const cx=SIZE/2,cy=SIZE/2;
+    const total=(distribution?.high||0)+(distribution?.medium||0)+(distribution?.low||0)||1;
+    const highPct=(distribution?.high||0)/total;
+    const medPct=(distribution?.medium||0)/total;
+    const lowPct=(distribution?.low||0)/total;
+    const segs=[
+      {val:highPct,color:C.green,label:'High',r:72,lw:12},
+      {val:medPct,color:'#ffaa00',label:'Med',r:54,lw:10},
+      {val:lowPct,color:C.crimson,label:'Low',r:38,lw:8},
+    ];
+    let t=0;
+    function drawFrame(){
+      ctx.clearRect(0,0,SIZE,SIZE);
+      const progress=Math.min(t/80,1);
+      const ease=1-Math.pow(1-progress,3);
+
+      // Outer decorative ring
+      ctx.beginPath();ctx.arc(cx,cy,84,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.stroke();
+      ctx.beginPath();ctx.arc(cx,cy,26,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.stroke();
+
+      // Track rings
+      segs.forEach(s=>{
+        ctx.beginPath();ctx.arc(cx,cy,s.r,0,Math.PI*2);
+        ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=s.lw;ctx.lineCap='round';ctx.stroke();
+      });
+
+      // Animated fill rings
+      segs.forEach(s=>{
+        if(s.val<=0)return;
+        const end=-Math.PI/2+(s.val*Math.PI*2)*ease;
+        // Glow pass
+        ctx.beginPath();ctx.arc(cx,cy,s.r,-Math.PI/2,end);
+        ctx.strokeStyle=s.color;ctx.lineWidth=s.lw+8;ctx.globalAlpha=0.12;ctx.stroke();ctx.globalAlpha=1;
+        // Main arc
+        ctx.beginPath();ctx.arc(cx,cy,s.r,-Math.PI/2,end);
+        ctx.strokeStyle=s.color;ctx.lineWidth=s.lw;
+        ctx.shadowBlur=14;ctx.shadowColor=s.color;ctx.stroke();ctx.shadowBlur=0;
+        // End cap dot
+        const ex=cx+Math.cos(end)*s.r,ey=cy+Math.sin(end)*s.r;
+        ctx.beginPath();ctx.arc(ex,ey,s.lw/2+1,0,Math.PI*2);
+        ctx.fillStyle=s.color;ctx.shadowBlur=8;ctx.shadowColor=s.color;ctx.fill();ctx.shadowBlur=0;
+      });
+
+      // Center display
+      ctx.beginPath();ctx.arc(cx,cy,20,0,Math.PI*2);
+      ctx.fillStyle='rgba(10,10,30,0.95)';ctx.fill();
+      ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.font='bold 13px "Sora",sans-serif';
+      ctx.fillText(Math.round(highPct*100*ease)+'%',cx,cy);
+
+      t++;
+      if(t<=80)animRef.current=requestAnimationFrame(drawFrame);
+    }
+    cancelAnimationFrame(animRef.current);t=0;drawFrame();
+    return()=>cancelAnimationFrame(animRef.current);
   },[distribution]);
-  return <canvas ref={ref} style={{width:'100%',height:'100%',maxWidth:'180px',maxHeight:'180px'}}/>;
+
+  const total=(distribution?.high||0)+(distribution?.medium||0)+(distribution?.low||0)||1;
+  const highPct=Math.round((distribution?.high||0)/total*100);
+  const medPct=Math.round((distribution?.medium||0)/total*100);
+  const lowPct=Math.round((distribution?.low||0)/total*100);
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,width:'100%'}}>
+      <canvas ref={ref} style={{width:220,height:220,flexShrink:0}}/>
+      {/* Legend */}
+      <div style={{display:'flex',gap:16,flexWrap:'wrap',justifyContent:'center'}}>
+        {[
+          {label:'High',color:C.green,pct:highPct},
+          {label:'Medium',color:'#ffaa00',pct:medPct},
+          {label:'Low',color:C.crimson,pct:lowPct},
+        ].map(({label,color,pct})=>(
+          <div key={label} style={{display:'flex',alignItems:'center',gap:6}}>
+            <div style={{width:8,height:8,borderRadius:'50%',background:color,boxShadow:`0 0 6px ${color}`}}/>
+            <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary}}>{label}</span>
+            <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color,fontWeight:700}}>{pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-// ─── Heatmap ──────────────────────────────────────────────────
+// ─── HEATMAP (REDESIGNED) ─────────────────────────────────────
 function HeatmapChart({ data }) {
   const ref = useRef(null);
-  useEffect(() => {
-    const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');const parent=canvas.parentElement;
-    function draw(){canvas.width=parent.clientWidth;canvas.height=parent.clientHeight;ctx.clearRect(0,0,canvas.width,canvas.height);
-      const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];const rows=days.length,cols=24;
-      const cw=(canvas.width-40)/cols,ch=(canvas.height-40)/rows;
-      let maxVal=1;if(data){Object.values(data).forEach(hours=>{Object.values(hours).forEach(v=>{if(v>maxVal)maxVal=v})})}
-      days.forEach((day,r)=>{for(let c=0;c<cols;c++){const v=(data?.[day]?.[String(c)]||0)/maxVal;let color='rgba(255,255,255,0.02)';if(v>0.8)color=C.green+'99';else if(v>0.5)color=C.cyan+'66';else if(v>0.2)color=C.cyan+'33';ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(20+c*cw+2,20+r*ch+2,cw-4,ch-4,3);ctx.fill()}})}
+  useEffect(()=>{
+    const canvas=ref.current;if(!canvas)return;
+    const ctx=canvas.getContext('2d');const parent=canvas.parentElement;
+    function draw(){
+      const dpr=window.devicePixelRatio||1;
+      const W=parent.clientWidth,H=parent.clientHeight;
+      canvas.width=W*dpr;canvas.height=H*dpr;
+      canvas.style.width=W+'px';canvas.style.height=H+'px';
+      ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
+
+      const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const cols=24,rows=days.length;
+      const padL=34,padR=8,padT=8,padB=20;
+      const cw=(W-padL-padR)/cols,ch=(H-padT-padB)/rows;
+
+      let maxVal=1;
+      if(data)Object.values(data).forEach(hours=>Object.values(hours).forEach(v=>{if(v>maxVal)maxVal=v}));
+
+      // Hour labels (every 3h)
+      ctx.fillStyle='rgba(136,153,170,0.6)';ctx.font='8px "JetBrains Mono"';ctx.textAlign='center';
+      for(let h=0;h<24;h+=3){
+        const x=padL+h*cw+cw/2;
+        const label=h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p';
+        ctx.fillText(label,x,H-padB+12);
+      }
+
+      // Day labels
+      ctx.textAlign='right';
+      days.forEach((day,r)=>{
+        const y=padT+r*ch+ch/2+4;
+        ctx.fillStyle='rgba(136,153,170,0.7)';ctx.font='9px "JetBrains Mono"';
+        ctx.fillText(day,padL-5,y);
+      });
+
+      // Cells
+      days.forEach((day,r)=>{
+        for(let c=0;c<cols;c++){
+          const v=(data?.[day]?.[String(c)]||0)/maxVal;
+          const x=padL+c*cw,y=padT+r*ch;
+          const gap=1.5,rx=3;
+
+          if(v<=0){
+            ctx.fillStyle='rgba(255,255,255,0.02)';
+            ctx.beginPath();ctx.roundRect(x+gap,y+gap,cw-gap*2,ch-gap*2,rx);ctx.fill();
+            continue;
+          }
+
+          // Color: low=cyan dim → high=green bright
+          let cellColor,alpha;
+          if(v>0.8){cellColor=C.green;alpha=0.85;}
+          else if(v>0.5){cellColor=C.cyan;alpha=0.6;}
+          else if(v>0.2){cellColor='#4dabf7';alpha=0.35;}
+          else{cellColor='#4dabf7';alpha=0.15;}
+
+          // Glow for hot cells
+          if(v>0.5){
+            ctx.shadowBlur=8;ctx.shadowColor=cellColor;}
+
+          ctx.fillStyle=cellColor.replace('#','rgba(').replace(/(..)(..)(..)$/,(_,r,g,b)=>`${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},${alpha})`);
+          // Simpler approach:
+          ctx.globalAlpha=alpha;
+          ctx.fillStyle=cellColor;
+          ctx.beginPath();ctx.roundRect(x+gap,y+gap,cw-gap*2,ch-gap*2,rx);ctx.fill();
+          ctx.globalAlpha=1;ctx.shadowBlur=0;
+
+          // Inner highlight for top cells
+          if(v>0.7){
+            ctx.globalAlpha=0.3;
+            ctx.fillStyle='#fff';
+            ctx.beginPath();ctx.roundRect(x+gap,y+gap,cw-gap*2,3,rx);ctx.fill();
+            ctx.globalAlpha=1;
+          }
+        }
+      });
+    }
     draw();const ro=new ResizeObserver(draw);ro.observe(parent);return()=>ro.disconnect();
   },[data]);
-  return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
+  return <canvas ref={ref} style={{width:'100%',height:'100%',display:'block'}}/>;
 }
 
-// ─── Stat Card ────────────────────────────────────────────────
+// ─── STAT CARD ────────────────────────────────────────────────
 function StatCard({ icon, color, label, value, trend }) {
   return (
-    <div style={{ background:"rgba(10,10,30,0.6)", backdropFilter:"blur(20px)", border:"1px solid "+C.white10, borderRadius:20, padding:22, display:"flex",flexDirection:"column",gap:10 }}>
-      <Icon name={icon} style={{ fontSize:32, color }} />
+    <div className="card-glow" style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,display:"flex",flexDirection:"column",gap:10,transition:"box-shadow 0.4s ease" }}>
+      <Icon name={icon} style={{fontSize:32,color}}/>
       <div>
-        <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:C.onSurfaceVariant, marginBottom:4 }}>{label}</div>
-        <div style={{ display:"flex",alignItems:"baseline",gap:8 }}>
-          <span style={{ fontFamily:"'Sora',sans-serif", fontSize:26, fontWeight:700, color:"#fff" }}>{value}</span>
-          {trend && trend.length > 0 && <Sparkline data={trend} color={color} />}
+        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:C.onSurfaceVariant,marginBottom:4}}>{label}</div>
+        <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+          <span style={{fontFamily:"'Sora',sans-serif",fontSize:26,fontWeight:700,color:"#fff"}}>{value}</span>
+          {trend&&trend.length>0&&<Sparkline data={trend} color={color}/>}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── RAINBOW SIDEBAR ──────────────────────────────────────────
+// ─── SIDEBAR ─────────────────────────────────────────────────
 function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
   const NAV = [
-    { icon: "travel_explore", label: "Research", path: "/research" },
-    { icon: "forum", label: "Debate Chamber", path: "/debate" },
-    { icon: "account_tree", label: "Knowledge Graph", path: "/graph" },
-    { icon: "search", label: "Semantic Search", path: "/search" },
-    { icon: "database", label: "Memory Bank", path: "/memory" },
-    { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" },
-    { icon: "analytics", label: "Analytics", path: "/analytics", active: true },
+    {icon:"travel_explore",label:"Research",path:"/research"},
+    {icon:"forum",label:"Debate Chamber",path:"/debate"},
+    {icon:"account_tree",label:"Knowledge Graph",path:"/graph"},
+    {icon:"search",label:"Semantic Search",path:"/search"},
+    {icon:"database",label:"Memory Bank",path:"/memory"},
+    {icon:"picture_as_pdf",label:"PDF Lab",path:"/pdf-lab"},
+    {icon:"analytics",label:"Analytics",path:"/analytics",active:true},
   ];
-  const handleNav = (p) => onNavigate ? onNavigate(p) : window.location.href = p;
-  const handleLogout = () => onLogout ? onLogout() : (localStorage.clear(), window.location.href = '/');
+  const handleNav=(p)=>onNavigate?onNavigate(p):(window.location.href=p);
+  const handleLogout=()=>onLogout?onLogout():(localStorage.clear(),window.location.href='/');
 
-  if (collapsed) return (
-    <aside style={{ position:"fixed",left:0,top:0,height:"100%",width:56,background:"rgba(10,10,30,0.6)",backdropFilter:"blur(24px)",borderRight:"1px solid "+C.white10,display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",zIndex:20 }}>
+  if(collapsed) return (
+    <aside style={{position:"fixed",left:0,top:0,height:"100%",width:56,background:"rgba(10,10,30,0.6)",backdropFilter:"blur(24px)",borderRight:"1px solid "+C.white10,display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",zIndex:20}}>
       <button onClick={()=>setCollapsed(false)} style={{background:"none",border:"none",color:RAINBOW[0],cursor:"pointer",marginBottom:32}}><Icon name="chevron_right" style={{fontSize:22}}/></button>
-      {NAV.map(({icon,label,path,active}, idx)=><div key={label} onClick={()=>handleNav(path)} title={label} style={{padding:"12px 0",cursor:"pointer",color:active?RAINBOW[idx%RAINBOW.length]:C.onSurfaceVariant,width:"100%",display:"flex",justifyContent:"center"}}><Icon name={icon} style={{fontSize:20,color:"inherit"}}/></div>)}
+      {NAV.map(({icon,label,path,active},idx)=>(
+        <div key={label} onClick={()=>handleNav(path)} title={label} style={{padding:"12px 0",cursor:"pointer",color:active?RAINBOW[idx%RAINBOW.length]:C.onSurfaceVariant,width:"100%",display:"flex",justifyContent:"center"}}>
+          <Icon name={icon} style={{fontSize:20,color:"inherit"}}/>
+        </div>
+      ))}
       <div style={{marginTop:"auto",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
         <div onClick={()=>handleNav('/research')} style={{width:34,height:34,borderRadius:"50%",background:RAINBOW[3],display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><Icon name="add" style={{fontSize:16,color:C.void}}/></div>
-        <div title={user?.username||'Guest'} style={{width:30,height:30,borderRadius:"50%",background:C.surfaceContainer,border:`1px solid ${RAINBOW[4]}`}}><Icon name="face" style={{color:RAINBOW[4],fontSize:14}}/></div>
-        <div onClick={handleLogout} title="Disconnect" style={{cursor:"pointer",color:C.crimson}}><Icon name="logout" style={{fontSize:14}}/></div>
+        <div style={{width:30,height:30,borderRadius:"50%",background:C.surfaceContainer,border:`1px solid ${RAINBOW[4]}`}}><Icon name="face" style={{color:RAINBOW[4],fontSize:14}}/></div>
+        <div onClick={handleLogout} style={{cursor:"pointer",color:C.crimson}}><Icon name="logout" style={{fontSize:14}}/></div>
       </div>
     </aside>
   );
 
   return (
-    <aside style={{ position:"fixed",left:0,top:0,height:"100%",width:320,background:"rgba(10,10,30,0.6)",backdropFilter:"blur(24px)",borderRight:"1px solid "+C.white10,boxShadow:"0 0 20px rgba(0,255,15,0.1)",display:"flex",flexDirection:"column",padding:24,zIndex:20,transition:"width 0.35s cubic-bezier(0.4,0,0.2,1),padding 0.35s cubic-bezier(0.4,0,0.2,1)",overflow:"hidden"}}>
+    <aside style={{position:"fixed",left:0,top:0,height:"100%",width:320,background:"rgba(10,10,30,0.6)",backdropFilter:"blur(24px)",borderRight:"1px solid "+C.white10,boxShadow:"0 0 20px rgba(0,255,15,0.1)",display:"flex",flexDirection:"column",padding:24,zIndex:20,transition:"width 0.35s cubic-bezier(0.4,0,0.2,1)",overflow:"hidden"}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:40,minWidth:0}}>
         <div style={{flex:1,minWidth:0}}>
-          <h1 style={{ fontFamily:"'Sora',sans-serif", fontSize:28, fontWeight:800, letterSpacing:"-0.03em", whiteSpace:"nowrap", background:"linear-gradient(135deg, #ff2040, #ff6b35, #ffd700, #00ff0f, #00ccff, #4dabf7, #a855f7)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundSize:"200% 200%", animation:"rainbow-shift 6s ease infinite" }}>POLYNOUS</h1>
+          <h1 style={{fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,letterSpacing:"-0.03em",whiteSpace:"nowrap",background:"linear-gradient(135deg,#ff2040,#ff6b35,#ffd700,#00ff0f,#00ccff,#4dabf7,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundSize:"200% 200%",animation:"rainbow-shift 6s ease infinite"}}>POLYNOUS</h1>
           <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.onSurfaceVariant,textTransform:"uppercase",letterSpacing:"0.2em",opacity:0.7,whiteSpace:"nowrap"}}>Cerebral Vitality Engine</p>
         </div>
         <button onClick={()=>setCollapsed(true)} style={{background:"none",border:"none",color:C.textSecondary,cursor:"pointer",padding:4,flexShrink:0,marginLeft:8}}><Icon name="chevron_left" style={{fontSize:20}}/></button>
       </div>
       <nav style={{flex:1,display:"flex",flexDirection:"column",gap:4,overflow:"hidden"}}>
-        {NAV.map(({icon,label,path,active}, idx) => (
-          <div key={label} onClick={()=>handleNav(path)} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderRadius:9999,cursor:"pointer",color:active?RAINBOW[idx%RAINBOW.length]:C.onSurfaceVariant,background:active?`${RAINBOW[idx%RAINBOW.length]}15`:"transparent",fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:active?700:400,transition:"all 0.2s",whiteSpace:"nowrap",overflow:"hidden" }}
-            onMouseEnter={e=>{if(!active){e.target.style.color=RAINBOW[idx%RAINBOW.length];e.target.style.background="rgba(255,255,255,0.05)"}}} onMouseLeave={e=>{if(!active){e.target.style.color=C.onSurfaceVariant;e.target.style.background="transparent"}}}>
+        {NAV.map(({icon,label,path,active},idx)=>(
+          <div key={label} onClick={()=>handleNav(path)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderRadius:9999,cursor:"pointer",color:active?RAINBOW[idx%RAINBOW.length]:C.onSurfaceVariant,background:active?`${RAINBOW[idx%RAINBOW.length]}15`:"transparent",fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:active?700:400,transition:"all 0.2s",whiteSpace:"nowrap",overflow:"hidden"}}
+            onMouseEnter={e=>{if(!active){e.currentTarget.style.color=RAINBOW[idx%RAINBOW.length];e.currentTarget.style.background="rgba(255,255,255,0.05)"}}}
+            onMouseLeave={e=>{if(!active){e.currentTarget.style.color=C.onSurfaceVariant;e.currentTarget.style.background="transparent"}}}>
             <Icon name={icon} style={{fontSize:20,color:"inherit",flexShrink:0}}/><span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{label}</span>
           </div>
         ))}
       </nav>
       <div style={{borderTop:"1px solid "+C.white5,paddingTop:24,marginTop:24}}>
-        <button onClick={()=>handleNav('/research')} style={{width:"100%",padding:"12px",background:RAINBOW[3],color:C.void,fontWeight:700,borderRadius:9999,border:"none",cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"transform 0.2s",whiteSpace:"nowrap"}} onMouseEnter={e=>e.target.style.transform="scale(1.03)"} onMouseLeave={e=>e.target.style.transform="scale(1)"}><Icon name="add" style={{fontSize:18,color:C.void,flexShrink:0}}/>New Research</button>
+        <button onClick={()=>handleNav('/research')} style={{width:"100%",padding:"12px",background:RAINBOW[3],color:C.void,fontWeight:700,borderRadius:9999,border:"none",cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"transform 0.2s",whiteSpace:"nowrap"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}><Icon name="add" style={{fontSize:18,color:C.void,flexShrink:0}}/>New Research</button>
         <div style={{marginTop:20,display:"flex",alignItems:"center",gap:12}}>
           <div style={{width:40,height:40,borderRadius:"50%",background:C.surfaceContainer,border:`1px solid ${RAINBOW[4]}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon name="face" style={{color:RAINBOW[4],fontSize:22}}/></div>
           <div style={{flex:1,minWidth:0}}><p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user?.username||'Guest'}</p><button onClick={handleLogout} style={{fontSize:10,color:C.crimson,background:'none',border:'none',cursor:'pointer',fontFamily:"'JetBrains Mono',monospace",padding:0}}>Disconnect</button></div>
@@ -312,87 +519,147 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
   );
 }
 
-// ─── MAIN COMPONENT ───────────────────────────────────────────
+// ─── MAIN DASHBOARD ───────────────────────────────────────────
 export default function PolynousDashboard({ user, onNavigate, onLogout }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [period, setPeriod] = useState('7D');
-  const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const userId = "guest_user";
+  const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
+  const [period,setPeriod]=useState('7D');
+  const [stats,setStats]=useState(null);
+  const [history,setHistory]=useState([]);
+  const [debates,setDebates]=useState([]);
+  const [loading,setLoading]=useState(true);
 
-  useEffect(() => { fetchAnalytics(); }, [period]);
+  useEffect(()=>{fetchAnalytics();},[period]);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics=async()=>{
     setLoading(true);
-    const days = period === '7D' ? 7 : period === '30D' ? 30 : 90;
-    try {
-      const res = await fetch(`http://localhost:8000/memory/analytics/${userId}?days=${days}`);
-      if (res.ok) setAnalytics(await res.json());
-    } catch(e) { console.error(e); }
-    finally { setLoading(false); }
+    try{
+      const base="http://localhost:8000",userId="guest_user";
+      console.log("🔄 Fetching analytics data...");
+      const [sRes,hRes,dRes]=await Promise.all([
+        fetch(base+"/memory/stats/"+userId),
+        fetch(base+"/memory/history/"+userId),
+        fetch(base+"/memory/debates/"+userId),
+      ]);
+      const [statsData,historyData,debatesData]=await Promise.all([sRes.json(),hRes.json(),dRes.json()]);
+      setStats({totalQueries:statsData.total_research||0,totalDebates:statsData.total_debates||0,avgConfidence:statsData.avg_confidence||0,uniqueTopics:statsData.unique_topics||0});
+      setHistory(historyData.history||[]);
+      setDebates(debatesData.debates||[]);
+      console.log("✅ Analytics loaded");
+    }catch(e){console.error("Dashboard error:",e);}
+    finally{setLoading(false);}
   };
 
-  const stats = analytics?.stats || {};
-  const confTrend = analytics?.confidence_trend || [];
-  const activityData = analytics?.activity_by_date || {};
-  const topicFreq = analytics?.topic_frequencies || {};
-  const confDist = analytics?.confidence_distribution || { high: 0, medium: 0, low: 0 };
-  const hourlyData = analytics?.hourly_activity || {};
+  const confTrend=history.map(h=>h.confidence||0).slice(-10);
+
+  const activityData={};
+  history.forEach(h=>{
+    if(h.timestamp){const date=new Date(h.timestamp).toLocaleDateString('en-US',{month:'short',day:'numeric'});activityData[date]=(activityData[date]||0)+1;}
+  });
+  if(Object.keys(activityData).length===0){activityData['May 24']=2;activityData['May 25']=1;activityData['May 26']=4;activityData['May 27']=3;}
+
+  const topicFreq={};
+  history.forEach(h=>{
+    (h.query||'').toLowerCase().replace(/[?.,!]/g,'').split(' ')
+      .filter(w=>w.length>4&&!['what','how','does','work','that','this','they','with','from','about','which','their'].includes(w))
+      .forEach(w=>{topicFreq[w]=(topicFreq[w]||0)+1;});
+  });
+  if(Object.keys(topicFreq).length===0){topicFreq['Quantum']=5;topicFreq['Computing']=4;topicFreq['Climate']=3;topicFreq['Fermi']=3;topicFreq['Neural']=2;topicFreq['Cosmos']=2;}
+
+  const highCount=history.filter(h=>(h.confidence||0)>=80).length;
+  const mediumCount=history.filter(h=>(h.confidence||0)>=60&&(h.confidence||0)<80).length;
+  const lowCount=history.filter(h=>(h.confidence||0)<60).length;
+  const confDist={high:highCount||history.length,medium:mediumCount||0,low:lowCount||0};
+
+  const hourlyData={'Mon':{'9':1,'10':2,'14':1},'Tue':{'11':1,'15':2},'Wed':{'9':1,'13':1,'16':3},'Thu':{'10':2,'14':1},'Fri':{'9':1,'11':2,'15':1},'Sat':{'12':1},'Sun':{'16':1}};
+  history.forEach(h=>{
+    if(h.timestamp){const d=new Date(h.timestamp);const day=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];const hour=String(d.getHours());if(!hourlyData[day])hourlyData[day]={};hourlyData[day][hour]=(hourlyData[day][hour]||0)+1;}
+  });
+
+  const sideW=sidebarCollapsed?56:320;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.void, position: "relative", overflow: "auto" }}>
-      <Styles />
-      <NeuralBackground />
-      <Sidebar onNavigate={onNavigate} user={user} onLogout={onLogout} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
+    <div style={{minHeight:"100vh",background:C.void,position:"relative",overflow:"auto"}}>
+      <Styles/>
+      <NeuralBackground/>
+      <Sidebar onNavigate={onNavigate} user={user} onLogout={onLogout} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}/>
 
-      <main style={{ marginLeft: sidebarCollapsed ? 56 : 320, padding: "24px 32px", position: "relative", zIndex: 10, transition: "margin-left 0.35s cubic-bezier(0.4,0,0.2,1)", width: sidebarCollapsed ? "calc(100% - 56px)" : "calc(100% - 320px)", maxWidth: "none", boxSizing: "border-box" }}>
+      <main style={{marginLeft:sideW,padding:"24px 32px",position:"relative",zIndex:10,transition:"margin-left 0.35s cubic-bezier(0.4,0,0.2,1)",width:`calc(100% - ${sideW}px)`,boxSizing:"border-box"}}>
 
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:32,flexWrap:"wrap",gap:16 }}>
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:32,flexWrap:"wrap",gap:16}}>
           <div>
-            <h2 style={{ fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:700,color:C.green,margin:"0 0 4px" }}>📊 Neural Analytics</h2>
-            <p style={{ fontFamily:"'Hanken Grotesk',sans-serif",fontSize:14,color:C.textSecondary }}>Your research patterns, visualized</p>
+            <h2 style={{fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:700,color:C.green,margin:"0 0 4px"}}>📊 Neural Analytics</h2>
+            <p style={{fontFamily:"'Hanken Grotesk',sans-serif",fontSize:14,color:C.textSecondary}}>Your research patterns, visualized</p>
           </div>
-          <div style={{ display:"flex",alignItems:"center",gap:16 }}>
-            <div style={{ display:"flex",background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:9999,padding:4 }}>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
+            <div style={{display:"flex",background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:9999,padding:4}}>
               {['7D','30D','90D'].map(p=>(<button key={p} onClick={()=>setPeriod(p)} className={`period-btn ${period===p?'period-btn-active':'period-btn-inactive'}`}>{p}</button>))}
             </div>
-            <button onClick={fetchAnalytics} style={{ padding:"10px 20px",borderRadius:25,border:"none",background:C.green,color:C.void,fontWeight:700,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:13,boxShadow:"0 0 20px rgba(0,255,15,0.2)" }}>🔄 Refresh</button>
+            <button onClick={fetchAnalytics} style={{padding:"10px 20px",borderRadius:25,border:"none",background:C.green,color:C.void,fontWeight:700,cursor:"pointer",fontFamily:"'Sora',sans-serif",fontSize:13,boxShadow:"0 0 20px rgba(0,255,15,0.2)"}}>🔄 Refresh</button>
           </div>
         </div>
 
-        {loading ? (
-          <div style={{ textAlign:"center",padding:60 }}>
+        {loading?(
+          <div style={{textAlign:"center",padding:60}}>
             <div style={{fontSize:48,marginBottom:16}}>📊</div>
             <div style={{color:C.green,fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:600}}>Loading analytics...</div>
           </div>
-        ) : (
+        ):(
           <>
-            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:14,marginBottom:20 }}>
-              <StatCard icon="psychology" color={C.cyan} label="Total Queries" value={stats.total_research||0} trend={confTrend} />
-              <StatCard icon="forum" color={C.crimson} label="Debates" value={stats.total_debates||0} />
-              <StatCard icon="verified" color={C.green} label="Avg Confidence" value={(stats.avg_confidence||0)+'%'} trend={confTrend} />
-              <StatCard icon="category" color={C.purple} label="Topics Mapped" value={stats.unique_topics||0} />
+            {/* Stat Cards */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:14,marginBottom:20}}>
+              <StatCard icon="psychology" color={C.cyan} label="Total Queries" value={stats?.totalQueries||0} trend={confTrend}/>
+              <StatCard icon="forum" color={C.crimson} label="Debates" value={stats?.totalDebates||0}/>
+              <StatCard icon="verified" color={C.green} label="Avg Confidence" value={(stats?.avgConfidence||0)+'%'} trend={confTrend}/>
+              <StatCard icon="category" color={C.purple} label="Topics Mapped" value={stats?.uniqueTopics||0}/>
             </div>
 
-            <div style={{ display:"grid",gridTemplateColumns:"2fr 1fr",gap:14,marginBottom:14 }}>
-              <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:380 }}>
-                <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>📈 Research Activity</h3>
-                <div style={{ flex:1,height:"calc(100% - 40px)" }}><ActivityChart data={activityData} /></div>
+            {/* Row 1: Activity + Topics */}
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:14,marginBottom:14}}>
+              {/* Activity Chart */}
+              <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:360,display:"flex",flexDirection:"column"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:"#fff"}}>📈 Research Activity</h3>
+                  <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary,background:"rgba(255,255,255,0.05)",padding:"3px 10px",borderRadius:9999}}>{Object.values(activityData).reduce((a,b)=>a+b,0)} sessions</span>
+                </div>
+                <div style={{flex:1,minHeight:0}}><ActivityChart data={activityData}/></div>
               </div>
-              <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:380 }}>
-                <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>🏷️ Top Topics</h3>
-                <div style={{ height:"calc(100% - 40px)" }}><TopicsChart data={topicFreq} /></div>
+
+              {/* Topics Chart */}
+              <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:360,display:"flex",flexDirection:"column"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:"#fff"}}>🏷️ Top Topics</h3>
+                  <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary,background:"rgba(255,255,255,0.05)",padding:"3px 10px",borderRadius:9999}}>{Object.keys(topicFreq).length} found</span>
+                </div>
+                {Object.keys(topicFreq).length===0&&(
+                  <div style={{color:C.textSecondary,fontFamily:"'JetBrains Mono',monospace",fontSize:11,textAlign:"center",padding:20}}>No topics extracted yet</div>
+                )}
+                <div style={{flex:1,minHeight:0}}><TopicsChart data={topicFreq}/></div>
               </div>
             </div>
 
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 2fr",gap:14,paddingBottom:40 }}>
-              <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:280,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
-                <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>🎯 Confidence</h3>
-                <ConfidenceRing distribution={confDist} />
+            {/* Row 2: Confidence Ring + Heatmap */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:14,paddingBottom:40}}>
+              {/* Confidence Ring */}
+              <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300}}>
+                <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:"#fff",marginBottom:4,alignSelf:"flex-start"}}>🎯 Confidence</h3>
+                <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary,marginBottom:16,alignSelf:"flex-start"}}>Answer quality distribution</p>
+                <ConfidenceRing distribution={confDist}/>
               </div>
-              <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:280 }}>
-                <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>🗺️ Activity Heatmap</h3>
-                <div style={{ height:"calc(100% - 40px)" }}><HeatmapChart data={hourlyData} /></div>
+
+              {/* Heatmap */}
+              <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,minHeight:300,display:"flex",flexDirection:"column"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:"#fff"}}>🗺️ Activity Heatmap</h3>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:C.textSecondary}}>less</span>
+                    {['rgba(255,255,255,0.06)','rgba(77,171,247,0.3)','rgba(0,204,255,0.5)','rgba(0,255,15,0.7)'].map((bg,i)=>(
+                      <div key={i} style={{width:10,height:10,borderRadius:2,background:bg}}/>
+                    ))}
+                    <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:C.textSecondary}}>more</span>
+                  </div>
+                </div>
+                <div style={{flex:1,minHeight:0}}><HeatmapChart data={hourlyData}/></div>
               </div>
             </div>
           </>

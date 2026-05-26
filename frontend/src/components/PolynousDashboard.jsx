@@ -22,31 +22,146 @@ function Styles() {
     @keyframes rainbow-shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    @keyframes twinkle{0%,100%{opacity:0.3}50%{opacity:0.8}}
     .period-btn{padding:4px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;border:none;background:transparent;cursor:pointer;border-radius:9999px;transition:all 0.2s;color:#b9ccb0}
     .period-btn-active{background:rgba(0,255,15,0.1);color:#00ff0f}
     .period-btn-inactive:hover{color:#e2e0fc}
   `}</style>;
 }
 
-// ─── Neural Background ────────────────────────────────────────
+// ─── RAINBOW FLOATING PARTICLE BACKGROUND (SMALLER PARTICLES) ─
 function NeuralBackground() {
   const ref = useRef(null);
   useEffect(() => {
-    const canvas = ref.current; const ctx = canvas.getContext("2d");
-    let particles = [], animId; const N = 120;
-    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight };
-    window.addEventListener("resize", resize); resize();
-    for (let i = 0; i < N; i++) {
-      const color = RAINBOW[Math.floor(Math.random() * RAINBOW.length)];
-      particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: (Math.random()-0.5)*0.4, vy: (Math.random()-0.5)*0.4, size: Math.random()*2+1, color, opacity: Math.random()*0.3+0.15 });
+    const canvas = ref.current;
+    const ctx = canvas.getContext("2d");
+    let particles = [];
+    let mouse = { x: null, y: null };
+    let animId;
+    const PARTICLE_COUNT = 180; // More particles but smaller
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.baseVx = (Math.random() - 0.5) * 0.4;
+        this.baseVy = (Math.random() - 0.5) * 0.4;
+        this.vx = this.baseVx;
+        this.vy = this.baseVy;
+        this.size = Math.random() * 1.5 + 0.5; // Smaller: 0.5 to 2px
+        this.color = RAINBOW[Math.floor(Math.random() * RAINBOW.length)];
+        this.opacity = Math.random() * 0.35 + 0.1; // Slightly more subtle
+        this.twinkleSpeed = Math.random() * 0.025 + 0.008;
+        this.twinkleOffset = Math.random() * Math.PI * 2;
+        this.wobbleAmp = Math.random() * 0.2;
+        this.wobbleSpeed = Math.random() * 0.015 + 0.008;
+        this.wobbleOffset = Math.random() * Math.PI * 2;
+      }
+      update(time) {
+        this.vx = this.baseVx + Math.sin(time * this.wobbleSpeed + this.wobbleOffset) * this.wobbleAmp;
+        this.vy = this.baseVy + Math.cos(time * this.wobbleSpeed + this.wobbleOffset) * this.wobbleAmp;
+        this.x += this.vx;
+        this.y += this.vy;
+        if (mouse.x !== null && mouse.y !== null) {
+          const dx = this.x - mouse.x;
+          const dy = this.y - mouse.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 180) {
+            const force = (180 - dist) / 180;
+            this.x += (dx / dist) * force * 2.5;
+            this.y += (dy / dist) * force * 2.5;
+          }
+        }
+        if (this.x < -10) this.x = canvas.width + 10;
+        if (this.x > canvas.width + 10) this.x = -10;
+        if (this.y < -10) this.y = canvas.height + 10;
+        if (this.y > canvas.height + 10) this.y = -10;
+      }
+      draw(time) {
+        const twinkle = Math.sin(time * this.twinkleSpeed + this.twinkleOffset) * 0.15 + 0.85;
+        const alpha = this.opacity * twinkle;
+        
+        // Smaller glow radius
+        const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 3);
+        glow.addColorStop(0, this.color.replace(')', `,${alpha * 0.5})`).replace('rgb', 'rgba'));
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * 3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Core particle
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
     }
-    const loop = () => { ctx.clearRect(0,0,canvas.width,canvas.height); particles.forEach((p,i)=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>canvas.width)p.vx*=-1;if(p.y<0||p.y>canvas.height)p.vy*=-1;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fillStyle=p.color;ctx.globalAlpha=p.opacity;ctx.fill();for(let j=i+1;j<particles.length;j++){const d=Math.hypot(p.x-particles[j].x,p.y-particles[j].y);if(d<100){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(particles[j].x,particles[j].y);ctx.strokeStyle=`rgba(255,255,255,${0.04*(1-d/100)})`;ctx.lineWidth=0.3;ctx.stroke()}}});ctx.globalAlpha=1;animId=requestAnimationFrame(loop)};loop();
-    return () => { cancelAnimationFrame(animId); window.removeEventListener("resize", resize); };
+
+    const init = () => {
+      particles = Array.from({ length: PARTICLE_COUNT }, () => new Particle());
+    };
+
+    let startTime = performance.now();
+    const animate = (timestamp) => {
+      const time = timestamp - startTime;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw subtle connections between nearby particles
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 110) { // Shorter connection distance
+            const opacity = (1 - dist / 110) * 0.04;
+            ctx.strokeStyle = `rgba(255,255,255,${opacity})`;
+            ctx.lineWidth = 0.3; // Thinner lines
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+      
+      // Draw particles
+      particles.forEach(p => {
+        p.update(time);
+        p.draw(time);
+      });
+      animId = requestAnimationFrame(animate);
+    };
+
+    const onMouseMove = (e) => { mouse.x = e.clientX; mouse.y = e.clientY; };
+    const onMouseLeave = () => { mouse.x = null; mouse.y = null; };
+    window.addEventListener("resize", () => { resize(); init(); });
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseleave", onMouseLeave);
+    resize();
+    init();
+    animId = requestAnimationFrame(animate);
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseleave", onMouseLeave);
+    };
   }, []);
   return <canvas ref={ref} style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", zIndex: 0, pointerEvents: "none" }} />;
 }
 
-// ─── Sparkline with Real Data ─────────────────────────────────
+// ─── Sparkline ────────────────────────────────────────────────
 function Sparkline({ data, color }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -61,7 +176,7 @@ function Sparkline({ data, color }) {
   return <canvas ref={ref} width={80} height={30} style={{opacity:0.6}}/>;
 }
 
-// ─── Activity Chart with Real Data ────────────────────────────
+// ─── Activity Chart ───────────────────────────────────────────
 function ActivityChart({ data }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -82,7 +197,7 @@ function ActivityChart({ data }) {
   return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
 }
 
-// ─── Topics Chart with Real Data ──────────────────────────────
+// ─── Topics Chart ─────────────────────────────────────────────
 function TopicsChart({ data }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -97,7 +212,7 @@ function TopicsChart({ data }) {
   return <canvas ref={ref} style={{width:'100%',height:'100%'}}/>;
 }
 
-// ─── Confidence Ring with Real Data ───────────────────────────
+// ─── Confidence Ring ──────────────────────────────────────────
 function ConfidenceRing({ distribution }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -112,13 +227,13 @@ function ConfidenceRing({ distribution }) {
   return <canvas ref={ref} style={{width:'100%',height:'100%',maxWidth:'180px',maxHeight:'180px'}}/>;
 }
 
-// ─── Heatmap with Real Data ───────────────────────────────────
+// ─── Heatmap ──────────────────────────────────────────────────
 function HeatmapChart({ data }) {
   const ref = useRef(null);
   useEffect(() => {
     const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');const parent=canvas.parentElement;
     function draw(){canvas.width=parent.clientWidth;canvas.height=parent.clientHeight;ctx.clearRect(0,0,canvas.width,canvas.height);
-      const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];const rows=days.length,cols=24;
+      const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];const rows=days.length,cols=24;
       const cw=(canvas.width-40)/cols,ch=(canvas.height-40)/rows;
       let maxVal=1;if(data){Object.values(data).forEach(hours=>{Object.values(hours).forEach(v=>{if(v>maxVal)maxVal=v})})}
       days.forEach((day,r)=>{for(let c=0;c<cols;c++){const v=(data?.[day]?.[String(c)]||0)/maxVal;let color='rgba(255,255,255,0.02)';if(v>0.8)color=C.green+'99';else if(v>0.5)color=C.cyan+'66';else if(v>0.2)color=C.cyan+'33';ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(20+c*cw+2,20+r*ch+2,cw-4,ch-4,3);ctx.fill()}})}
@@ -131,9 +246,7 @@ function HeatmapChart({ data }) {
 function StatCard({ icon, color, label, value, trend }) {
   return (
     <div style={{ background:"rgba(10,10,30,0.6)", backdropFilter:"blur(20px)", border:"1px solid "+C.white10, borderRadius:20, padding:22, display:"flex",flexDirection:"column",gap:10 }}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
-        <Icon name={icon} style={{ fontSize:32, color }} />
-      </div>
+      <Icon name={icon} style={{ fontSize:32, color }} />
       <div>
         <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:C.onSurfaceVariant, marginBottom:4 }}>{label}</div>
         <div style={{ display:"flex",alignItems:"baseline",gap:8 }}>
@@ -145,7 +258,7 @@ function StatCard({ icon, color, label, value, trend }) {
   );
 }
 
-// ─── RAINBOW THEMED COLLAPSIBLE SIDEBAR ──────────────────────────────────────
+// ─── RAINBOW SIDEBAR ──────────────────────────────────────────
 function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
   const NAV = [
     { icon: "travel_explore", label: "Research", path: "/research" },
@@ -175,7 +288,6 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
     <aside style={{ position:"fixed",left:0,top:0,height:"100%",width:320,background:"rgba(10,10,30,0.6)",backdropFilter:"blur(24px)",borderRight:"1px solid "+C.white10,boxShadow:"0 0 20px rgba(0,255,15,0.1)",display:"flex",flexDirection:"column",padding:24,zIndex:20,transition:"width 0.35s cubic-bezier(0.4,0,0.2,1),padding 0.35s cubic-bezier(0.4,0,0.2,1)",overflow:"hidden"}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:40,minWidth:0}}>
         <div style={{flex:1,minWidth:0}}>
-          {/* RAINBOW POLYNOUS TEXT */}
           <h1 style={{ fontFamily:"'Sora',sans-serif", fontSize:28, fontWeight:800, letterSpacing:"-0.03em", whiteSpace:"nowrap", background:"linear-gradient(135deg, #ff2040, #ff6b35, #ffd700, #00ff0f, #00ccff, #4dabf7, #a855f7)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundSize:"200% 200%", animation:"rainbow-shift 6s ease infinite" }}>POLYNOUS</h1>
           <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.onSurfaceVariant,textTransform:"uppercase",letterSpacing:"0.2em",opacity:0.7,whiteSpace:"nowrap"}}>Cerebral Vitality Engine</p>
         </div>
@@ -206,7 +318,6 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
   const [period, setPeriod] = useState('7D');
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
-
   const userId = "guest_user";
 
   useEffect(() => { fetchAnalytics(); }, [period]);
@@ -228,21 +339,14 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
   const confDist = analytics?.confidence_distribution || { high: 0, medium: 0, low: 0 };
   const hourlyData = analytics?.hourly_activity || {};
 
-  if (loading) return (
-    <div style={{ minHeight:"100vh",background:C.void,display:"flex",alignItems:"center",justifyContent:"center" }}>
-      <Styles /><NeuralBackground />
-      <div style={{textAlign:"center",zIndex:10}}><div style={{fontSize:48,marginBottom:16}}>📊</div><div style={{color:C.green,fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:600}}>Loading analytics...</div></div>
-    </div>
-  );
-
   return (
     <div style={{ minHeight: "100vh", background: C.void, position: "relative", overflow: "auto" }}>
-      <Styles /><NeuralBackground />
+      <Styles />
+      <NeuralBackground />
       <Sidebar onNavigate={onNavigate} user={user} onLogout={onLogout} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
 
       <main style={{ marginLeft: sidebarCollapsed ? 56 : 320, padding: "24px 32px", position: "relative", zIndex: 10, transition: "margin-left 0.35s cubic-bezier(0.4,0,0.2,1)", width: sidebarCollapsed ? "calc(100% - 56px)" : "calc(100% - 320px)", maxWidth: "none", boxSizing: "border-box" }}>
 
-        {/* Header */}
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:32,flexWrap:"wrap",gap:16 }}>
           <div>
             <h2 style={{ fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:700,color:C.green,margin:"0 0 4px" }}>📊 Neural Analytics</h2>
@@ -256,37 +360,43 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
           </div>
         </div>
 
-        {/* Stats Row */}
-        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:14,marginBottom:20 }}>
-          <StatCard icon="psychology" color={C.cyan} label="Total Queries" value={stats.total_research||0} trend={confTrend} />
-          <StatCard icon="forum" color={C.crimson} label="Debates" value={stats.total_debates||0} />
-          <StatCard icon="verified" color={C.green} label="Avg Confidence" value={(stats.avg_confidence||0)+'%'} trend={confTrend} />
-          <StatCard icon="category" color={C.purple} label="Topics Mapped" value={stats.unique_topics||0} />
-        </div>
+        {loading ? (
+          <div style={{ textAlign:"center",padding:60 }}>
+            <div style={{fontSize:48,marginBottom:16}}>📊</div>
+            <div style={{color:C.green,fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:600}}>Loading analytics...</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:14,marginBottom:20 }}>
+              <StatCard icon="psychology" color={C.cyan} label="Total Queries" value={stats.total_research||0} trend={confTrend} />
+              <StatCard icon="forum" color={C.crimson} label="Debates" value={stats.total_debates||0} />
+              <StatCard icon="verified" color={C.green} label="Avg Confidence" value={(stats.avg_confidence||0)+'%'} trend={confTrend} />
+              <StatCard icon="category" color={C.purple} label="Topics Mapped" value={stats.unique_topics||0} />
+            </div>
 
-        {/* Charts Row 1 */}
-        <div style={{ display:"grid",gridTemplateColumns:"2fr 1fr",gap:14,marginBottom:14 }}>
-          <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:380 }}>
-            <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>📈 Research Activity</h3>
-            <div style={{ flex:1,height:"calc(100% - 40px)" }}><ActivityChart data={activityData} /></div>
-          </div>
-          <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:380 }}>
-            <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>🏷️ Top Topics</h3>
-            <div style={{ height:"calc(100% - 40px)" }}><TopicsChart data={topicFreq} /></div>
-          </div>
-        </div>
+            <div style={{ display:"grid",gridTemplateColumns:"2fr 1fr",gap:14,marginBottom:14 }}>
+              <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:380 }}>
+                <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>📈 Research Activity</h3>
+                <div style={{ flex:1,height:"calc(100% - 40px)" }}><ActivityChart data={activityData} /></div>
+              </div>
+              <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:380 }}>
+                <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>🏷️ Top Topics</h3>
+                <div style={{ height:"calc(100% - 40px)" }}><TopicsChart data={topicFreq} /></div>
+              </div>
+            </div>
 
-        {/* Charts Row 2 */}
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 2fr",gap:14,paddingBottom:40 }}>
-          <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:280,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
-            <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>🎯 Confidence</h3>
-            <ConfidenceRing distribution={confDist} />
-          </div>
-          <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:280 }}>
-            <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>🗺️ Activity Heatmap</h3>
-            <div style={{ height:"calc(100% - 40px)" }}><HeatmapChart data={hourlyData} /></div>
-          </div>
-        </div>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 2fr",gap:14,paddingBottom:40 }}>
+              <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:280,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
+                <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>🎯 Confidence</h3>
+                <ConfidenceRing distribution={confDist} />
+              </div>
+              <div style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:280 }}>
+                <h3 style={{ fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700,color:"#fff",margin:"0 0 12px" }}>🗺️ Activity Heatmap</h3>
+                <div style={{ height:"calc(100% - 40px)" }}><HeatmapChart data={hourlyData} /></div>
+              </div>
+            </div>
+          </>
+        )}
       </main>
     </div>
   );

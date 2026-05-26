@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from app.voyage_embeddings import create_embedding, create_query_embedding
+from app.embeddings import create_embedding, create_query_embedding
 
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 PDF_INDEX_NAME = "polynous-pdfs"

@@ -379,7 +379,7 @@ const FEATURES = [
   {icon:"biotech",       title:"MULTI-AGENT RESEARCH",  color:C.green,   cls:"",                desc:"7 specialized AI agents collaborate in a LangGraph pipeline delivering structured, cited answers with confidence scoring."},
   {icon:"forum",         title:"NEURAL DEBATE MODE",    color:C.crimson, cls:"glow-tile-crimson", desc:"FOR vs AGAINST agents argue opposing sides, then an AI Judge evaluates evidence quality and declares a winner."},
   {icon:"hub",           title:"KNOWLEDGE GRAPH",       color:C.cyan,    cls:"glow-tile-cyan",   desc:"Every research session builds your personal Neo4j-powered knowledge graph, connecting topics and entities."},
-  {icon:"manage_search", title:"SEMANTIC SEARCH",       color:"#77ff62", cls:"",                desc:"Voyage AI embeddings + Pinecone vector search find past research in milliseconds by meaning."},
+  {icon:"manage_search", title:"SEMANTIC SEARCH",       color:"#77ff62", cls:"",                desc:"OPEN AI embeddings + Pinecone vector search find past research in milliseconds by meaning."},
   {icon:"neurology",     title:"NEURAL MEMORY BANK",    color:C.purple,  cls:"glow-tile-purple", desc:"Track interests, visualize research patterns, and discover connections as an interactive timeline."},
   {icon:"description",   title:"PDF RAG LAB",           color:C.gold,    cls:"glow-tile-gold",   desc:"Upload documents, embed with AI, and query them with natural language to get document-grounded answers."},
 ];

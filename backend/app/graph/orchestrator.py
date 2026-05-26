@@ -8,6 +8,7 @@ from app.agents.summariser_agent import summariser_agent
 from app.agents.critic_agent import critic_agent
 from app.agents.writer_agent import writer_agent
 from app.search_agent import search_web
+from app.chat_history import save_chat  # ← ADD THIS IMPORT
 
 def search_node(state: AgentState) -> AgentState:
     """Search Agent - Find relevant documents + graph context"""
@@ -144,7 +145,7 @@ def writer_node(state: AgentState) -> AgentState:
     except Exception as e:
         print(f"⚠️ User memory recording: {e}")
     
-    # ========== NEW: Index in Semantic Search ==========
+    # ========== Index in Semantic Search ==========
     try:
         semantic_search.add_to_index(
             query=state['query'],
@@ -156,6 +157,19 @@ def writer_node(state: AgentState) -> AgentState:
         print("🔍 Indexed for Semantic Search")
     except Exception as e:
         print(f"⚠️ Search indexing: {e}")
+    
+    # ========== NEW: Save to Chat History ==========
+    try:
+        save_chat(
+            session_id=state.get('session_id', 'guest_user'),
+            query=state['query'],
+            answer=answer,
+            confidence=state.get('critique', {}).get('overall_confidence', 0),
+            sources=state.get('citations', [])
+        )
+        print("💾 Saved to Chat History")
+    except Exception as e:
+        print(f"⚠️ Chat history save error: {e}")
     
     print("✅ Final answer ready with graph insights!")
     print("="*60 + "\n")

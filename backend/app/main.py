@@ -22,6 +22,9 @@ from app.database import init_db
 from app.routes.auth import router as auth_router
 from app.routes.conversations import router as conversations_router
 
+# ========== NEW: Chat History imports ==========
+from app.chat_history import save_chat, save_debate, get_chat_history, get_debate_history
+
 load_dotenv()
 
 # ========== CREATE APP ==========
@@ -86,6 +89,17 @@ async def root():
 async def health():
     return {"status": "healthy", "agents": 7}
 
+# ========== NEW: Chat History Endpoints ==========
+@app.get("/history/chats")
+async def chat_history(session_id: str = None, limit: int = 20):
+    """Get chat history"""
+    return {"history": get_chat_history(session_id, limit)}
+
+@app.get("/history/debates")
+async def debate_history(session_id: str = None, limit: int = 20):
+    """Get debate history"""
+    return {"history": get_debate_history(session_id, limit)}
+
 @app.post("/ask", response_model=QueryResponse)
 async def ask_question(request: QueryRequest):
     """Research or Debate endpoint"""
@@ -111,9 +125,37 @@ async def ask_question(request: QueryRequest):
     if request.debate_mode:
         print("\n🗣️ DEBATE MODE ACTIVATED")
         result = debate_graph.invoke(state)
+        
+        # ========== NEW: Save debate to chat history ==========
+        try:
+            save_debate(
+                session_id=session_id,
+                topic=request.query,
+                for_score=result.get('judge_verdict', {}).get('for_score', 5),
+                against_score=result.get('judge_verdict', {}).get('against_score', 5),
+                winner=result.get('judge_verdict', {}).get('winner', 'TIE'),
+                reasoning=result.get('judge_verdict', {}).get('reasoning', ''),
+                sources=result.get('citations', [])
+            )
+            print("💾 Saved debate to chat history")
+        except Exception as e:
+            print(f"⚠️ Failed to save debate history: {e}")
     else:
         print("\n🔬 RESEARCH MODE ACTIVATED")
         result = orchestrator.invoke(state)
+        
+        # ========== NEW: Save research to chat history ==========
+        try:
+            save_chat(
+                session_id=session_id,
+                query=request.query,
+                answer=result.get('final_answer', ''),
+                confidence=result.get('critique', {}).get('overall_confidence', 0),
+                sources=result.get('citations', [])
+            )
+            print("💾 Saved chat to history")
+        except Exception as e:
+            print(f"⚠️ Failed to save chat history: {e}")
     
     citations = result.get('citations', [])
     final_answer = result.get('final_answer', 'No answer generated')
@@ -172,6 +214,21 @@ async def ask_stream(request: QueryRequest):
                 result = debate_graph.invoke(state)
                 if result.get('judge_verdict'):
                     yield f"data: {json.dumps({'type': 'verdict', 'verdict': result['judge_verdict']})}\n\n"
+                
+                # Save debate to chat history
+                try:
+                    from app.chat_history import save_debate
+                    save_debate(
+                        session_id=state['session_id'],
+                        topic=request.query,
+                        for_score=result.get('judge_verdict', {}).get('for_score', 5),
+                        against_score=result.get('judge_verdict', {}).get('against_score', 5),
+                        winner=result.get('judge_verdict', {}).get('winner', 'TIE'),
+                        reasoning=result.get('judge_verdict', {}).get('reasoning', ''),
+                        sources=result.get('citations', [])
+                    )
+                except:
+                    pass
             else:
                 yield f"data: {json.dumps({'type': 'progress', 'agent': 'search', 'message': 'Searching web sources...'})}\n\n"
                 yield f"data: {json.dumps({'type': 'progress', 'agent': 'summarise', 'message': 'Summarizing documents...'})}\n\n"
@@ -180,6 +237,19 @@ async def ask_stream(request: QueryRequest):
                 result = orchestrator.invoke(state)
                 confidence = result.get('critique', {}).get('overall_confidence', 0)
                 yield f"data: {json.dumps({'type': 'confidence', 'score': confidence})}\n\n"
+                
+                # Save research to chat history
+                try:
+                    from app.chat_history import save_chat
+                    save_chat(
+                        session_id=state['session_id'],
+                        query=request.query,
+                        answer=result.get('final_answer', ''),
+                        confidence=confidence,
+                        sources=result.get('citations', [])
+                    )
+                except:
+                    pass
             
             answer = result.get('final_answer', 'No answer')
             words = answer.split()

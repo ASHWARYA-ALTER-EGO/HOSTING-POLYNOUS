@@ -376,3 +376,18 @@ export default function DebateInterface({ user, onNavigate, onStartResearch, onL
                   🔄 New Debate
                 </button>
                 <button onClick={() => navigator.clipboard.writeText(JSON.stringify({
+                  topic,
+                  forPoints,
+                  againstPoints,
+                  verdict
+                }, null, 2))} style={{ padding: "12px 24px", borderRadius: 30, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", color: "#ccc", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", fontSize: 13 }}>
+                  📋 Export Results
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

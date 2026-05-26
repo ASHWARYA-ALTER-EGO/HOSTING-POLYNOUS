@@ -8,6 +8,15 @@ const GLOBAL_STYLES = `
   html { scroll-behavior: smooth; }
   body { background-color: #0a0a1e; color: #ffffff; overflow-x: hidden; font-family: 'Hanken Grotesk', sans-serif; }
   @keyframes spin          { from { transform: rotate(0deg); }   to { transform: rotate(360deg); } }
+  @keyframes rainbowSpin {
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
+}
+@keyframes shimmerGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
   @keyframes heartbeat     { 0%,100% { transform:scale(1); filter:brightness(1); } 50% { transform:scale(1.05); filter:brightness(1.4); } }
   @keyframes heartbeatFast { 0%,100% { transform:scale(1); filter:brightness(1); } 50% { transform:scale(1.08); filter:brightness(1.6); } }
   @keyframes dashFlow      { from { stroke-dashoffset: 0; }      to { stroke-dashoffset: -280; } }
@@ -695,6 +704,88 @@ export default function App() {
           <TechHighlights />
           <TechStack />
           <AgentPlayground />
+          {/* Rainbow Glow CTA Section */}
+<section style={{ padding: "80px 0 40px", display: "flex", justifyContent: "center" }}>
+  <div style={{
+    position: "relative",
+    padding: "4px",
+    borderRadius: "20px",
+    background: "conic-gradient(from 0deg, #ff0000, #ff8800, #ffff00, #00ff0f, #00ccff, #a855f7, #ff0088, #ff0000)",
+    animation: "rainbowSpin 3s linear infinite",
+    boxShadow: "0 0 40px rgba(0,255,15,0.3), 0 0 80px rgba(0,204,255,0.2), 0 0 120px rgba(168,85,247,0.15)"
+  }}>
+    <button
+      onClick={() => window.location.href = "/research"}
+      className="agent-btn"
+      style={{
+        padding: "28px 64px",
+        background: "rgba(10,10,30,0.95)",
+        backdropFilter: "blur(20px)",
+        borderRadius: "16px",
+        border: "none",
+        cursor: "pointer",
+        fontFamily: "'Sora', sans-serif",
+        fontSize: "28px",
+        fontWeight: 800,
+        letterSpacing: "-0.02em",
+        color: "#ffffff",
+        textShadow: "0 0 20px rgba(0,255,15,0.5), 0 0 40px rgba(0,204,255,0.3)",
+        position: "relative",
+        overflow: "hidden",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        display: "flex",
+        alignItems: "center",
+        gap: "16px",
+        whiteSpace: "nowrap"
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.transform = "scale(1.06)";
+        e.currentTarget.style.boxShadow = "0 0 60px rgba(0,255,15,0.5), 0 0 100px rgba(0,204,255,0.3), 0 0 160px rgba(168,85,247,0.2)";
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = "scale(1)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    >
+      {/* Pulsing arrow icon */}
+      <span style={{
+        fontFamily: "Material Symbols Outlined",
+        fontSize: "36px",
+        animation: "pulse 1.5s ease-in-out infinite",
+        background: "linear-gradient(135deg, #00ff0f, #00ccff, #a855f7)",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent"
+      }}>
+        rocket_launch
+      </span>
+      
+      {/* Main text */}
+      <span style={{
+        background: "linear-gradient(90deg, #00ff0f, #00ccff, #a855f7, #ffd700)",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        backgroundSize: "200% 100%",
+        animation: "shimmerGradient 3s linear infinite"
+      }}>
+        LET'S GO
+      </span>
+
+      {/* Subtle subtitle */}
+      <span style={{
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: "11px",
+        color: "rgba(255,255,255,0.4)",
+        position: "absolute",
+        bottom: "10px",
+        right: "28px",
+        letterSpacing: "0.15em",
+        textTransform: "uppercase"
+      }}>
+        Start Researching
+      </span>
+    </button>
+  </div>
+</section>
           <DeveloperCard />
           <Footer />
         </div>

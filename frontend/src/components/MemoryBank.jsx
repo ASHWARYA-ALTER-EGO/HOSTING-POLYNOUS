@@ -448,72 +448,57 @@ export default function MemoryBank({ user, onNavigate, onStartResearch, onLogout
       : `/research?query=${encodeURIComponent(topic)}`;
   };
 
+  // ========== DEBUG VERSION: fetchAllData ==========
   const fetchAllData = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    
-    const API_BASE = 'http://localhost:8000';
-    
     try {
-      const username = user?.username || "Guest";
+      const userId = "guest_user";
+      const base = "http://localhost:8000";
       
-      // Create/update user profile
-      await fetch(`${API_BASE}/memory/user/${userId}?username=${encodeURIComponent(username)}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
+      console.log("🔄 Fetching memory data for:", userId);
       
-      // Fetch all data in parallel for better performance
-      const [statsRes, interestsRes, historyRes, debatesRes] = await Promise.all([
-        fetch(`${API_BASE}/memory/stats/${userId}`),
-        fetch(`${API_BASE}/memory/interests/${userId}`),
-        fetch(`${API_BASE}/memory/history/${userId}`),
-        fetch(`${API_BASE}/memory/debates/${userId}`)
-      ]);
+      // Fetch each endpoint separately with error handling
+      const sRes = await fetch(base + "/memory/stats/" + userId);
+      const sText = await sRes.text();
+      console.log("Stats raw response:", sText);
+      let statsData = {};
+      try { statsData = JSON.parse(sText); } catch(e) { console.error("Stats parse error:", e); }
       
-      // Validate responses
-      const responses = [
-        { name: 'stats', res: statsRes },
-        { name: 'interests', res: interestsRes },
-        { name: 'history', res: historyRes },
-        { name: 'debates', res: debatesRes }
-      ];
+      const hRes = await fetch(base + "/memory/history/" + userId);
+      const hText = await hRes.text();
+      console.log("History raw response:", hText.substring(0, 200));
+      let historyData = { history: [] };
+      try { historyData = JSON.parse(hText); } catch(e) { console.error("History parse error:", e); }
       
-      responses.forEach(({ name, res }) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch ${name}: ${res.status} ${res.statusText}`);
-        }
-      });
+      const dRes = await fetch(base + "/memory/debates/" + userId);
+      const dText = await dRes.text();
+      console.log("Debates raw response:", dText.substring(0, 200));
+      let debatesData = { debates: [] };
+      try { debatesData = JSON.parse(dText); } catch(e) { console.error("Debates parse error:", e); }
       
-      // Parse all responses
-      const [statsData, interestsData, historyData, debatesData] = await Promise.all([
-        statsRes.json(),
-        interestsRes.json(),
-        historyRes.json(),
-        debatesRes.json()
-      ]);
+      const iRes = await fetch(base + "/memory/interests/" + userId);
+      const iText = await iRes.text();
+      let interestsData = { interests: [] };
+      try { interestsData = JSON.parse(iText); } catch(e) {}
       
-      console.log("Data loaded successfully:", {
-        stats: statsData,
-        interests: interestsData,
-        history: historyData,
-        debates: debatesData
-      });
+      console.log("✅ Stats:", statsData);
+      console.log("✅ History count:", historyData.history?.length || 0);
+      console.log("✅ Debates count:", debatesData.debates?.length || 0);
       
       setStats(statsData);
       setInterests(interestsData.interests || []);
       setHistory(historyData.history || []);
       setDebates(debatesData.debates || []);
       
-    } catch(error) {
-      console.error("Memory load error:", error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
+      console.log("✅ State updated! History length:", (historyData.history || []).length);
+      console.log("✅ State updated! Debates length:", (debatesData.debates || []).length);
+    } catch(e) { 
+      console.error("❌ Memory load error:", e); 
     }
-  }, [userId, user]);
+    finally { 
+      setLoading(false); 
+    }
+  }, [user]);
 
   useEffect(() => { 
     fetchAllData(); 
@@ -542,28 +527,37 @@ export default function MemoryBank({ user, onNavigate, onStartResearch, onLogout
     return C.crimson;
   };
 
+  // ========== FIXED: groupedHistory function ==========
   const groupedHistory = () => {
     const g = {};
+    
+    // Add research history
     history.forEach(h => {
-      const d = h.timestamp
-        ? new Date(h.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-        : "Unknown";
+      const d = h.timestamp ? new Date(h.timestamp).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'Unknown';
       if (!g[d]) g[d] = [];
-      g[d].push({ ...h, kind: "research" });
-    });
-    debates.forEach(d => {
-      const date = d.timestamp
-        ? new Date(d.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-        : "Unknown";
-      if (!g[date]) g[date] = [];
-      g[date].push({
-        query: d.topic,
-        mode: "debate",
-        confidence: Math.max(d.for_score, d.against_score) * 10,
-        kind: "debate",
-        debateData: d
+      g[d].push({ 
+        ...h, 
+        kind: 'research', 
+        query: h.query || 'Untitled', 
+        mode: h.mode || 'research', 
+        confidence: h.confidence || 0 
       });
     });
+    
+    // Add debate history
+    debates.forEach(d => {
+      const date = d.timestamp ? new Date(d.timestamp).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'Unknown';
+      if (!g[date]) g[date] = [];
+      g[date].push({ 
+        query: d.topic || 'Untitled Debate', 
+        mode: 'debate', 
+        confidence: Math.max(d.for_score || 0, d.against_score || 0) * 10, 
+        kind: 'debate', 
+        debateData: d 
+      });
+    });
+    
+    console.log("📊 Grouped history:", g);
     return g;
   };
 
@@ -1065,6 +1059,14 @@ export default function MemoryBank({ user, onNavigate, onStartResearch, onLogout
               </div>
             )}
           </section>
+        )}
+
+        {/* ========== FIXED: Combined empty state ========== */}
+        {history.length === 0 && debates.length === 0 && !loading && (
+          <div style={{ textAlign: "center", padding: 40, color: C.textSecondary }}>
+            No research yet. Start asking questions!<br/>
+            <span style={{fontSize: 12}}>No debates yet. Start a debate to see your history!</span>
+          </div>
         )}
 
         {/* Suggestions */}

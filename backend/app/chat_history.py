@@ -66,55 +66,78 @@ def save_debate(session_id: str, topic: str, for_score: float, against_score: fl
     conn.close()
     print(f"✅ Saved debate: {topic[:50]}...")
 
-def get_chat_history(session_id: str = None, limit: int = 20):
+def get_chat_history(session_id: str = None, limit: int = 50):
     """Get chat history"""
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row  # ← THIS IS THE FIX! Allows dict-like access
     cursor = conn.cursor()
+    
     if session_id:
-        cursor.execute("SELECT * FROM chat_history WHERE session_id = ? ORDER BY created_at DESC LIMIT ?", (session_id, limit))
+        cursor.execute(
+            "SELECT id, session_id, user_query as query, answer, mode, confidence, sources, created_at as timestamp FROM chat_history WHERE session_id = ? ORDER BY created_at DESC LIMIT ?", 
+            (session_id, limit)
+        )
     else:
-        cursor.execute("SELECT * FROM chat_history ORDER BY created_at DESC LIMIT ?", (limit,))
+        cursor.execute(
+            "SELECT id, session_id, user_query as query, answer, mode, confidence, sources, created_at as timestamp FROM chat_history ORDER BY created_at DESC LIMIT ?", 
+            (limit,)
+        )
+    
     rows = cursor.fetchall()
     conn.close()
-    return [
-        {
-            "id": r[0], 
-            "session_id": r[1], 
-            "query": r[2], 
-            "answer": r[3][:500] if r[3] else "", 
-            "mode": r[4], 
-            "confidence": r[5], 
-            "sources": json.loads(r[6]) if r[6] else [],
-            "topics": json.loads(r[7]) if len(r) > 7 and r[7] else [],
-            "timestamp": r[8] if len(r) > 8 else None
-        }
-        for r in rows
-    ]
+    
+    # Convert to list of dicts
+    result = []
+    for row in rows:
+        result.append({
+            "id": row["id"],
+            "session_id": row["session_id"],
+            "query": row["query"],
+            "answer": row["answer"][:200] if row["answer"] else "",
+            "mode": row["mode"] or "research",
+            "confidence": row["confidence"] or 0,
+            "timestamp": row["timestamp"] or "",
+            "topics": (row["query"] or "").split()[:5] if row["query"] else []
+        })
+    
+    print(f"📊 get_chat_history: Found {len(result)} entries for session={session_id}")
+    return result
 
-def get_debate_history(session_id: str = None, limit: int = 20):
+def get_debate_history(session_id: str = None, limit: int = 50):
     """Get debate history"""
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
     if session_id:
-        cursor.execute("SELECT * FROM debate_history WHERE session_id = ? ORDER BY created_at DESC LIMIT ?", (session_id, limit))
+        cursor.execute(
+            "SELECT id, session_id, topic, for_score, against_score, winner, reasoning, created_at as timestamp FROM debate_history WHERE session_id = ? ORDER BY created_at DESC LIMIT ?",
+            (session_id, limit)
+        )
     else:
-        cursor.execute("SELECT * FROM debate_history ORDER BY created_at DESC LIMIT ?", (limit,))
+        cursor.execute(
+            "SELECT id, session_id, topic, for_score, against_score, winner, reasoning, created_at as timestamp FROM debate_history ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        )
+    
     rows = cursor.fetchall()
     conn.close()
-    return [
-        {
-            "id": r[0], 
-            "session_id": r[1], 
-            "topic": r[2], 
-            "for_score": r[3],
-            "against_score": r[4], 
-            "winner": r[5], 
-            "reasoning": r[6][:500] if r[6] else "",
-            "sources": json.loads(r[7]) if len(r) > 7 and r[7] else [],
-            "timestamp": r[8] if len(r) > 8 else None
-        }
-        for r in rows
-    ]
+    
+    result = []
+    for row in rows:
+        result.append({
+            "id": row["id"],
+            "session_id": row["session_id"],
+            "topic": row["topic"],
+            "for_score": row["for_score"] or 5,
+            "against_score": row["against_score"] or 5,
+            "winner": row["winner"] or "TIE",
+            "reasoning": row["reasoning"] or "",
+            "timestamp": row["timestamp"] or ""
+        })
+    
+    print(f"📊 get_debate_history: Found {len(result)} entries for session={session_id}")
+    return result
 
 # Initialize on import
 init_db()

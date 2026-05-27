@@ -57,7 +57,7 @@ def ask_claude_with_context(query: str, context: str, session_id: str = "guest_u
     try:
         print(f"🤖 Asking Claude about: {query} (session: {session_id})")
         message = anthropic.messages.create(
-            model="claude-3-haiku-20240307",  # Fixed model name
+            model="claude-haiku-4-5",  # Fixed model name
             max_tokens=500,
             temperature=0.3,
             system="You are a research assistant. Use the provided search results to answer questions. Always cite your sources by number [1], [2], etc. If search results don't contain the answer, say so.",

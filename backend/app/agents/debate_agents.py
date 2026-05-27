@@ -14,7 +14,7 @@ def argue_for_position(query: str, context: list) -> str:
         context_text = "\n".join(context[:2]) if context else "No sources provided"
         
         message = anthropic.messages.create(
-            model="claude-3-haiku-20240307",  # Fixed model name
+            model="claude-haiku-4-5",  # Fixed model name
             max_tokens=400,
             temperature=0.8,
             system="""You are a debate champion arguing FOR a proposition.
@@ -44,7 +44,7 @@ def argue_against_position(query: str, context: list) -> str:
         context_text = "\n".join(context[:2]) if context else "No sources provided"
         
         message = anthropic.messages.create(
-            model="claude-3-haiku-20240307",  # Fixed model name
+            model="claude-haiku-4-5",  # Fixed model name
             max_tokens=400,
             temperature=0.8,
             system="""You are a debate champion arguing AGAINST a proposition.
@@ -72,7 +72,7 @@ def judge_debate(for_arg: str, against_arg: str, query: str) -> dict:
     
     try:
         message = anthropic.messages.create(
-            model="claude-3-haiku-20240307",  # Fixed model name
+            model="claude-haiku-4-5",  # Fixed model name
             max_tokens=400,
             temperature=0.3,
             system="""You are an impartial debate judge. You MUST pick a winner - never declare a tie.

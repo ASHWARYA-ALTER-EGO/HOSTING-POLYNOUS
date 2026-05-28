@@ -1,18 +1,6 @@
-from neo4j import GraphDatabase
+from app.semantic_search import semantic_search
 
-URI = "neo4j+s://a5160a78.databases.neo4j.io"
-USERNAME = "a5160a78"
-PASSWORD = "kl61Ztt6V_GeE830EnvotFjqYYQ6q71C-ecSYzacfSU"
-
-try:
-    driver = GraphDatabase.driver(
-        URI,
-        auth=(USERNAME, PASSWORD)
-    )
-
-    driver.verify_connectivity()
-    print("✅ Connected Successfully!")
-
-except Exception as e:
-    print("❌ Error:")
-    print(e)
+results = semantic_search.search("artificial intelligence", top_k=5)
+print(f"Found {len(results)} results:")
+for r in results:
+    print(f"  {r['score']}% - {r['query'][:60]}")

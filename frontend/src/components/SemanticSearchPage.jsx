@@ -178,7 +178,7 @@ export default function SemanticSearchPage({ user, onStartResearch, onNavigate, 
     if (!q.trim()) return
     setLoading(true); setSearched(true); setSelectedResult(null); setShowSuggestions(false)
     try {
-      const res = await fetch("http://localhost:8000/search?query=" + encodeURIComponent(q) + "&top_k=12")
+      const res = await fetch("http://localhost:8000/search/?query=" + encodeURIComponent(q) + "&top_k=12")
       if (res.ok) { const data = await res.json(); setResults(data.results || []) }
     } catch (e) { console.error('Search error:', e) }
     finally { setLoading(false) }
@@ -188,7 +188,7 @@ export default function SemanticSearchPage({ user, onStartResearch, onNavigate, 
     setQuery(value)
     if (value.length > 2) {
       setShowSuggestions(true)
-      try { const res = await fetch("http://localhost:8000/search/suggestions?query=" + encodeURIComponent(value) + "&limit=5"); if (res.ok) { const d = await res.json(); setSuggestions(d.suggestions || []) } } catch (e) {}
+      try { const res = await fetch("http://localhost:8000/search/suggestions/?query=" + encodeURIComponent(value) + "&limit=5"); if (res.ok) { const d = await res.json(); setSuggestions(d.suggestions || []) } } catch (e) {}
     } else { setShowSuggestions(false); setSuggestions([]) }
   }
 

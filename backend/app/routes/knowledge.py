@@ -7,25 +7,37 @@ router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 @router.get("/graph")
 async def get_knowledge_graph():
-    """Get the full knowledge graph with real entity relationships"""
+    """Get the full knowledge graph with ALL node types"""
     graph_data = kg.get_user_knowledge_graph()
     
-    # If still empty, return sample data
+    # If empty, try seeding and retry
     if not graph_data.get('nodes'):
-        sample_nodes = [
-            {"id": "Artificial Intelligence", "label": "Artificial Intelligence", "size": 35, "type": "major", "connections": 8},
-            {"id": "Machine Learning", "label": "Machine Learning", "size": 30, "type": "major", "connections": 6},
-            {"id": "Deep Learning", "label": "Deep Learning", "size": 25, "type": "major", "connections": 4},
-            {"id": "Neural Networks", "label": "Neural Networks", "size": 22, "type": "major", "connections": 5},
-            {"id": "AI Ethics", "label": "AI Ethics", "size": 20, "type": "debate", "connections": 3},
-            {"id": "Data Privacy", "label": "Data Privacy", "size": 18, "type": "debate", "connections": 2},
-            {"id": "Quantum Computing", "label": "Quantum Computing", "size": 28, "type": "major", "connections": 3},
-            {"id": "NLP", "label": "Natural Language Processing", "size": 22, "type": "major", "connections": 4},
-        ]
-        
-        # Generate edges from word overlap
-        edges = kg._generate_edges_from_labels(sample_nodes)
-        graph_data = {"nodes": sample_nodes, "edges": edges}
+        try:
+            kg.seed_rich_demo()
+            graph_data = kg.get_user_knowledge_graph()
+        except:
+            pass
+    
+    # If STILL empty, return sample data so graph isn't blank
+    if not graph_data.get('nodes'):
+        graph_data = {
+            "nodes": [
+                {"id": "topic_AI", "label": "Artificial Intelligence", "type": "topic", "size": 35, "connections": 8},
+                {"id": "topic_ML", "label": "Machine Learning", "type": "topic", "size": 30, "connections": 6},
+                {"id": "topic_DL", "label": "Deep Learning", "type": "topic", "size": 25, "connections": 4},
+                {"id": "topic_Ethics", "label": "AI Ethics", "type": "debate_topic", "size": 22, "connections": 3},
+                {"id": "topic_Privacy", "label": "Data Privacy", "type": "debate_topic", "size": 18, "connections": 2},
+                {"id": "topic_Quantum", "label": "Quantum Computing", "type": "topic", "size": 28, "connections": 3},
+            ],
+            "edges": [
+                {"source": "topic_AI", "target": "topic_ML", "type": "CO_OCCURS", "weight": 4, "color": "rgba(168,85,247,0.4)"},
+                {"source": "topic_AI", "target": "topic_DL", "type": "CO_OCCURS", "weight": 3, "color": "rgba(168,85,247,0.4)"},
+                {"source": "topic_AI", "target": "topic_Ethics", "type": "CO_OCCURS", "weight": 2, "color": "rgba(168,85,247,0.4)"},
+                {"source": "topic_ML", "target": "topic_DL", "type": "CO_OCCURS", "weight": 5, "color": "rgba(168,85,247,0.4)"},
+                {"source": "topic_Ethics", "target": "topic_Privacy", "type": "CO_OCCURS", "weight": 3, "color": "rgba(168,85,247,0.4)"},
+                {"source": "topic_AI", "target": "topic_Quantum", "type": "CO_OCCURS", "weight": 1, "color": "rgba(168,85,247,0.4)"},
+            ]
+        }
     
     return graph_data
 

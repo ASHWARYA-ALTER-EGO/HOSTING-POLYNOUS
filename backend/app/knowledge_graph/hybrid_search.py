@@ -157,10 +157,30 @@ class HybridSearchEngine:
             return [0.0] * 1536
     
     def _extract_entities(self, text: str) -> List[str]:
-        """Extract named entities from text"""
+        """Extract named entities from text - improved version"""
         import re
-        entities = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', text)
-        return list(set(entities))[:5]
+        
+        # Remove common question words
+        text = re.sub(r'\b(what|is|are|the|a|an|how|does|do|why|can|you|tell|me|about|explain|define)\b', '', text, flags=re.IGNORECASE)
+        
+        # Extract capitalized phrases (2+ words)
+        multi_word = re.findall(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b', text)
+        
+        # Extract single capitalized words
+        single_word = re.findall(r'\b([A-Z][a-z]+)\b', text)
+        
+        # Combine and deduplicate
+        all_entities = multi_word + [w for w in single_word if len(w) > 2 and w not in ['What', 'How', 'Why', 'When', 'Where', 'Who']]
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique = []
+        for entity in all_entities:
+            if entity.lower() not in seen:
+                unique.append(entity)
+                seen.add(entity.lower())
+        
+        return unique[:8]
 
 # Global instance
 hybrid = HybridSearchEngine()

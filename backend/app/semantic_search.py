@@ -2,6 +2,7 @@ from typing import List, Dict
 import os
 import hashlib
 import time
+import json
 from dotenv import load_dotenv
 from pinecone import Pinecone
 
@@ -42,13 +43,19 @@ class SemanticSearchEngine:
     def add_to_index(self, query: str, answer: str, mode: str = "research", 
                      confidence: float = 0, sources: List = None):
         """Add research entry to search index"""
+        # Convert sources list of dicts to list of strings for Pinecone compatibility
+        source_titles = []
+        if sources:
+            source_titles = [s.get('title', '') for s in sources if isinstance(s, dict)]
+        
         entry = {
             "id": hashlib.md5(f"{query}{time.time()}".encode()).hexdigest()[:16],
             "query": query,
             "answer": answer[:500],
             "mode": mode,
             "confidence": confidence,
-            "sources": sources or [],
+            "sources": json.dumps(source_titles),  # Store as JSON string
+            "source_count": len(source_titles),
             "score": 100.0,
             "timestamp": time.time()
         }
@@ -79,6 +86,13 @@ class SemanticSearchEngine:
                     for match in pine_results.get('matches', []):
                         if match.score > 0.3:
                             meta = match.metadata or {}
+                            # Parse sources back from JSON string
+                            sources_raw = meta.get('sources', '[]')
+                            try:
+                                sources = json.loads(sources_raw) if isinstance(sources_raw, str) else sources_raw
+                            except:
+                                sources = []
+                            
                             results.append({
                                 "id": match.id,
                                 "score": round(match.score * 100, 1),
@@ -86,7 +100,7 @@ class SemanticSearchEngine:
                                 "answer": meta.get('answer', '')[:300],
                                 "mode": meta.get('mode', 'research'),
                                 "confidence": meta.get('confidence', 0),
-                                "sources": meta.get('sources', []),
+                                "sources": sources,
                             })
             except Exception as e:
                 print(f"Pinecone search error: {e}")

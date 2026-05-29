@@ -10,6 +10,8 @@ from app.agents.critic_agent import critic_agent
 from app.agents.writer_agent import writer_agent
 from app.search_agent import search_web
 from app.chat_history import save_chat
+from app.services.embedding_pipeline import pipeline
+import json
 
 def search_node(state: AgentState) -> AgentState:
     """Search Agent - Find relevant documents + graph context"""
@@ -123,7 +125,7 @@ def writer_node(state: AgentState) -> AgentState:
     # ========== Store in Knowledge Graph ==========
     try:
         kg.add_research_entry(
-            query=state['query'],
+            research_query=state['query'],  # ← MUST SAY research_query
             answer=answer,
             sources=state['citations'],
             confidence=conf,
@@ -138,12 +140,12 @@ def writer_node(state: AgentState) -> AgentState:
     try:
         user_memory.record_research(
             user_id="guest_user",
-            query=state['query'],
+            research_query=state['query'],  # ← Renamed
             answer=answer,
             topics=entities,
             confidence=conf,
             mode="research",
-            sources=state['citations']
+            sources=json.dumps(state['citations'])  # ← Serialize to string
         )
         print("🧠 Recorded in User Memory")
     except Exception as e:
@@ -161,6 +163,61 @@ def writer_node(state: AgentState) -> AgentState:
         print("🔍 Indexed for Semantic Search")
     except Exception as e:
         print(f"⚠️ Search indexing: {e}")
+    
+    # ========== NEW: Embed in Unified Pipeline ==========
+    try:
+        # Embed the research query
+        pipeline.embed_and_store(
+            content=state['query'],
+            module="research",
+            content_type="query",
+            metadata={
+                "session_id": "guest_user",
+                "confidence": conf,
+                "topics": entities
+            }
+        )
+        
+        # Embed the research answer
+        pipeline.embed_and_store(
+            content=answer,
+            module="research",
+            content_type="answer",
+            metadata={
+                "session_id": "guest_user",
+                "confidence": conf,
+                "topics": entities,
+                "query": state['query'][:200]
+            }
+        )
+        print("🧬 Embedded in Unified Pipeline")
+    except Exception as e:
+        print(f"⚠️ Pipeline embedding error: {e}")
+    
+    # ========== PHASE 3: Create Rich Graph Nodes ==========
+    try:
+        # Create Claim node from the answer
+        kg.create_claim_node(
+            claim_text=answer[:300],
+            source_module="research",
+            confidence=conf,
+            session_id="guest_user"
+        )
+        
+        # Create Evidence nodes from sources
+        for source in state.get('citations', [])[:3]:
+            title = source.get('title', 'Untitled')
+            url = source.get('url', '')
+            kg.create_evidence_node(
+                evidence_text=title[:200],
+                source_url=url
+            )
+            # Link claim to evidence
+            kg.link_claim_to_evidence(answer[:300], title[:200])
+        
+        print("🧠 Created rich graph nodes (Claims + Evidence)")
+    except Exception as e:
+        print(f"⚠️ Rich graph creation error: {e}")
     
     # ========== Save to Chat History - CORRECTED: No topics parameter ==========
     try:

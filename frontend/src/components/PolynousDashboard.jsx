@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 const C = {
   green: "#00ff0f", cyan: "#00ccff", crimson: "#ff2040", purple: "#a855f7",
@@ -20,16 +20,17 @@ function Styles() {
     body{background:#0a0a1e;color:#e2e0fc;font-family:'Hanken Grotesk',sans-serif;overflow-x:hidden}
     ::selection{background:rgba(0,255,15,0.25)}
     @keyframes rainbow-shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+    @keyframes fadeSlideUp{from{opacity:0;transform:translateY(8px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes popIn{from{opacity:0;transform:scale(0.85)}to{opacity:1;transform:scale(1)}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-    @keyframes twinkle{0%,100%{opacity:0.3}50%{opacity:0.8}}
-    @keyframes fadeSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes scanline{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
-    @keyframes ringPulse{0%,100%{transform:scale(1);opacity:0.6}50%{transform:scale(1.04);opacity:1}}
     .period-btn{padding:4px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;border:none;background:transparent;cursor:pointer;border-radius:9999px;transition:all 0.2s;color:#b9ccb0}
     .period-btn-active{background:rgba(0,255,15,0.1);color:#00ff0f}
     .period-btn-inactive:hover{color:#e2e0fc}
-    .card-glow:hover{box-shadow:0 0 30px rgba(0,204,255,0.08),0 0 60px rgba(0,255,15,0.04)!important;transition:box-shadow 0.4s ease}
+    .card-glow{transition:box-shadow 0.4s ease}
+    .card-glow:hover{box-shadow:0 0 30px rgba(0,204,255,0.08),0 0 60px rgba(0,255,15,0.04)!important}
+    .hover-tooltip{animation:fadeSlideUp 0.18s cubic-bezier(0.34,1.56,0.64,1) forwards;pointer-events:none}
+    .topic-popup{animation:popIn 0.2s cubic-bezier(0.34,1.56,0.64,1) forwards;pointer-events:none}
   `}</style>;
 }
 
@@ -58,8 +59,8 @@ function NeuralBackground() {
         this.vy=this.baseVy+Math.cos(time*this.wobbleSpeed+this.wobbleOffset)*this.wobbleAmp;
         this.x+=this.vx; this.y+=this.vy;
         if(mouse.x!==null){const dx=this.x-mouse.x,dy=this.y-mouse.y,dist=Math.sqrt(dx*dx+dy*dy);if(dist<180){const f=(180-dist)/180;this.x+=(dx/dist)*f*2.5;this.y+=(dy/dist)*f*2.5;}}
-        if(this.x<-10)this.x=canvas.width+10;if(this.x>canvas.width+10)this.x=-10;
-        if(this.y<-10)this.y=canvas.height+10;if(this.y>canvas.height+10)this.y=-10;
+        if(this.x<-10)this.x=canvas.width+10; if(this.x>canvas.width+10)this.x=-10;
+        if(this.y<-10)this.y=canvas.height+10; if(this.y>canvas.height+10)this.y=-10;
       }
       draw(time) {
         const alpha=this.opacity*(Math.sin(time*this.twinkleSpeed+this.twinkleOffset)*0.15+0.85);
@@ -106,7 +107,7 @@ function Sparkline({ data, color }) {
   return <canvas ref={ref} width={80} height={30} style={{opacity:0.6}}/>;
 }
 
-// ─── ACTIVITY CHART (REDESIGNED) ─────────────────────────────
+// ─── ACTIVITY CHART — RAINBOW ─────────────────────────────────
 function ActivityChart({ data }) {
   const ref = useRef(null);
   useEffect(()=>{
@@ -117,23 +118,20 @@ function ActivityChart({ data }) {
       const W=parent.clientWidth,H=parent.clientHeight;
       canvas.width=W*dpr;canvas.height=H*dpr;
       canvas.style.width=W+'px';canvas.style.height=H+'px';
-      ctx.scale(dpr,dpr);
-      ctx.clearRect(0,0,W,H);
+      ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
       const entries=Object.entries(data||{}).slice(-14);
       if(entries.length===0)return;
       const maxVal=Math.max(...entries.map(([,v])=>v),1);
-      const padL=10,padR=10,padT=16,padB=48;
+      const padL=28,padR=10,padT=16,padB=48;
       const w=W-padL-padR,h=H-padT-padB;
 
-      // Grid lines with labels
+      // Grid
       for(let i=0;i<=4;i++){
         const y=padT+(h/4)*i;
-        const val=Math.round(maxVal*(1-i/4));
-        ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;
-        ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle='rgba(136,153,170,0.6)';ctx.font='9px "JetBrains Mono"';ctx.textAlign='right';
-        ctx.fillText(val,padL+18,y+3);
+        ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.setLineDash([4,6]);
+        ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();ctx.setLineDash([]);
+        ctx.fillStyle='rgba(136,153,170,0.55)';ctx.font='9px "JetBrains Mono"';ctx.textAlign='right';
+        ctx.fillText(Math.round(maxVal*(1-i/4)),padL-4,y+3);
       }
 
       const pts=entries.map(([,v],i)=>({
@@ -141,32 +139,38 @@ function ActivityChart({ data }) {
         y:padT+h-(v/maxVal)*h
       }));
 
-      // Gradient fill under curve
-      const fillGrad=ctx.createLinearGradient(0,padT,0,padT+h);
-      fillGrad.addColorStop(0,'rgba(0,204,255,0.18)');
-      fillGrad.addColorStop(0.5,'rgba(0,255,15,0.06)');
-      fillGrad.addColorStop(1,'rgba(0,0,0,0)');
+      // Rainbow fill under curve — vertical gradient of multiple rainbow bands
+      const fillGrad=ctx.createLinearGradient(padL,0,W-padR,0);
+      RAINBOW.forEach((c,i)=>fillGrad.addColorStop(i/(RAINBOW.length-1),c+'40'));
       ctx.beginPath();ctx.moveTo(pts[0].x,padT+h);ctx.lineTo(pts[0].x,pts[0].y);
       for(let i=1;i<pts.length;i++){const cpx=(pts[i-1].x+pts[i].x)/2;ctx.bezierCurveTo(cpx,pts[i-1].y,cpx,pts[i].y,pts[i].x,pts[i].y);}
       ctx.lineTo(pts[pts.length-1].x,padT+h);ctx.closePath();
       ctx.fillStyle=fillGrad;ctx.fill();
 
-      // Main line — rainbow gradient
+      // Second vertical fade to darken bottom
+      const vFade=ctx.createLinearGradient(0,padT,0,padT+h);
+      vFade.addColorStop(0,'rgba(0,0,0,0)');vFade.addColorStop(1,'rgba(10,10,30,0.6)');
+      ctx.beginPath();ctx.moveTo(pts[0].x,padT+h);ctx.lineTo(pts[0].x,pts[0].y);
+      for(let i=1;i<pts.length;i++){const cpx=(pts[i-1].x+pts[i].x)/2;ctx.bezierCurveTo(cpx,pts[i-1].y,cpx,pts[i].y,pts[i].x,pts[i].y);}
+      ctx.lineTo(pts[pts.length-1].x,padT+h);ctx.closePath();
+      ctx.fillStyle=vFade;ctx.fill();
+
+      // Rainbow stroke line
       const lineGrad=ctx.createLinearGradient(padL,0,W-padR,0);
       RAINBOW.forEach((c,i)=>lineGrad.addColorStop(i/(RAINBOW.length-1),c));
       ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
       for(let i=1;i<pts.length;i++){const cpx=(pts[i-1].x+pts[i].x)/2;ctx.bezierCurveTo(cpx,pts[i-1].y,cpx,pts[i].y,pts[i].x,pts[i].y);}
-      ctx.strokeStyle=lineGrad;ctx.lineWidth=2.5;ctx.shadowBlur=12;ctx.shadowColor='rgba(0,204,255,0.4)';ctx.stroke();ctx.shadowBlur=0;
+      ctx.strokeStyle=lineGrad;ctx.lineWidth=3;ctx.shadowBlur=16;ctx.shadowColor='rgba(0,204,255,0.5)';ctx.stroke();ctx.shadowBlur=0;
 
-      // Dots + vertical drop lines
+      // Dots — each rainbow colored
       pts.forEach((p,i)=>{
-        ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;ctx.setLineDash([2,4]);
+        // Drop line
+        ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;ctx.setLineDash([2,4]);
         ctx.beginPath();ctx.moveTo(p.x,p.y+6);ctx.lineTo(p.x,padT+h);ctx.stroke();ctx.setLineDash([]);
-
         const color=RAINBOW[i%RAINBOW.length];
         ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);
-        ctx.fillStyle=color;ctx.shadowBlur=10;ctx.shadowColor=color;ctx.fill();ctx.shadowBlur=0;
-        ctx.beginPath();ctx.arc(p.x,p.y,2.5,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+        ctx.fillStyle=color;ctx.shadowBlur=12;ctx.shadowColor=color;ctx.fill();ctx.shadowBlur=0;
+        ctx.beginPath();ctx.arc(p.x,p.y,2,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
       });
 
       // X-axis labels
@@ -184,172 +188,234 @@ function ActivityChart({ data }) {
   return <canvas ref={ref} style={{width:'100%',height:'100%',display:'block'}}/>;
 }
 
-// ─── TOPICS CHART (REDESIGNED) ────────────────────────────────
+// ─── TOPICS CHART with hover popup ────────────────────────────
 function TopicsChart({ data }) {
   const ref = useRef(null);
+  const wrapRef = useRef(null);
+  const [popup, setPopup] = useState(null); // {x,y,label,val,color}
+  const cellMapRef = useRef([]); // [{cx,label,val,color,colW}]
+
+  const draw = useCallback((canvas, W, H)=>{
+    const ctx=canvas.getContext('2d');
+    const dpr=window.devicePixelRatio||1;
+    canvas.width=W*dpr; canvas.height=H*dpr;
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    ctx.scale(dpr,dpr); ctx.clearRect(0,0,W,H);
+
+    const entries=Object.entries(data||{}).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    if(entries.length===0)return;
+    const maxVal=Math.max(...entries.map(([,v])=>v),1);
+    const padL=8,padR=8,padT=10,padB=52;
+    const colW=(W-padL-padR)/entries.length;
+    const dotR=5,dotGap=14,maxDots=6;
+
+    const cells=[];
+    entries.forEach(([label,val],i)=>{
+      const cx=padL+colW*i+colW/2;
+      const count=Math.min(val,maxDots);
+      const color=RAINBOW[i%RAINBOW.length];
+
+      // Track background
+      const trackH=(maxDots-1)*dotGap+dotR*2+10;
+      const trackY=H-padB-trackH-10;
+      ctx.beginPath();ctx.roundRect(cx-colW*0.28,trackY,colW*0.56,trackH+20,8);
+      ctx.fillStyle='rgba(255,255,255,0.03)';ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=0.5;ctx.stroke();
+
+      // Spine
+      if(count>1){
+        const topDotY=H-padB-padT-(count-1)*dotGap;
+        const botDotY=H-padB-padT;
+        const spineGrad=ctx.createLinearGradient(cx,topDotY,cx,botDotY);
+        spineGrad.addColorStop(0,color+'99');spineGrad.addColorStop(1,color+'22');
+        ctx.beginPath();ctx.moveTo(cx,topDotY);ctx.lineTo(cx,botDotY);
+        ctx.strokeStyle=spineGrad;ctx.lineWidth=1.5;ctx.stroke();
+      }
+
+      // Dots
+      for(let j=0;j<count;j++){
+        const dotY=H-padB-padT-j*dotGap;
+        const dotColor=RAINBOW[(i+j)%RAINBOW.length];
+        const glowR=dotR+5;
+        const glow=ctx.createRadialGradient(cx,dotY,0,cx,dotY,glowR);
+        glow.addColorStop(0,dotColor+'55');glow.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.beginPath();ctx.arc(cx,dotY,glowR,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
+        ctx.beginPath();ctx.arc(cx,dotY,dotR,0,Math.PI*2);
+        ctx.fillStyle=dotColor;ctx.shadowBlur=10;ctx.shadowColor=dotColor;ctx.fill();ctx.shadowBlur=0;
+        ctx.beginPath();ctx.arc(cx-1.2,dotY-1.2,1.8,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.7)';ctx.fill();
+      }
+
+      // Value badge
+      const topY=H-padB-padT-(count-1)*dotGap-dotR-10;
+      ctx.fillStyle=color+'22';ctx.beginPath();ctx.roundRect(cx-10,topY-14,20,14,4);ctx.fill();
+      ctx.fillStyle=color;ctx.font='bold 9px "JetBrains Mono"';ctx.textAlign='center';ctx.fillText(val,cx,topY-4);
+
+      // Label
+      ctx.save();
+      const short=label.length>7?label.slice(0,6)+'…':label;
+      ctx.translate(cx,H-padB+8);
+      if(colW<55){ctx.rotate(-Math.PI/4);ctx.textAlign='right';}else{ctx.textAlign='center';}
+      ctx.fillStyle='rgba(185,204,176,0.85)';ctx.font='10px "JetBrains Mono"';
+      ctx.fillText(short,0,0);ctx.restore();
+
+      cells.push({cx,label,val,color,colW});
+    });
+    cellMapRef.current=cells;
+  },[data]);
+
   useEffect(()=>{
     const canvas=ref.current;if(!canvas)return;
-    const ctx=canvas.getContext('2d');const parent=canvas.parentElement;
-    function draw(){
-      const dpr=window.devicePixelRatio||1;
-      const W=parent.clientWidth,H=parent.clientHeight;
-      canvas.width=W*dpr;canvas.height=H*dpr;
-      canvas.style.width=W+'px';canvas.style.height=H+'px';
-      ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
-      const entries=Object.entries(data||{}).sort((a,b)=>b[1]-a[1]).slice(0,8);
-      if(entries.length===0)return;
-      const maxVal=Math.max(...entries.map(([,v])=>v),1);
-      const padL=8,padR=8,padT=10,padB=52;
-      const colW=(W-padL-padR)/entries.length;
-      const dotR=5,dotGap=14,maxDots=6;
+    const parent=canvas.parentElement;
+    function redraw(){draw(canvas,parent.clientWidth,parent.clientHeight);}
+    redraw();
+    const ro=new ResizeObserver(redraw);ro.observe(parent);return()=>ro.disconnect();
+  },[draw]);
 
-      entries.forEach(([label,val],i)=>{
-        const cx=padL+colW*i+colW/2;
-        const count=Math.min(val,maxDots);
-        const color=RAINBOW[i%RAINBOW.length];
+  const handleMouseMove=useCallback((e)=>{
+    const rect=wrapRef.current.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const hit=cellMapRef.current.find(c=>Math.abs(mx-c.cx)<c.colW/2);
+    if(hit){setPopup({x:hit.cx,y:my,label:hit.label,val:hit.val,color:hit.color});}
+    else setPopup(null);
+  },[]);
 
-        // Bar background track
-        const trackH=(maxDots-1)*dotGap+dotR*2+10;
-        const trackY=H-padB-trackH-10;
-        ctx.beginPath();ctx.roundRect(cx-colW*0.28,trackY,colW*0.56,trackH+20,8);
-        ctx.fillStyle='rgba(255,255,255,0.03)';ctx.fill();
-        ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=0.5;ctx.stroke();
+  const handleMouseLeave=useCallback(()=>setPopup(null),[]);
 
-        // Connecting spine
-        if(count>1){
-          const topDotY=H-padB-padT-(count-1)*dotGap;
-          const botDotY=H-padB-padT;
-          const spineGrad=ctx.createLinearGradient(cx,topDotY,cx,botDotY);
-          spineGrad.addColorStop(0,color+'99');spineGrad.addColorStop(1,color+'22');
-          ctx.beginPath();ctx.moveTo(cx,topDotY);ctx.lineTo(cx,botDotY);
-          ctx.strokeStyle=spineGrad;ctx.lineWidth=1.5;ctx.stroke();
-        }
-
-        // Dots
-        for(let j=0;j<count;j++){
-          const dotY=H-padB-padT-j*dotGap;
-          const dotColor=RAINBOW[(i+j)%RAINBOW.length];
-          const ratio=j/(maxDots-1||1);
-
-          // Outer glow
-          const glowR=dotR+5+ratio*3;
-          const glow=ctx.createRadialGradient(cx,dotY,0,cx,dotY,glowR);
-          glow.addColorStop(0,dotColor+'55');glow.addColorStop(1,'rgba(0,0,0,0)');
-          ctx.beginPath();ctx.arc(cx,dotY,glowR,0,Math.PI*2);
-          ctx.fillStyle=glow;ctx.fill();
-
-          // Main dot
-          ctx.beginPath();ctx.arc(cx,dotY,dotR,0,Math.PI*2);
-          ctx.fillStyle=dotColor;ctx.shadowBlur=10;ctx.shadowColor=dotColor;ctx.fill();ctx.shadowBlur=0;
-
-          // Highlight
-          ctx.beginPath();ctx.arc(cx-1.2,dotY-1.2,1.8,0,Math.PI*2);
-          ctx.fillStyle='rgba(255,255,255,0.7)';ctx.fill();
-        }
-
-        // Value badge above top dot
-        const topY=H-padB-padT-(count-1)*dotGap-dotR-10;
-        ctx.fillStyle=color+'22';
-        ctx.beginPath();ctx.roundRect(cx-10,topY-14,20,14,4);ctx.fill();
-        ctx.fillStyle=color;ctx.font='bold 9px "JetBrains Mono"';ctx.textAlign='center';
-        ctx.fillText(val,cx,topY-4);
-
-        // Label
-        ctx.save();
-        const short=label.length>7?label.slice(0,6)+'…':label;
-        ctx.translate(cx,H-padB+8);
-        if(colW<55){ctx.rotate(-Math.PI/4);ctx.textAlign='right';}else{ctx.textAlign='center';}
-        ctx.fillStyle='rgba(185,204,176,0.85)';ctx.font='10px "JetBrains Mono"';
-        ctx.fillText(short,0,0);ctx.restore();
-      });
-    }
-    draw();const ro=new ResizeObserver(draw);ro.observe(parent);return()=>ro.disconnect();
-  },[data]);
-  return <canvas ref={ref} style={{width:'100%',height:'100%',display:'block'}}/>;
+  return (
+    <div ref={wrapRef} style={{width:'100%',height:'100%',position:'relative'}}
+      onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+      <canvas ref={ref} style={{width:'100%',height:'100%',display:'block'}}/>
+      {popup&&(
+        <div className="topic-popup" style={{
+          position:'absolute',
+          left:popup.x,top:Math.max(popup.y-10,10),
+          transform:'translate(-50%,-100%)',
+          background:'rgba(10,10,30,0.95)',
+          border:`1px solid ${popup.color}55`,
+          borderRadius:14,padding:'10px 16px',
+          boxShadow:`0 0 20px ${popup.color}33, 0 8px 32px rgba(0,0,0,0.6)`,
+          zIndex:100,textAlign:'center',minWidth:90,
+        }}>
+          <div style={{fontFamily:"'Sora',sans-serif",fontSize:22,fontWeight:800,color:popup.color,
+            textShadow:`0 0 16px ${popup.color}99`,letterSpacing:'-0.02em',lineHeight:1,marginBottom:4}}>
+            {popup.label}
+          </div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:'rgba(185,204,176,0.8)',marginBottom:6}}>
+            topic
+          </div>
+          <div style={{
+            display:'inline-flex',alignItems:'center',gap:5,
+            background:popup.color+'18',border:`1px solid ${popup.color}44`,
+            borderRadius:9999,padding:'3px 10px',
+          }}>
+            <div style={{width:6,height:6,borderRadius:'50%',background:popup.color,boxShadow:`0 0 6px ${popup.color}`}}/>
+            <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,fontWeight:700,color:popup.color}}>{popup.val} mentions</span>
+          </div>
+          {/* Arrow */}
+          <div style={{position:'absolute',bottom:-6,left:'50%',transform:'translateX(-50%)',
+            width:10,height:10,background:'rgba(10,10,30,0.95)',
+            border:`1px solid ${popup.color}55`,borderTop:'none',borderLeft:'none',
+            transform:'translateX(-50%) rotate(45deg)'}}/>
+        </div>
+      )}
+    </div>
+  );
 }
 
-// ─── CONFIDENCE RING (REDESIGNED) ────────────────────────────
+// ─── CONFIDENCE RING with hover tooltip ──────────────────────
 function ConfidenceRing({ distribution }) {
   const ref = useRef(null);
+  const wrapRef = useRef(null);
   const animRef = useRef(null);
+  const [tooltip, setTooltip] = useState(null);
+  const segMapRef = useRef([]);
+
+  const total=(distribution?.high||0)+(distribution?.medium||0)+(distribution?.low||0)||1;
+  const highPct=(distribution?.high||0)/total;
+  const medPct=(distribution?.medium||0)/total;
+  const lowPct=(distribution?.low||0)/total;
+
   useEffect(()=>{
     const canvas=ref.current;if(!canvas)return;
     const ctx=canvas.getContext('2d');
     const SIZE=220;canvas.width=SIZE;canvas.height=SIZE;
     const cx=SIZE/2,cy=SIZE/2;
-    const total=(distribution?.high||0)+(distribution?.medium||0)+(distribution?.low||0)||1;
-    const highPct=(distribution?.high||0)/total;
-    const medPct=(distribution?.medium||0)/total;
-    const lowPct=(distribution?.low||0)/total;
     const segs=[
-      {val:highPct,color:C.green,label:'High',r:72,lw:12},
-      {val:medPct,color:'#ffaa00',label:'Med',r:54,lw:10},
-      {val:lowPct,color:C.crimson,label:'Low',r:38,lw:8},
+      {val:highPct,color:C.green,label:'High Confidence',r:72,lw:12},
+      {val:medPct,color:'#ffaa00',label:'Medium Confidence',r:54,lw:10},
+      {val:lowPct,color:C.crimson,label:'Low Confidence',r:38,lw:8},
     ];
+
+    // Store arc data for hit testing
+    segMapRef.current=segs.map(s=>({...s,startAngle:-Math.PI/2,endAngle:-Math.PI/2+s.val*Math.PI*2}));
+
     let t=0;
     function drawFrame(){
       ctx.clearRect(0,0,SIZE,SIZE);
       const progress=Math.min(t/80,1);
       const ease=1-Math.pow(1-progress,3);
 
-      // Outer decorative ring
-      ctx.beginPath();ctx.arc(cx,cy,84,0,Math.PI*2);
-      ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.stroke();
-      ctx.beginPath();ctx.arc(cx,cy,26,0,Math.PI*2);
-      ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.stroke();
+      ctx.beginPath();ctx.arc(cx,cy,84,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.stroke();
+      ctx.beginPath();ctx.arc(cx,cy,26,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.stroke();
 
-      // Track rings
       segs.forEach(s=>{
-        ctx.beginPath();ctx.arc(cx,cy,s.r,0,Math.PI*2);
-        ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=s.lw;ctx.lineCap='round';ctx.stroke();
+        ctx.beginPath();ctx.arc(cx,cy,s.r,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=s.lw;ctx.lineCap='round';ctx.stroke();
       });
 
-      // Animated fill rings
       segs.forEach(s=>{
         if(s.val<=0)return;
         const end=-Math.PI/2+(s.val*Math.PI*2)*ease;
-        // Glow pass
-        ctx.beginPath();ctx.arc(cx,cy,s.r,-Math.PI/2,end);
-        ctx.strokeStyle=s.color;ctx.lineWidth=s.lw+8;ctx.globalAlpha=0.12;ctx.stroke();ctx.globalAlpha=1;
-        // Main arc
-        ctx.beginPath();ctx.arc(cx,cy,s.r,-Math.PI/2,end);
-        ctx.strokeStyle=s.color;ctx.lineWidth=s.lw;
-        ctx.shadowBlur=14;ctx.shadowColor=s.color;ctx.stroke();ctx.shadowBlur=0;
-        // End cap dot
+        ctx.beginPath();ctx.arc(cx,cy,s.r,-Math.PI/2,end);ctx.strokeStyle=s.color;ctx.lineWidth=s.lw+8;ctx.globalAlpha=0.12;ctx.stroke();ctx.globalAlpha=1;
+        ctx.beginPath();ctx.arc(cx,cy,s.r,-Math.PI/2,end);ctx.strokeStyle=s.color;ctx.lineWidth=s.lw;ctx.shadowBlur=14;ctx.shadowColor=s.color;ctx.stroke();ctx.shadowBlur=0;
         const ex=cx+Math.cos(end)*s.r,ey=cy+Math.sin(end)*s.r;
-        ctx.beginPath();ctx.arc(ex,ey,s.lw/2+1,0,Math.PI*2);
-        ctx.fillStyle=s.color;ctx.shadowBlur=8;ctx.shadowColor=s.color;ctx.fill();ctx.shadowBlur=0;
+        ctx.beginPath();ctx.arc(ex,ey,s.lw/2+1,0,Math.PI*2);ctx.fillStyle=s.color;ctx.shadowBlur=8;ctx.shadowColor=s.color;ctx.fill();ctx.shadowBlur=0;
       });
 
-      // Center display
-      ctx.beginPath();ctx.arc(cx,cy,20,0,Math.PI*2);
-      ctx.fillStyle='rgba(10,10,30,0.95)';ctx.fill();
+      ctx.beginPath();ctx.arc(cx,cy,20,0,Math.PI*2);ctx.fillStyle='rgba(10,10,30,0.95)';ctx.fill();
       ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.font='bold 13px "Sora",sans-serif';
       ctx.fillText(Math.round(highPct*100*ease)+'%',cx,cy);
 
-      t++;
-      if(t<=80)animRef.current=requestAnimationFrame(drawFrame);
+      t++;if(t<=80)animRef.current=requestAnimationFrame(drawFrame);
     }
     cancelAnimationFrame(animRef.current);t=0;drawFrame();
     return()=>cancelAnimationFrame(animRef.current);
   },[distribution]);
 
-  const total=(distribution?.high||0)+(distribution?.medium||0)+(distribution?.low||0)||1;
-  const highPct=Math.round((distribution?.high||0)/total*100);
-  const medPct=Math.round((distribution?.medium||0)/total*100);
-  const lowPct=Math.round((distribution?.low||0)/total*100);
+  const handleMouseMove=useCallback((e)=>{
+    const rect=wrapRef.current.getBoundingClientRect();
+    const canvasEl=ref.current;
+    // Find the canvas center inside the wrap
+    const canvasRect=canvasEl.getBoundingClientRect();
+    const cx=canvasRect.left-rect.left+canvasEl.offsetWidth/2;
+    const cy=canvasRect.top-rect.top+canvasEl.offsetHeight/2;
+    const mx=e.clientX-rect.left-cx, my=e.clientY-rect.top-cy;
+    const dist=Math.sqrt(mx*mx+my*my);
+    let angle=Math.atan2(my,mx);
+    if(angle<-Math.PI/2)angle+=Math.PI*2;
+
+    const hit=segMapRef.current.find(s=>{
+      if(s.val<=0)return false;
+      const outer=s.r+s.lw/2+4, inner=s.r-s.lw/2-4;
+      const start=-Math.PI/2, end=start+s.val*Math.PI*2;
+      let a=angle; if(a<start)a+=Math.PI*2;
+      return dist>=inner&&dist<=outer&&a>=start&&a<=end;
+    });
+
+    if(hit){setTooltip({x:e.clientX-rect.left,y:e.clientY-rect.top,seg:hit});}
+    else setTooltip(null);
+  },[]);
+
+  const handleMouseLeave=useCallback(()=>setTooltip(null),[]);
+  const pctLabel=(v)=>Math.round(v*100)+'%';
 
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,width:'100%'}}>
-      <canvas ref={ref} style={{width:220,height:220,flexShrink:0}}/>
+    <div ref={wrapRef} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,width:'100%',position:'relative'}}
+      onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+      <canvas ref={ref} style={{width:220,height:220,flexShrink:0,cursor:'crosshair'}}/>
       {/* Legend */}
       <div style={{display:'flex',gap:16,flexWrap:'wrap',justifyContent:'center'}}>
-        {[
-          {label:'High',color:C.green,pct:highPct},
-          {label:'Medium',color:'#ffaa00',pct:medPct},
-          {label:'Low',color:C.crimson,pct:lowPct},
-        ].map(({label,color,pct})=>(
+        {[{label:'High',color:C.green,pct:Math.round(highPct*100)},{label:'Medium',color:'#ffaa00',pct:Math.round(medPct*100)},{label:'Low',color:C.crimson,pct:Math.round(lowPct*100)}].map(({label,color,pct})=>(
           <div key={label} style={{display:'flex',alignItems:'center',gap:6}}>
             <div style={{width:8,height:8,borderRadius:'50%',background:color,boxShadow:`0 0 6px ${color}`}}/>
             <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary}}>{label}</span>
@@ -357,97 +423,150 @@ function ConfidenceRing({ distribution }) {
           </div>
         ))}
       </div>
+      {/* Tooltip */}
+      {tooltip&&(
+        <div className="hover-tooltip" style={{
+          position:'absolute',left:tooltip.x,top:tooltip.y,
+          transform:'translate(-50%,-120%)',
+          background:'rgba(10,10,30,0.96)',
+          border:`1px solid ${tooltip.seg.color}66`,
+          borderRadius:12,padding:'10px 16px',
+          boxShadow:`0 0 24px ${tooltip.seg.color}33, 0 8px 32px rgba(0,0,0,0.7)`,
+          zIndex:200,textAlign:'center',minWidth:130,
+        }}>
+          <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:700,color:tooltip.seg.color,marginBottom:4}}>{tooltip.seg.label}</div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:20,fontWeight:700,color:'#fff'}}>{pctLabel(tooltip.seg.val)}</div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary,marginTop:2}}>of all answers</div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── HEATMAP (REDESIGNED) ─────────────────────────────────────
-function HeatmapChart({ data }) {
+// ─── HEATMAP with cell tooltip ────────────────────────────────
+function HeatmapChart({ data, activityData }) {
   const ref = useRef(null);
-  useEffect(()=>{
-    const canvas=ref.current;if(!canvas)return;
-    const ctx=canvas.getContext('2d');const parent=canvas.parentElement;
-    function draw(){
-      const dpr=window.devicePixelRatio||1;
-      const W=parent.clientWidth,H=parent.clientHeight;
-      canvas.width=W*dpr;canvas.height=H*dpr;
-      canvas.style.width=W+'px';canvas.style.height=H+'px';
-      ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
+  const wrapRef = useRef(null);
+  const [tooltip, setTooltip] = useState(null);
+  const cellMapRef = useRef([]);
 
-      const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-      const cols=24,rows=days.length;
-      const padL=34,padR=8,padT=8,padB=20;
-      const cw=(W-padL-padR)/cols,ch=(H-padT-padB)/rows;
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
-      let maxVal=1;
-      if(data)Object.values(data).forEach(hours=>Object.values(hours).forEach(v=>{if(v>maxVal)maxVal=v}));
+  const draw = useCallback((canvas,W,H)=>{
+    const ctx=canvas.getContext('2d');
+    const dpr=window.devicePixelRatio||1;
+    canvas.width=W*dpr;canvas.height=H*dpr;
+    canvas.style.width=W+'px';canvas.style.height=H+'px';
+    ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
 
-      // Hour labels (every 3h)
-      ctx.fillStyle='rgba(136,153,170,0.6)';ctx.font='8px "JetBrains Mono"';ctx.textAlign='center';
-      for(let h=0;h<24;h+=3){
-        const x=padL+h*cw+cw/2;
-        const label=h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p';
-        ctx.fillText(label,x,H-padB+12);
-      }
+    const cols=24,rows=days.length;
+    const padL=34,padR=8,padT=8,padB=22;
+    const cw=(W-padL-padR)/cols,ch=(H-padT-padB)/rows;
 
-      // Day labels
-      ctx.textAlign='right';
-      days.forEach((day,r)=>{
-        const y=padT+r*ch+ch/2+4;
-        ctx.fillStyle='rgba(136,153,170,0.7)';ctx.font='9px "JetBrains Mono"';
-        ctx.fillText(day,padL-5,y);
-      });
+    let maxVal=1;
+    if(data)Object.values(data).forEach(hours=>Object.values(hours).forEach(v=>{if(v>maxVal)maxVal=v}));
 
-      // Cells
-      days.forEach((day,r)=>{
-        for(let c=0;c<cols;c++){
-          const v=(data?.[day]?.[String(c)]||0)/maxVal;
-          const x=padL+c*cw,y=padT+r*ch;
-          const gap=1.5,rx=3;
+    ctx.fillStyle='rgba(136,153,170,0.6)';ctx.font='8px "JetBrains Mono"';ctx.textAlign='center';
+    for(let h=0;h<24;h+=3){
+      const x=padL+h*cw+cw/2;
+      const label=h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p';
+      ctx.fillText(label,x,H-padB+13);
+    }
+    ctx.textAlign='right';
+    days.forEach((day,r)=>{
+      ctx.fillStyle='rgba(136,153,170,0.7)';ctx.font='9px "JetBrains Mono"';
+      ctx.fillText(day,padL-5,padT+r*ch+ch/2+4);
+    });
 
-          if(v<=0){
-            ctx.fillStyle='rgba(255,255,255,0.02)';
-            ctx.beginPath();ctx.roundRect(x+gap,y+gap,cw-gap*2,ch-gap*2,rx);ctx.fill();
-            continue;
-          }
+    const cells=[];
+    days.forEach((day,r)=>{
+      for(let c=0;c<cols;c++){
+        const v=(data?.[day]?.[String(c)]||0)/maxVal;
+        const rawVal=data?.[day]?.[String(c)]||0;
+        const x=padL+c*cw,y=padT+r*ch;
+        const gap=1.5,rx=3;
 
-          // Color: low=cyan dim → high=green bright
+        if(v<=0){
+          ctx.fillStyle='rgba(255,255,255,0.02)';
+          ctx.beginPath();ctx.roundRect(x+gap,y+gap,cw-gap*2,ch-gap*2,rx);ctx.fill();
+        } else {
           let cellColor,alpha;
           if(v>0.8){cellColor=C.green;alpha=0.85;}
           else if(v>0.5){cellColor=C.cyan;alpha=0.6;}
           else if(v>0.2){cellColor='#4dabf7';alpha=0.35;}
           else{cellColor='#4dabf7';alpha=0.15;}
-
-          // Glow for hot cells
-          if(v>0.5){
-            ctx.shadowBlur=8;ctx.shadowColor=cellColor;}
-
-          ctx.fillStyle=cellColor.replace('#','rgba(').replace(/(..)(..)(..)$/,(_,r,g,b)=>`${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},${alpha})`);
-          // Simpler approach:
-          ctx.globalAlpha=alpha;
-          ctx.fillStyle=cellColor;
+          ctx.globalAlpha=alpha;ctx.fillStyle=cellColor;ctx.shadowBlur=v>0.5?8:0;ctx.shadowColor=cellColor;
           ctx.beginPath();ctx.roundRect(x+gap,y+gap,cw-gap*2,ch-gap*2,rx);ctx.fill();
-          ctx.globalAlpha=1;ctx.shadowBlur=0;
-
-          // Inner highlight for top cells
-          if(v>0.7){
-            ctx.globalAlpha=0.3;
-            ctx.fillStyle='#fff';
-            ctx.beginPath();ctx.roundRect(x+gap,y+gap,cw-gap*2,3,rx);ctx.fill();
-            ctx.globalAlpha=1;
-          }
+          ctx.shadowBlur=0;ctx.globalAlpha=1;
+          if(v>0.7){ctx.globalAlpha=0.3;ctx.fillStyle='#fff';ctx.beginPath();ctx.roundRect(x+gap,y+gap,cw-gap*2,3,rx);ctx.fill();ctx.globalAlpha=1;}
         }
-      });
-    }
-    draw();const ro=new ResizeObserver(draw);ro.observe(parent);return()=>ro.disconnect();
+        cells.push({x:x+gap,y:y+gap,w:cw-gap*2,h:ch-gap*2,day,hour:c,val:rawVal,v});
+      }
+    });
+    cellMapRef.current=cells;
   },[data]);
-  return <canvas ref={ref} style={{width:'100%',height:'100%',display:'block'}}/>;
+
+  useEffect(()=>{
+    const canvas=ref.current;if(!canvas)return;
+    const parent=canvas.parentElement;
+    function redraw(){draw(canvas,parent.clientWidth,parent.clientHeight);}
+    redraw();const ro=new ResizeObserver(redraw);ro.observe(parent);return()=>ro.disconnect();
+  },[draw]);
+
+  const handleMouseMove=useCallback((e)=>{
+    const rect=wrapRef.current.getBoundingClientRect();
+    const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+    const hit=cellMapRef.current.find(c=>mx>=c.x&&mx<=c.x+c.w&&my>=c.y&&my<=c.y+c.h);
+    if(hit&&hit.val>0){
+      const hr=hit.hour;
+      const ampm=hr===0?'12 AM':hr<12?hr+' AM':hr===12?'12 PM':(hr-12)+' PM';
+      // Find matching date from activityData if available
+      setTooltip({x:e.clientX-rect.left,y:e.clientY-rect.top,day:hit.day,hour:ampm,val:hit.val,v:hit.v});
+    } else setTooltip(null);
+  },[]);
+
+  const handleMouseLeave=useCallback(()=>setTooltip(null),[]);
+
+  const heatColor=v=>{if(v>0.8)return C.green;if(v>0.5)return C.cyan;return '#4dabf7';};
+
+  return (
+    <div ref={wrapRef} style={{width:'100%',height:'100%',position:'relative'}}
+      onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+      <canvas ref={ref} style={{width:'100%',height:'100%',display:'block',cursor:'crosshair'}}/>
+      {tooltip&&(
+        <div className="hover-tooltip" style={{
+          position:'absolute',left:tooltip.x,top:tooltip.y,
+          transform:'translate(-50%,-115%)',
+          background:'rgba(10,10,30,0.96)',
+          border:`1px solid ${heatColor(tooltip.v)}55`,
+          borderRadius:12,padding:'10px 14px',
+          boxShadow:`0 0 20px ${heatColor(tooltip.v)}33,0 8px 28px rgba(0,0,0,0.7)`,
+          zIndex:200,textAlign:'center',minWidth:110,
+        }}>
+          <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:700,color:'#fff',marginBottom:2}}>{tooltip.day}</div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:heatColor(tooltip.v),marginBottom:6}}>{tooltip.hour}</div>
+          <div style={{
+            display:'inline-flex',alignItems:'center',gap:5,
+            background:heatColor(tooltip.v)+'18',border:`1px solid ${heatColor(tooltip.v)}44`,
+            borderRadius:9999,padding:'3px 10px',
+          }}>
+            <div style={{width:6,height:6,borderRadius:'50%',background:heatColor(tooltip.v),boxShadow:`0 0 6px ${heatColor(tooltip.v)}`}}/>
+            <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fontWeight:700,color:heatColor(tooltip.v)}}>{tooltip.val} {tooltip.val===1?'session':'sessions'}</span>
+          </div>
+          <div style={{position:'absolute',bottom:-5,left:'50%',
+            width:8,height:8,background:'rgba(10,10,30,0.96)',
+            border:`1px solid ${heatColor(tooltip.v)}55`,borderTop:'none',borderLeft:'none',
+            transform:'translateX(-50%) rotate(45deg)'}}/>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── STAT CARD ────────────────────────────────────────────────
 function StatCard({ icon, color, label, value, trend }) {
   return (
-    <div className="card-glow" style={{ background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,display:"flex",flexDirection:"column",gap:10,transition:"box-shadow 0.4s ease" }}>
+    <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,display:"flex",flexDirection:"column",gap:10}}>
       <Icon name={icon} style={{fontSize:32,color}}/>
       <div>
         <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:C.onSurfaceVariant,marginBottom:4}}>{label}</div>
@@ -519,6 +638,26 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
   );
 }
 
+// ─── CARD HEADING helper ──────────────────────────────────────
+function CardHeading({ emoji, title, badge }) {
+  return (
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+      <h3 style={{
+        fontFamily:"'Sora',sans-serif",fontSize:20,fontWeight:800,
+        color:"#fff",letterSpacing:"-0.02em",
+        display:'flex',alignItems:'center',gap:8,
+      }}>
+        <span>{emoji}</span>
+        <span style={{
+          background:"linear-gradient(90deg,#fff 60%,rgba(255,255,255,0.5))",
+          WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
+        }}>{title}</span>
+      </h3>
+      {badge&&<span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary,background:"rgba(255,255,255,0.05)",padding:"3px 10px",borderRadius:9999}}>{badge}</span>}
+    </div>
+  );
+}
+
 // ─── MAIN DASHBOARD ───────────────────────────────────────────
 export default function PolynousDashboard({ user, onNavigate, onLogout }) {
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
@@ -534,7 +673,6 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
     setLoading(true);
     try{
       const base="http://localhost:8000",userId="guest_user";
-      console.log("🔄 Fetching analytics data...");
       const [sRes,hRes,dRes]=await Promise.all([
         fetch(base+"/memory/stats/"+userId),
         fetch(base+"/memory/history/"+userId),
@@ -544,7 +682,6 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
       setStats({totalQueries:statsData.total_research||0,totalDebates:statsData.total_debates||0,avgConfidence:statsData.avg_confidence||0,uniqueTopics:statsData.unique_topics||0});
       setHistory(historyData.history||[]);
       setDebates(debatesData.debates||[]);
-      console.log("✅ Analytics loaded");
     }catch(e){console.error("Dashboard error:",e);}
     finally{setLoading(false);}
   };
@@ -588,7 +725,7 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
         {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:32,flexWrap:"wrap",gap:16}}>
           <div>
-            <h2 style={{fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:700,color:C.green,margin:"0 0 4px"}}>📊 Neural Analytics</h2>
+            <h2 style={{fontFamily:"'Sora',sans-serif",fontSize:32,fontWeight:800,letterSpacing:"-0.03em",color:C.green,margin:"0 0 4px"}}>📊 Neural Analytics</h2>
             <p style={{fontFamily:"'Hanken Grotesk',sans-serif",fontSize:14,color:C.textSecondary}}>Your research patterns, visualized</p>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:16}}>
@@ -602,11 +739,10 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
         {loading?(
           <div style={{textAlign:"center",padding:60}}>
             <div style={{fontSize:48,marginBottom:16}}>📊</div>
-            <div style={{color:C.green,fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:600}}>Loading analytics...</div>
+            <div style={{color:C.green,fontFamily:"'Sora',sans-serif",fontSize:18,fontWeight:700}}>Loading analytics...</div>
           </div>
         ):(
           <>
-            {/* Stat Cards */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:14,marginBottom:20}}>
               <StatCard icon="psychology" color={C.cyan} label="Total Queries" value={stats?.totalQueries||0} trend={confTrend}/>
               <StatCard icon="forum" color={C.crimson} label="Debates" value={stats?.totalDebates||0}/>
@@ -614,23 +750,15 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
               <StatCard icon="category" color={C.purple} label="Topics Mapped" value={stats?.uniqueTopics||0}/>
             </div>
 
-            {/* Row 1: Activity + Topics */}
+            {/* Row 1 */}
             <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:14,marginBottom:14}}>
-              {/* Activity Chart */}
               <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:360,display:"flex",flexDirection:"column"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                  <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:"#fff"}}>📈 Research Activity</h3>
-                  <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary,background:"rgba(255,255,255,0.05)",padding:"3px 10px",borderRadius:9999}}>{Object.values(activityData).reduce((a,b)=>a+b,0)} sessions</span>
-                </div>
+                <CardHeading emoji="📈" title="Research Activity" badge={Object.values(activityData).reduce((a,b)=>a+b,0)+' sessions'}/>
                 <div style={{flex:1,minHeight:0}}><ActivityChart data={activityData}/></div>
               </div>
 
-              {/* Topics Chart */}
               <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,height:360,display:"flex",flexDirection:"column"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                  <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:"#fff"}}>🏷️ Top Topics</h3>
-                  <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary,background:"rgba(255,255,255,0.05)",padding:"3px 10px",borderRadius:9999}}>{Object.keys(topicFreq).length} found</span>
-                </div>
+                <CardHeading emoji="🏷️" title="Top Topics" badge={Object.keys(topicFreq).length+' found'}/>
                 {Object.keys(topicFreq).length===0&&(
                   <div style={{color:C.textSecondary,fontFamily:"'JetBrains Mono',monospace",fontSize:11,textAlign:"center",padding:20}}>No topics extracted yet</div>
                 )}
@@ -638,19 +766,22 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
               </div>
             </div>
 
-            {/* Row 2: Confidence Ring + Heatmap */}
+            {/* Row 2 */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:14,paddingBottom:40}}>
-              {/* Confidence Ring */}
-              <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300}}>
-                <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:"#fff",marginBottom:4,alignSelf:"flex-start"}}>🎯 Confidence</h3>
+              <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:320}}>
+                <div style={{width:'100%',marginBottom:4}}>
+                  <CardHeading emoji="🎯" title="Confidence"/>
+                </div>
                 <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:C.textSecondary,marginBottom:16,alignSelf:"flex-start"}}>Answer quality distribution</p>
                 <ConfidenceRing distribution={confDist}/>
               </div>
 
-              {/* Heatmap */}
-              <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,minHeight:300,display:"flex",flexDirection:"column"}}>
+              <div className="card-glow" style={{background:"rgba(10,10,30,0.6)",backdropFilter:"blur(20px)",border:"1px solid "+C.white10,borderRadius:20,padding:22,minHeight:320,display:"flex",flexDirection:"column"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                  <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,color:"#fff"}}>🗺️ Activity Heatmap</h3>
+                  <h3 style={{fontFamily:"'Sora',sans-serif",fontSize:20,fontWeight:800,color:"#fff",letterSpacing:"-0.02em",display:'flex',alignItems:'center',gap:8}}>
+                    <span>🗺️</span>
+                    <span style={{background:"linear-gradient(90deg,#fff 60%,rgba(255,255,255,0.5))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Activity Heatmap</span>
+                  </h3>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                     <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:C.textSecondary}}>less</span>
                     {['rgba(255,255,255,0.06)','rgba(77,171,247,0.3)','rgba(0,204,255,0.5)','rgba(0,255,15,0.7)'].map((bg,i)=>(
@@ -659,7 +790,7 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
                     <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:C.textSecondary}}>more</span>
                   </div>
                 </div>
-                <div style={{flex:1,minHeight:0}}><HeatmapChart data={hourlyData}/></div>
+                <div style={{flex:1,minHeight:0}}><HeatmapChart data={hourlyData} activityData={activityData}/></div>
               </div>
             </div>
           </>

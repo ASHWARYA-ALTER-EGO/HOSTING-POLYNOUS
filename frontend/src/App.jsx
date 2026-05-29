@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState, useEffect } from 'react';
 
 // Page imports
+import GraphFeatureShowcase from './components/GraphFeatureShowcase'
+import KnowledgeGraph3D from './components/KnowledgeGraph3D'
 import LandingPage2 from './components/LandingPage2';
 import AuthPage from './components/AuthPage';
 import OAuthCallback from './components/OAuthCallback';
@@ -187,6 +189,28 @@ export default function App() {
           } 
         />
 
+        {/* 3D Knowledge Graph */}
+        <Route 
+          path="/graph3d" 
+          element={
+            isLoggedIn 
+              ? <KnowledgeGraph3D 
+                  onSwitchTo2D={() => window.location.href = '/graph'} 
+                />
+              : <Navigate to="/auth" />
+          } 
+        />
+
+        {/* Graph Feature Showcase */}
+        <Route 
+          path="/graph-lab" 
+          element={
+            isLoggedIn 
+              ? <GraphFeatureShowcase />
+              : <Navigate to="/auth" />
+          } 
+        />
+
         {/* Memory Bank */}
         <Route 
           path="/memory" 
@@ -244,7 +268,7 @@ export default function App() {
               : <Navigate to="/auth" replace />
           } 
         />
-        
+
         {/* ========== CATCH-ALL ========== */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

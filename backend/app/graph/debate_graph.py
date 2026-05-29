@@ -3,8 +3,10 @@ from app.state import AgentState
 from app.agents.debate_agents import argue_for_position, argue_against_position, judge_debate
 from app.search_agent import search_web
 from app.knowledge_graph.user_memory import user_memory
+from app.knowledge_graph.graph_manager import kg
 from app.semantic_search import semantic_search
 from app.chat_history import save_debate
+from app.services.embedding_pipeline import pipeline
 
 def debate_search_node(state: AgentState) -> AgentState:
     """Search for debate sources"""
@@ -164,6 +166,93 @@ def judge_node(state: AgentState) -> AgentState:
         print("  💾 Saved debate to Chat History")
     except Exception as e:
         print(f"  ⚠️ Chat history save error: {e}")
+    
+    # ========== NEW: Embed debate in Unified Pipeline ==========
+    try:
+        # Embed the debate topic
+        pipeline.embed_and_store(
+            content=state['query'],
+            module="debate",
+            content_type="topic",
+            metadata={
+                "session_id": "guest_user",
+                "for_score": for_score,
+                "against_score": against_score,
+                "winner": winner
+            }
+        )
+        
+        # Embed FOR argument
+        pipeline.embed_and_store(
+            content=for_arg,
+            module="debate",
+            content_type="argument",
+            metadata={
+                "session_id": "guest_user",
+                "side": "FOR",
+                "score": for_score,
+                "topic": state['query'][:200]
+            }
+        )
+        
+        # Embed AGAINST argument
+        pipeline.embed_and_store(
+            content=against_arg,
+            module="debate",
+            content_type="counterargument",
+            metadata={
+                "session_id": "guest_user",
+                "side": "AGAINST",
+                "score": against_score,
+                "topic": state['query'][:200]
+            }
+        )
+        
+        # Find cross-module connections: this debate → similar research
+        cross_connections = pipeline.find_cross_module_connections(
+            query=state['query'],
+            source_module="debate",
+            target_modules=["research", "memory"]
+        )
+        if cross_connections:
+            print(f"  🔗 Found {len(cross_connections)} cross-module connections")
+        
+        print("🧬 Debate embedded in Unified Pipeline")
+    except Exception as e:
+        print(f"⚠️ Pipeline embedding error: {e}")
+    
+    # ========== PHASE 3: Create Rich Graph Nodes ==========
+    try:
+        # Create Argument nodes
+        kg.create_argument_node(
+            argument_text=for_arg[:300],
+            side="FOR",
+            score=for_score,
+            debate_topic=state['query']
+        )
+        
+        kg.create_argument_node(
+            argument_text=against_arg[:300],
+            side="AGAINST",
+            score=against_score,
+            debate_topic=state['query']
+        )
+        
+        # Link FOR → AGAINST
+        kg.link_argument_to_counterargument(for_arg[:300], against_arg[:300])
+        
+        # Create Claim from debate verdict reasoning
+        if reasoning:
+            kg.create_claim_node(
+                claim_text=f"Debate verdict on '{state['query'][:100]}': {reasoning[:200]}",
+                source_module="debate",
+                confidence=max(for_score, against_score) * 10,
+                session_id="guest_user"
+            )
+        
+        print("🧠 Created rich debate graph nodes (Arguments + Claims)")
+    except Exception as e:
+        print(f"⚠️ Rich debate graph error: {e}")
     
     print(f"✅ Debate complete! Winner: {winner}")
     print("="*60 + "\n")

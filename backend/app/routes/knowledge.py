@@ -47,7 +47,7 @@ async def seed_demo_data():
         for query, mode in demo_queries:
             entities = hybrid._extract_entities(query)
             kg.add_research_entry(
-                query=query,
+                research_query=query,
                 answer=f"Research on: {query}",
                 sources=[],
                 confidence=85,
@@ -187,3 +187,44 @@ async def extract_entities(text: str = Query(...)):
     """Extract entities from text"""
     entities = hybrid._extract_entities(text)
     return {"text": text, "entities": entities}
+
+@router.get("/pipeline-stats")
+async def get_pipeline_stats():
+    """Get unified embedding pipeline statistics"""
+    from app.services.embedding_pipeline import pipeline
+    return pipeline.get_stats()
+
+@router.get("/cross-module")
+async def cross_module_connections(
+    query: str = Query(...),
+    source_module: str = Query("research")
+):
+    """Find connections across different modules"""
+    from app.services.embedding_pipeline import pipeline
+    results = pipeline.find_cross_module_connections(
+        query=query,
+        source_module=source_module
+    )
+    return {
+        "query": query,
+        "source_module": source_module,
+        "cross_module_matches": results,
+        "total": len(results)
+    }
+
+@router.get("/rich-graph")
+async def get_rich_graph():
+    """Get enriched graph with Claims, Evidence, Arguments, Topics"""
+    graph_data = kg.get_rich_graph()
+    
+    # If empty, seed demo data and try again
+    if not graph_data.get('nodes'):
+        kg.seed_rich_demo()
+        graph_data = kg.get_rich_graph()
+    
+    return graph_data
+
+@router.post("/seed-rich-demo")
+async def seed_rich_demo():
+    """Seed rich demo data for testing"""
+    return kg.seed_rich_demo()

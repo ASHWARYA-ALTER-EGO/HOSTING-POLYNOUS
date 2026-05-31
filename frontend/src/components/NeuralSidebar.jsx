@@ -9,6 +9,7 @@ export default function NeuralSidebar({ user, onLogout, currentPage, onNavigate 
     { id: 'memory', icon: '💾', label: 'Memory Bank', path: '/memory' },
     { id: 'graph', icon: '🧠', label: 'Knowledge Graph', path: '/graph' },
     { id: 'search', icon: '🔍', label: 'Semantic Search', path: '/search' },
+    
   ]
 
   if (collapsed) {

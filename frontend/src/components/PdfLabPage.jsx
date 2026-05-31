@@ -645,9 +645,26 @@ export default function PdfLabPage({ user, onNavigate, onLogout }) {
 
           {/* Header */}
           <div style={{ textAlign: "center", marginBottom: 30, paddingTop: 10 }}>
-            <h1 style={{ fontFamily: "'Sora',sans-serif", fontSize: "clamp(1.6rem,4vw,2.2rem)", fontWeight: 800, color: C.gold, margin: "0 0 4px", letterSpacing: "-0.02em" }}>
-              📄 PDF Neural Lab
-            </h1>
+            <div style={{ textAlign: "center", marginBottom: 36, paddingTop: 10, animation: "fadeSlideUp 0.6s ease both" }}>
+  <h1 style={{
+    fontFamily: "'Sora',sans-serif",
+    fontSize: "clamp(2rem,4.5vw,3rem)",
+    fontWeight: 800,
+    color: C.gold,
+    margin: "0 0 10px",
+    letterSpacing: "-0.03em",
+    textShadow: "0 0 40px rgba(255,215,0,0.3)",
+  }}>
+    📄 PDF Neural Lab
+  </h1>
+  <p style={{
+    fontFamily: "'JetBrains Mono',monospace",
+    fontSize: 14,
+    color: C.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: "3px",
+  }}>Upload, Embed & Query Your Documents</p>
+</div>
             <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "3px" }}>
               Upload, Embed & Query Your Documents
             </p>

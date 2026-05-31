@@ -32,7 +32,6 @@ def init_db():
             against_score REAL DEFAULT 5,
             winner TEXT DEFAULT 'TIE',
             reasoning TEXT DEFAULT '',
-            sources TEXT DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -53,18 +52,18 @@ def save_chat(session_id: str, query: str, answer: str,
     conn.close()
     print(f"💾 Chat saved: {query[:50]}...")
 
-def save_debate(session_id: str, topic: str, for_score: float, against_score: float, 
-                winner: str, reasoning: str = "", sources: list = None):
-    """Save a debate entry"""
+def save_debate(session_id: str, topic: str, for_score: float, against_score: float,
+                winner: str, reasoning: str = ""):
+    """Save debate to chat history"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO debate_history (session_id, topic, for_score, against_score, winner, reasoning, sources) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (session_id, topic, for_score, against_score, winner, reasoning[:1000] if reasoning else "", json.dumps(sources or []))
+        "INSERT INTO debate_history (session_id, topic, for_score, against_score, winner, reasoning) VALUES (?, ?, ?, ?, ?, ?)",
+        (session_id, topic, for_score, against_score, winner, reasoning[:1000] if reasoning else "")
     )
     conn.commit()
     conn.close()
-    print(f"✅ Saved debate: {topic[:50]}...")
+    print(f"💾 Debate saved: {topic[:50]}...")
 
 def get_chat_history(session_id: str = None, limit: int = 50):
     """Get chat history"""

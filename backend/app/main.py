@@ -1,3 +1,4 @@
+from app.routes.api_keys import router as api_keys_router
 from app.routes.pdfs import router as pdfs_router
 from app.routes.memory import router as memory_router
 from app.routes.semantic_search import router as search_router
@@ -49,6 +50,7 @@ async def startup():
     print("✅ Database initialized!")
 
 # ========== INCLUDE ROUTERS ==========
+app.include_router(api_keys_router)
 app.include_router(auth_router)
 app.include_router(conversations_router)
 app.include_router(oauth_router)

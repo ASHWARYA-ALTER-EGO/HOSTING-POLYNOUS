@@ -16,6 +16,12 @@ class User(Base):
     last_login = Column(DateTime)
     tier = Column(String, default="free")  # free, pro
     
+    # NEW: API Keys (encrypted)
+    anthropic_api_key = Column(String, nullable=True)   # User's own Anthropic key
+    openai_api_key = Column(String, nullable=True)      # User's own OpenAI key
+    tavily_api_key = Column(String, nullable=True)      # User's own Tavily key
+    preferred_provider = Column(String, default="anthropic")  # "anthropic" or "openai"
+    
     conversations = relationship("Conversation", back_populates="user")
 
 class Conversation(Base):

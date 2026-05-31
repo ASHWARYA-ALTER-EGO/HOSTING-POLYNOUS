@@ -1,3 +1,6 @@
+from app.utils.password_validator import PasswordValidator
+from app.middleware.account_lockout import account_lockout
+from app.middleware.sanitizer import InputSanitizer
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from jose import jwt
@@ -46,16 +49,29 @@ def create_token(user_id: int, email: str):
 
 @router.post("/register")
 async def register(request: RegisterRequest, db: Session = Depends(get_db)):
-    """Register new user"""
+    """Register new user with security checks"""
+    
+    # Sanitize inputs
+    email = InputSanitizer.sanitize_email(request.email)
+    username = InputSanitizer.sanitize_string(request.username, max_length=50)
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    # Validate password strength
+    is_strong, msg = PasswordValidator.validate(request.password)
+    if not is_strong:
+        raise HTTPException(status_code=400, detail=msg)
+    
     # Check if user exists
-    existing = db.query(User).filter(User.email == request.email).first()
+    existing = db.query(User).filter(User.email == email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Create user
     user = User(
-        email=request.email,
-        username=request.username,
+        email=email,
+        username=username,
         hashed_password=hash_password(request.password)
     )
     db.add(user)
@@ -69,18 +85,35 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
         "token": token,
         "user_id": user.id,
         "username": user.username,
-        "email": user.email
+        "email": user.email,
+        "password_strength": PasswordValidator.get_strength_score(request.password)
     }
 
 @router.post("/login")
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Login user"""
-    user = db.query(User).filter(User.email == request.email).first()
+    """Login user with brute force protection"""
+    
+    email = InputSanitizer.sanitize_email(request.email)
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    # Check account lockout
+    is_allowed, lockout_msg = account_lockout.record_attempt(email, False)
+    
+    user = db.query(User).filter(User.email == email).first()
     
     if not user or not verify_password(request.password, user.hashed_password):
+        # Record failed attempt
+        account_lockout.record_attempt(email, False)
+        
+        if account_lockout.is_locked(email):
+            raise HTTPException(status_code=429, detail=lockout_msg)
+        
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    # Update last login
+    # Successful login
+    account_lockout.record_attempt(email, True)
     user.last_login = datetime.utcnow()
     db.commit()
     

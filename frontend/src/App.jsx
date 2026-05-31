@@ -1,3 +1,4 @@
+import SettingsPage from './components/SettingsPage'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
@@ -268,6 +269,7 @@ export default function App() {
               : <Navigate to="/auth" replace />
           } 
         />
+        <Route path="/settings" element={isLoggedIn ? <SettingsPage user={user} /> : <Navigate to="/auth" />} />
 
         {/* ========== CATCH-ALL ========== */}
         <Route path="*" element={<Navigate to="/" replace />} />

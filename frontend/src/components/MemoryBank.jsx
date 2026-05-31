@@ -591,12 +591,26 @@ export default function MemoryBank({ user, onNavigate, onStartResearch, onLogout
           alignItems: "center", padding: "16px 0", marginBottom: 32
         }}>
           <div>
-            <h1 style={{
-              fontFamily: C.fontHead, fontSize: 28, fontWeight: 800,
-              color: C.orange, margin: 0, letterSpacing: "-0.03em"
-            }}>
-              Neural Memory Bank
-            </h1>
+            <div style={{ textAlign: "center", marginBottom: 36, paddingTop: 10, animation: "fadeSlideUp 0.6s ease both" }}>
+  <h1 style={{
+    fontFamily: C.fontHead,
+    fontSize: "clamp(2rem,4.5vw,3rem)",
+    fontWeight: 800,
+    color: C.orange,
+    margin: "0 0 10px",
+    letterSpacing: "-0.03em",
+    textShadow: "0 0 40px rgba(255,140,0,0.3)",
+  }}>
+    🧠 Neural Memory Bank
+  </h1>
+  <p style={{
+    fontFamily: "'JetBrains Mono',monospace",
+    fontSize: 14,
+    color: C.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: "3px",
+  }}>Your research journey, visualized as a living knowledge graph.</p>
+</div>
             <p style={{
               fontFamily: C.fontBody, fontSize: 15,
               color: C.onSurfaceVariant, margin: "4px 0 0"

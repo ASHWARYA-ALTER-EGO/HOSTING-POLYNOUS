@@ -17,11 +17,24 @@ def argue_for_position(query: str, context: list) -> str:
             model="claude-haiku-4-5",  # Fixed model name
             max_tokens=400,
             temperature=0.8,
-            system="""You are a debate champion arguing FOR a proposition.
-Use evidence from provided sources.
-Make 2-3 strong points with citations.
-Be persuasive but factual.
-Start with: 'ARGUMENT FOR:'""",
+            system="""You are an expert debate advocate arguing FOR a proposition. 
+
+RULES:
+1. Provide 4-6 detailed, substantive points
+2. Each point must be a complete paragraph with specific evidence, examples, or data
+3. Use concrete numbers, studies, or real-world examples where possible
+4. Address potential counter-arguments within your points
+5. Be thorough and analytical, not just persuasive
+6. Start each point on a new line with a clear topic sentence
+7. Make each point at least 3-4 sentences long
+8. Label each point clearly as 'Point 1:', 'Point 2:', etc.
+
+FORMAT:
+Point 1: [Clear topic sentence]. [Detailed explanation with evidence]. [Analysis and implications].
+
+Point 2: [Clear topic sentence]. [Detailed explanation with evidence]. [Analysis and implications].
+
+...etc""",
             messages=[{
                 "role": "user",
                 "content": f"Proposition: {query}\n\nSources:\n{context_text}\n\nArgue FOR this proposition:"
@@ -45,13 +58,26 @@ def argue_against_position(query: str, context: list) -> str:
         
         message = anthropic.messages.create(
             model="claude-haiku-4-5",  # Fixed model name
-            max_tokens=400,
+            max_tokens=1000,
             temperature=0.8,
-            system="""You are a debate champion arguing AGAINST a proposition.
-Use evidence from provided sources.
-Make 2-3 strong counter-points with citations.
-Be persuasive but factual.
-Start with: 'ARGUMENT AGAINST:'""",
+            system="""You are an expert debate advocate arguing AGAINST a proposition.
+
+RULES:
+1. Provide 4-6 detailed, substantive counter-points
+2. Each point must be a complete paragraph with specific evidence, examples, or data
+3. Use concrete numbers, studies, or real-world examples where possible
+4. Directly address and refute the FOR position's likely arguments
+5. Be thorough and analytical, not just persuasive
+6. Start each point on a new line with a clear topic sentence
+7. Make each point at least 3-4 sentences long
+8. Label each point clearly as 'Counter-Point 1:', 'Counter-Point 2:', etc.
+
+FORMAT:
+Counter-Point 1: [Clear topic sentence]. [Detailed explanation with evidence]. [Analysis and implications].
+
+Counter-Point 2: [Clear topic sentence]. [Detailed explanation with evidence]. [Analysis and implications].
+
+...etc""",
             messages=[{
                 "role": "user",
                 "content": f"Proposition: {query}\n\nSources:\n{context_text}\n\nArgue AGAINST this proposition:"
@@ -73,7 +99,7 @@ def judge_debate(for_arg: str, against_arg: str, query: str) -> dict:
     try:
         message = anthropic.messages.create(
             model="claude-haiku-4-5",  # Fixed model name
-            max_tokens=400,
+            max_tokens=1000,
             temperature=0.3,
             system="""You are an impartial debate judge. You MUST pick a winner - never declare a tie.
 

@@ -152,16 +152,15 @@ def judge_node(state: AgentState) -> AgentState:
     except Exception as e:
         print(f"  ⚠️ Search indexing error: {e}")
     
-    # ========== Save debate to chat history - Using "guest_user" explicitly ==========
+    # ========== Save debate to chat history ==========
     try:
         save_debate(
-            session_id="guest_user",  # ← EXPLICITLY "guest_user", NOT state.get()
+            session_id="guest_user",
             topic=state['query'],
             for_score=for_score,
             against_score=against_score,
             winner=winner,
-            reasoning=reasoning,
-            sources=state.get('citations', [])
+            reasoning=reasoning
         )
         print("  💾 Saved debate to Chat History")
     except Exception as e:

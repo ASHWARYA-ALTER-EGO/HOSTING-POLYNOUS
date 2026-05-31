@@ -125,7 +125,7 @@ async def ask_question(request: QueryRequest):
         print("\n🗣️ DEBATE MODE ACTIVATED")
         result = debate_graph.invoke(state)
         
-        # Save debate to chat history - FIXED: Match save_debate signature
+        # Save debate to chat history
         try:
             save_debate(
                 session_id=session_id,
@@ -133,7 +133,6 @@ async def ask_question(request: QueryRequest):
                 for_score=result.get('judge_verdict', {}).get('for_score', 5),
                 against_score=result.get('judge_verdict', {}).get('against_score', 5),
                 winner=result.get('judge_verdict', {}).get('winner', 'TIE')
-                # Removed reasoning and sources if not in function signature
             )
             print("💾 Saved debate to chat history")
         except Exception as e:
@@ -149,7 +148,6 @@ async def ask_question(request: QueryRequest):
                 query=request.query,
                 answer=result.get('final_answer', ''),
                 confidence=result.get('critique', {}).get('overall_confidence', 0)
-                # Removed sources if not in function signature
             )
             print("💾 Saved chat to history")
         except Exception as e:
@@ -204,7 +202,7 @@ async def ask_stream(request: QueryRequest):
                 if result.get('judge_verdict'):
                     yield f"data: {json.dumps({'type': 'verdict', 'verdict': result['judge_verdict']})}\n\n"
                 
-                # Save debate - FIXED: Match save_debate signature
+                # Save debate
                 try:
                     save_debate(
                         session_id=session_id,

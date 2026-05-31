@@ -725,7 +725,36 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
         {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:32,flexWrap:"wrap",gap:16}}>
           <div>
-            <h2 style={{fontFamily:"'Sora',sans-serif",fontSize:32,fontWeight:800,letterSpacing:"-0.03em",color:C.green,margin:"0 0 4px"}}>📊 Neural Analytics</h2>
+            <div style={{ textAlign: "center", marginBottom: 36, paddingTop: 10, animation: "fadeSlideUp 0.6s ease both" }}>
+  <h1 style={{
+    fontFamily: "'Sora',sans-serif",
+    fontSize: "clamp(2rem,4.5vw,3rem)",
+    fontWeight: 800,
+    letterSpacing: "-0.03em",
+    margin: "0 0 10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  }}>
+    <span>📊</span>
+    <span style={{
+      background: "linear-gradient(90deg, #ff0000, #ff7700, #ffff00, #00ff0f, #00ccff, #a855f7, #ff2040)",
+      WebkitBackgroundClip: "text",
+      WebkitTextFillColor: "transparent",
+      filter: "drop-shadow(0 0 25px rgba(168,85,247,0.4))",
+    }}>
+      Neural Analytics
+    </span>
+  </h1>
+  <p style={{
+    fontFamily: "'JetBrains Mono',monospace",
+    fontSize: 14,
+    color: C.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: "3px",
+  }}>Your research intelligence, decoded.</p>
+</div>
             <p style={{fontFamily:"'Hanken Grotesk',sans-serif",fontSize:14,color:C.textSecondary}}>Your research patterns, visualized</p>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:16}}>

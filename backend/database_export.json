@@ -1,0 +1,37 @@
+{
+  "exported_at": "2026-06-01 02:10:49.632215",
+  "tables": {
+    "users": {
+      "columns": [
+        "id",
+        "email",
+        "username",
+        "hashed_password",
+        "created_at",
+        "last_login",
+        "tier"
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "email": "pradhanashwarya2122@gmail.com",
+          "username": "test1",
+          "hashed_password": "b9c87c125078f2e302f5be129b35f76676de8177f96a02a50b2c57a6d667c494$9988a2b89a1c47e4f35f93e05c7394dd61ef7e94bbc94d13d8120674def20878",
+          "created_at": "2026-05-21 18:11:45.492159",
+          "last_login": "2026-05-28 14:46:34.488669",
+          "tier": "free"
+        },
+        {
+          "id": 2,
+          "email": "shawnspenstar2122@gmail.com",
+          "username": "shawnspenstar2122",
+          "hashed_password": "59944946a41813f40a9eada13df68f66f270851f3d939b95d07bf79d51c71886$fe76da496da81b6da0238d5d0e448f6c19485b47aaf06d3d6b2a8664bb912030",
+          "created_at": "2026-05-23 18:07:30.503469",
+          "last_login": "2026-05-25 09:34:10.673957",
+          "tier": "free"
+        }
+      ],
+      "count": 2
+    }
+  }
+}

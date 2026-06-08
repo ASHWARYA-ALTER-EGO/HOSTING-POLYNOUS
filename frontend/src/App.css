@@ -1,21 +1,302 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; background: #0a0a1a; overflow-x: hidden; }
-#root { min-height: 100vh; }
+/* App.css - Complete Stylesheet for POLYNOUS */
 
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+/* ========== RESET & BASE STYLES ========== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,255,15,0.15); border-radius: 2px; }
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  background: #0a0a1a;
+  overflow-x: hidden;
+}
 
-::placeholder { color: rgba(255,255,255,0.15); }
-::selection { background: rgba(0,255,15,0.15); color: #fff; }
+#root {
+  min-height: 100vh;
+}
 
-input:focus { border-color: #00ff0f !important; box-shadow: 0 0 25px rgba(0,255,15,0.08) !important; }
-button:hover { transform: translateY(-1px); }
+/* ========== ANIMATIONS ========== */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== SCROLLBAR STYLES ========== */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 15, 0.15);
+  border-radius: 2px;
+}
+
+/* ========== PLACEHOLDER & SELECTION ========== */
+::placeholder {
+  color: rgba(255, 255, 255, 0.15);
+}
+
+::selection {
+  background: rgba(0, 255, 15, 0.15);
+  color: #fff;
+}
+
+/* ========== INPUT & BUTTON GLOBAL STYLES ========== */
+input:focus {
+  border-color: #00ff0f !important;
+  box-shadow: 0 0 25px rgba(0, 255, 15, 0.08) !important;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+/* ========== RESPONSIVE STYLES ========== */
 @media (max-width: 768px) {
-  body { font-size: 13px; }
+  body {
+    font-size: 13px;
+  }
+}
+
+/* ========== NEURAL KEY VAULT ANIMATIONS ========== */
+@keyframes heartbeat {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(0, 230, 11, 0.1);
+    border-color: rgba(132, 150, 124, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 230, 11, 0.3);
+    border-color: rgba(119, 255, 98, 0.4);
+  }
+}
+
+@keyframes heartbeat-fast {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 230, 11, 0.2);
+    border-color: rgba(119, 255, 98, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(0, 230, 11, 0.6);
+    border-color: rgba(119, 255, 98, 0.8);
+  }
+}
+
+@keyframes scanline {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* Neural Card Pulse - Default slow pulse */
+.neural-card-pulse {
+  animation: heartbeat 4s infinite ease-in-out;
+}
+
+/* Neural Card Pulse - Active/Testing state (fast pulse) */
+.neural-card-pulse.active-test {
+  animation: heartbeat-fast 0.8s infinite ease-in-out !important;
+}
+
+/* Glass Card - Frosted glass effect */
+.glass-card {
+  background: rgba(12, 22, 9, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(132, 150, 124, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  border: 1px solid rgba(119, 255, 98, 0.3);
+  box-shadow: 0 0 20px rgba(119, 255, 98, 0.1);
+}
+
+/* Holographic Field - Scanline effect for input fields */
+.holographic-field {
+  position: relative;
+  background: rgba(24, 34, 20, 0.5);
+  border: 1px solid rgba(132, 150, 124, 0.2);
+  overflow: hidden;
+}
+
+.holographic-field::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    rgba(119, 255, 98, 0) 50%,
+    rgba(119, 255, 98, 0.05) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.holographic-field:focus-within {
+  border-color: #77ff62;
+  box-shadow: 0 0 15px rgba(119, 255, 98, 0.2);
+}
+
+.holographic-field:focus-within::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(119, 255, 98, 0.05),
+    transparent
+  );
+  animation: scanline 2s linear infinite;
+  pointer-events: none;
+}
+
+/* ========== NEURAL CANVAS BACKGROUND ========== */
+#neural-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 50%, #0c1609 0%, #071105 100%);
+}
+
+/* ========== MATERIAL ICONS ========== */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ========== ACCESSIBILITY - REDUCED MOTION ========== */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ========== UTILITY CLASSES ========== */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+/* ========== FONT SMOOTHING ========== */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ========== LINK STYLES ========== */
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+a:hover {
+  color: #77ff62;
+}
+
+/* ========== TABLE STYLES ========== */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* ========== CUSTOM SELECTION FOR DARK THEME ========== */
+.dark ::selection {
+  background: rgba(0, 255, 15, 0.2);
+  color: #eaffde;
+}
+
+/* ========== GLASS MORPHISM ADDITIONAL EFFECTS ========== */
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(119, 255, 98, 0.03) 0%,
+    transparent 50%,
+    rgba(0, 230, 11, 0.02) 100%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ========== BUTTON ACTIVE STATE ========== */
+button:active {
+  transform: scale(0.98);
+}
+
+/* ========== FOCUS VISIBLE FOR ACCESSIBILITY ========== */
+:focus-visible {
+  outline: 2px solid #77ff62;
+  outline-offset: 2px;
+}
+
+/* ========== SMOOTH SCROLLING ========== */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ========== PRINT STYLES ========== */
+@media print {
+  .glass-card,
+  .neural-card-pulse,
+  #neural-canvas {
+    background: white !important;
+    animation: none !important;
+  }
+  
+  body {
+    background: white !important;
+    color: black !important;
+  }
 }

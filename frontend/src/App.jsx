@@ -1,14 +1,13 @@
 import SettingsPage from './components/SettingsPage'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 // Page imports
 import GraphFeatureShowcase from './components/GraphFeatureShowcase'
 import KnowledgeGraph3D from './components/KnowledgeGraph3D'
-import LandingPage2 from './components/LandingPage2';
+import PremiumHomepage from './components/PremiumHomepage';
 import AuthPage from './components/AuthPage';
 import OAuthCallback from './components/OAuthCallback';
-import MainApp from './components/MainApp';
 import MemoryBank from './components/MemoryBank';
 import ResearchInterface from './components/ResearchInterface';
 import DebateInterface from './components/DebateInterface';
@@ -17,33 +16,31 @@ import SemanticSearchPage from './components/SemanticSearchPage';
 import PdfLabPage from './components/PdfLabPage';
 import PolynousDashboard from './components/PolynousDashboard';
 
+const getInitialAuthState = () => {
+  const token = localStorage.getItem('polynous_token')
+  const userData = localStorage.getItem('polynous_user')
+
+  if (token && token !== 'guest_token' && userData) {
+    try {
+      const parsed = JSON.parse(userData)
+      if (parsed.email && parsed.email !== 'guest@polynous.ai') {
+        return { isLoggedIn: true, user: parsed }
+      }
+      localStorage.clear()
+    } catch {
+      localStorage.clear()
+    }
+  }
+
+  return { isLoggedIn: false, user: null }
+}
+
 // ========== GLOBAL AUTH STATE ==========
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [user, setUser] = useState(null)
-  const [initialCheckDone, setInitialCheckDone] = useState(false)
-
-  // Check for existing login on mount
-  useEffect(() => {
-    const token = localStorage.getItem('polynous_token')
-    const userData = localStorage.getItem('polynous_user')
-    
-    if (token && token !== 'guest_token' && userData) {
-      try {
-        const parsed = JSON.parse(userData)
-        if (parsed.email && parsed.email !== 'guest@polynous.ai') {
-          setIsLoggedIn(true)
-          setUser(parsed)
-        } else {
-          localStorage.clear()
-        }
-      } catch (e) {
-        localStorage.clear()
-      }
-    }
-    
-    setInitialCheckDone(true)
-  }, [])
+  const [initialAuth] = useState(getInitialAuthState)
+  const [isLoggedIn, setIsLoggedIn] = useState(initialAuth.isLoggedIn)
+  const [user, setUser] = useState(initialAuth.user)
+  const initialCheckDone = true
 
   // ========== AUTH HANDLERS ==========
   const handleLogin = (data) => {
@@ -73,15 +70,6 @@ export default function App() {
     setIsLoggedIn(false)
     setUser(null)
     window.location.href = '/'
-  }
-
-  const handleGetStarted = () => {
-    const token = localStorage.getItem('polynous_token')
-    if (token) {
-      window.location.href = '/research'
-    } else {
-      window.location.href = '/auth'
-    }
   }
 
   // ========== NAVIGATION HELPERS ==========
@@ -124,7 +112,7 @@ export default function App() {
           element={
             isLoggedIn 
               ? <Navigate to="/research" replace /> 
-              : <LandingPage2 onNavigate={navigateTo} onGetStarted={handleGetStarted} />
+              : <PremiumHomepage user={user} onNavigate={navigateTo} />
           } 
         />
         
@@ -145,6 +133,20 @@ export default function App() {
         />
 
         {/* ========== PROTECTED ROUTES ========== */}
+        
+        {/* Settings Page */}
+        <Route 
+          path="/settings" 
+          element={
+            isLoggedIn 
+              ? <SettingsPage 
+                  user={user} 
+                  onNavigate={(path) => window.location.href = path}
+                  onLogout={handleLogout}
+                />
+              : <Navigate to="/auth" />
+          } 
+        />
         
         {/* Research Interface */}
         <Route 
@@ -269,7 +271,6 @@ export default function App() {
               : <Navigate to="/auth" replace />
           } 
         />
-        <Route path="/settings" element={isLoggedIn ? <SettingsPage user={user} /> : <Navigate to="/auth" />} />
 
         {/* ========== CATCH-ALL ========== */}
         <Route path="*" element={<Navigate to="/" replace />} />

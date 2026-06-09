@@ -26,7 +26,7 @@ def search_node(state: AgentState) -> AgentState:
     state['retrieved_docs'] = results
     
     # Hybrid search for enhanced context
-    print("🧠 Running hybrid search...")
+    print(". Running hybrid search...")
     try:
         hybrid_results = hybrid.hybrid_search(state['query'])
         entities = hybrid._extract_entities(state['query'])
@@ -90,12 +90,40 @@ def critic_node(state: AgentState) -> AgentState:
     return state
 
 def writer_node(state: AgentState) -> AgentState:
-    """Writer Agent - Create final answer with graph insights"""
+    """Writer Agent - Create final answer with user preferences and graph insights"""
     print("\n" + "="*60)
-    print("✍️ STEP 4: WRITER AGENT (with Knowledge Graph)")
+    print("✍️ STEP 4: WRITER AGENT (with Knowledge Graph + User Preferences)")
     print("="*60)
     
     state['current_agent'] = 'writer'
+    
+    # ========== GET USER PREFERENCES ==========
+    user_id = state.get('session_id', 'guest_user')
+    response_style = "academic"  # default
+    streaming_enabled = True  # default
+    confidence_threshold = 70  # default
+    
+    try:
+        from app.database import SessionLocal
+        from app.models.user import User
+        db = SessionLocal()
+        user = db.query(User).filter(
+            (User.email == user_id) | (User.username == user_id)
+        ).first()
+        if user:
+            if user.response_style:
+                response_style = user.response_style
+            if user.streaming_enabled is not None:
+                streaming_enabled = user.streaming_enabled
+            if user.confidence_threshold is not None:
+                confidence_threshold = user.confidence_threshold
+            print(f"  👤 User preferences loaded: style={response_style}, streaming={streaming_enabled}, confidence_threshold={confidence_threshold}")
+        db.close()
+    except Exception as e:
+        print(f"  ⚠️ Could not load user preferences: {e}")
+        pass
+    
+    print(f"  ✍️ Writer: Using style = {response_style}")
     
     # Get graph context if available
     graph_context = state.get('graph_context', '')
@@ -105,11 +133,13 @@ def writer_node(state: AgentState) -> AgentState:
     if graph_context:
         enhanced_summaries.append(f"KNOWLEDGE GRAPH INSIGHTS:\n{graph_context}")
     
+    # ========== CALL WRITER WITH USER PREFERENCES ==========
     answer = writer_agent(
         state['query'],
         enhanced_summaries,
         state['critique'],
-        state['citations']
+        state['citations'],
+        response_style=response_style  # ← PASS THE STYLE
     )
     state['final_answer'] = answer
     
@@ -132,11 +162,11 @@ def writer_node(state: AgentState) -> AgentState:
             topics=entities,
             session_id=state.get('session_id', 'guest_user')
         )
-        print("🧠 Stored in Knowledge Graph")
+        print(". Stored in Knowledge Graph")
     except Exception as e:
         print(f"⚠️ Knowledge Graph storage: {e}")
     
-        # ========== RECORD IN USER MEMORY ==========
+    # ========== RECORD IN USER MEMORY ==========
     try:
         from app.knowledge_graph.user_memory import user_memory
         from app.knowledge_graph.hybrid_search import hybrid
@@ -155,7 +185,7 @@ def writer_node(state: AgentState) -> AgentState:
             mode="research",
             sources=state.get('citations', [])
         )
-        print("🧠 Recorded in User Memory")
+        print(". Recorded in User Memory")
     except Exception as e:
         print(f"⚠️ User memory recording: {e}")
     
@@ -180,7 +210,7 @@ def writer_node(state: AgentState) -> AgentState:
             module="research",
             content_type="query",
             metadata={
-                "session_id": "guest_user",
+                "session_id": state.get('session_id', 'guest_user'),
                 "confidence": conf,
                 "topics": entities
             }
@@ -192,7 +222,7 @@ def writer_node(state: AgentState) -> AgentState:
             module="research",
             content_type="answer",
             metadata={
-                "session_id": "guest_user",
+                "session_id": state.get('session_id', 'guest_user'),
                 "confidence": conf,
                 "topics": entities,
                 "query": state['query'][:200]
@@ -209,7 +239,7 @@ def writer_node(state: AgentState) -> AgentState:
             claim_text=answer[:300],
             source_module="research",
             confidence=conf,
-            session_id="guest_user"
+            session_id=state.get('session_id', 'guest_user')
         )
         
         # Create Evidence nodes from sources
@@ -223,14 +253,14 @@ def writer_node(state: AgentState) -> AgentState:
             # Link claim to evidence
             kg.link_claim_to_evidence(answer[:300], title[:200])
         
-        print("🧠 Created rich graph nodes (Claims + Evidence)")
+        print(". Created rich graph nodes (Claims + Evidence)")
     except Exception as e:
         print(f"⚠️ Rich graph creation error: {e}")
     
-    # ========== Save to Chat History - CORRECTED: No topics parameter ==========
+    # ========== Save to Chat History ==========
     try:
         save_chat(
-            session_id="guest_user",  # ← EXPLICITLY "guest_user"
+            session_id=state.get('session_id', 'guest_user'),  # ← NOW DYNAMIC
             query=state['query'],
             answer=answer,
             confidence=conf,

@@ -466,7 +466,7 @@ const RAG_STEPS = [
   },
   {
     id: 1,
-    emoji: "🧠",
+    emoji: ".",
     icon: "hub",
     title: "Vector Embedding",
     color: "#00ccff",
@@ -1094,7 +1094,7 @@ export default function PdfLabPage({ user, onNavigate, onLogout }) {
                   <div style={{ width: `${uploadProgress}%`, height: "100%", background: `linear-gradient(90deg, ${C.gold}, ${C.green})`, borderRadius: 4, transition: "width 0.5s ease" }} />
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>
-                  {[["extracting", "📖 Extract"], ["chunking", "✂️ Chunk"], ["embedding", "🧠 Embed"], ["complete", "✅ Done"]].map(([stage, label]) => (
+                  {[["extracting", "📖 Extract"], ["chunking", "✂️ Chunk"], ["embedding", ". Embed"], ["complete", "✅ Done"]].map(([stage, label]) => (
                     <span key={stage} style={{ color: stageDone(stage) ? C.green : C.textSecondary, transition: "color 0.3s" }}>{label}</span>
                   ))}
                 </div>
@@ -1203,7 +1203,7 @@ export default function PdfLabPage({ user, onNavigate, onLogout }) {
                         borderRadius: 14, padding: "18px 22px",
                       }}>
                         <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: msg.role === "user" ? C.green : C.gold, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
-                          {msg.role === "user" ? "👤 You" : "🧠 POLYNOUS"}
+                          {msg.role === "user" ? "👤 You" : ". POLYNOUS"}
                         </div>
                         <div style={{
                           fontFamily: "'Inter',sans-serif", fontWeight: 400,

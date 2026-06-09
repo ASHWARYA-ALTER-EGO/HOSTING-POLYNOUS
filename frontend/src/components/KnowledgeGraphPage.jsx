@@ -420,7 +420,7 @@ function GraphHeader({ nodeCount }) {
           }}
         >
           <SynapseDots color="rgba(249,115,22,0.7)" />
-          <span style={{fontSize:22,flexShrink:0,marginTop:1,animation:"brainPulse 2.4s ease-in-out infinite",display:"inline-block"}}>🧠</span>
+          <span style={{fontSize:22,flexShrink:0,marginTop:1,animation:"brainPulse 2.4s ease-in-out infinite",display:"inline-block"}}>.</span>
           <div style={{flex:1}}>
             <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"rgba(255,255,255,0.75)",margin:0,lineHeight:1.65}}>
               <span style={{color:C.orange,fontWeight:700}}>This isn't just a pretty picture</span>
@@ -460,7 +460,7 @@ function GraphHeader({ nodeCount }) {
           }}
           onMouseEnter={e=>e.currentTarget.style.background="rgba(249,115,22,0.18)"}
           onMouseLeave={e=>e.currentTarget.style.background="rgba(249,115,22,0.1)"}
-        >🧠 What is this?</button>
+        >. What is this?</button>
       )}
     </div>
   );

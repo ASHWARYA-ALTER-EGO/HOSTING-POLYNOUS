@@ -75,7 +75,7 @@ POLYNOUS is not a chatbot. It is a **neural research operating system** — a pl
 - **Score visualization** — Animated bar comparing argument strength
 - **Topic shuffler** — Auto-rotating proposition suggestions to spark ideas
 
-### 🧠 Knowledge Graph
+### . Knowledge Graph
 - **Force-directed layout** — Nodes cluster by semantic relationship
 - **Live Neo4j data** — Entity connections extracted from your actual research
 - **Interactive nodes** — Click to continue researching, hover for context

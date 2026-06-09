@@ -35,6 +35,44 @@ const getInitialAuthState = () => {
   return { isLoggedIn: false, user: null }
 }
 
+// ========== LOAD USER PREFERENCES ==========
+function loadUserPreferences(userEmail) {
+  const userId = userEmail || 'guest_user';
+  fetch(`http://localhost:8000/settings/preferences?user_id=${encodeURIComponent(userId)}`)
+    .then(r => r.json())
+    .then(data => {
+      console.log("✅ Applying preferences:", data);
+      // Set default mode
+      if (data.default_mode === 'debate') {
+        localStorage.setItem('polynous_default_mode', 'debate');
+      } else {
+        localStorage.setItem('polynous_default_mode', 'research');
+      }
+      // Store confidence threshold
+      if (data.confidence_threshold !== undefined) {
+        localStorage.setItem('polynous_confidence_threshold', data.confidence_threshold);
+      }
+      // Store response style
+      if (data.response_style) {
+        localStorage.setItem('polynous_response_style', data.response_style);
+      }
+      // Store streaming preference
+      if (data.streaming_enabled !== undefined) {
+        localStorage.setItem('polynous_streaming', data.streaming_enabled);
+      }
+      // Store auto-save preference
+      if (data.auto_save !== undefined) {
+        localStorage.setItem('polynous_autosave', data.auto_save);
+      }
+      // Store theme preference
+      if (data.theme) {
+        localStorage.setItem('polynous_theme', data.theme);
+      }
+      console.log("✅ Preferences applied to localStorage");
+    })
+    .catch(() => console.log("ℹ️ Using default preferences (backend not available)"));
+}
+
 // ========== GLOBAL AUTH STATE ==========
 export default function App() {
   const [initialAuth] = useState(getInitialAuthState)
@@ -50,18 +88,24 @@ export default function App() {
       localStorage.setItem('polynous_user', JSON.stringify(guestUser))
       setIsLoggedIn(true)
       setUser(guestUser)
+      // Load preferences for guest
+      loadUserPreferences('guest_user');
     } else if (data?.token) {
       const userData = { username: data.username || 'User', email: data.email || '', isGuest: false }
       localStorage.setItem('polynous_token', data.token)
       localStorage.setItem('polynous_user', JSON.stringify(userData))
       setIsLoggedIn(true)
       setUser(userData)
+      // Load preferences for logged-in user
+      if (data.email) loadUserPreferences(data.email);
     } else if (data?.username) {
       const userData = { username: data.username, email: data.email || '', isGuest: false }
       if (data.token) localStorage.setItem('polynous_token', data.token)
       localStorage.setItem('polynous_user', JSON.stringify(userData))
       setIsLoggedIn(true)
       setUser(userData)
+      // Load preferences for logged-in user
+      if (data.email) loadUserPreferences(data.email);
     }
   }
 

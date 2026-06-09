@@ -126,7 +126,7 @@ export default function InterestGraph({ interests, onTopicClick }) {
   return (
     <div style={{ marginBottom: '24px' }}>
       <h3 style={{ color: '#fff', fontSize: '15px', marginBottom: '12px' }}>
-        🧠 Your Interest Graph
+        . Your Interest Graph
       </h3>
       <canvas
         ref={canvasRef}

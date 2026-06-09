@@ -1092,7 +1092,7 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
               background: 'linear-gradient(90deg, #fff 60%, #a855f7)',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
             }}>
-              🧠 POLYNOUS · Neural Graph
+              . POLYNOUS · Neural Graph
             </h1>
             <p style={{ margin: '2px 0 0', fontSize: 9.5, color: T.textMuted, fontFamily: T.fontMono }}>
               {stats.nodes} nodes · {stats.edges} edges · {fps} fps · {viewMode}

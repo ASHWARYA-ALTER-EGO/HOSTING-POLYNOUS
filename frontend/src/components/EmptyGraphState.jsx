@@ -21,7 +21,7 @@ export default function EmptyGraphState({ onNavigate, graphData }) {
         animation: 'float 3s ease-in-out infinite',
         opacity: 0.7
       }}>
-        {hasNodes ? '🧠' : '🌌'}
+        {hasNodes ? '.' : '🌌'}
       </div>
 
       {/* Title */}

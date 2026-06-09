@@ -30,7 +30,7 @@ export default function OAuthCallback({ onLogin }) {
       background: '#0a0a1a', color: '#fff', fontFamily: 'Inter, sans-serif'
     }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🧠</div>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>.</div>
         <h2>Logging you in...</h2>
         <p style={{ color: '#888' }}>Please wait while we set up your account.</p>
       </div>

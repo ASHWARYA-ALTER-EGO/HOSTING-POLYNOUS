@@ -160,7 +160,7 @@ export default function InteractiveKnowledgeGraph({ user, onNavigate, onStartRes
     return (
       <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#0a0a1e' }}>
         <div style={{ textAlign: 'center', color: '#00ff0f' }}>
-          <div style={{ fontSize: '40px', marginBottom: '16px' }}>🧠</div>
+          <div style={{ fontSize: '40px', marginBottom: '16px' }}>.</div>
           <div style={{ fontWeight: 600 }}>Loading Neural Graph...</div>
         </div>
       </div>
@@ -183,7 +183,7 @@ export default function InteractiveKnowledgeGraph({ user, onNavigate, onStartRes
   // Add center node
   const centerNode = {
     id: 'core',
-    label: '🧠 Core',
+    label: '. Core',
     x: 500,
     y: 350,
     color: '#a855f7',

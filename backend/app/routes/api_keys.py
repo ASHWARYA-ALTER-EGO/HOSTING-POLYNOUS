@@ -89,24 +89,20 @@ async def get_api_keys(
 
 @router.put("")
 async def update_api_key(
-    # Query parameters
+    request: APIKeysUpdate = None,  # Accept JSON body as Pydantic model
     user_id: str = Query("guest_user"),
-    
-    # Body parameters (these come from the JSON body)
-    anthropic_api_key: Optional[str] = None,
-    openai_api_key: Optional[str] = None,
-    tavily_api_key: Optional[str] = None,
-    
-    # Database session
     db: Session = Depends(get_db)
 ):
-    """
-    Save a user's API key. 
-    Key is ENCRYPTED before storage using Fernet (AES-128-CBC).
-    Only the encrypted version is written to disk.
-    """
+    # DEBUG: Print what we received
+    print(f"\n📥 PUT /settings/api-keys?user_id={user_id}")
+    print(f"   Request body: {request}")
+    if request:
+        print(f"   anthropic: {request.anthropic_api_key[:20] if request.anthropic_api_key else 'None'}...")
+        print(f"   openai: {request.openai_api_key}")
+        print(f"   tavily: {request.tavily_api_key}")
     
-    # Find the user
+    """Save API keys — encrypted at rest"""
+    
     user = db.query(User).filter(
         (User.email == user_id) | (User.username == user_id)
     ).first()
@@ -114,29 +110,33 @@ async def update_api_key(
     if not user:
         raise HTTPException(status_code=404, detail="User not found. Login first.")
     
-    saved = []  # Track which keys were saved
+    saved = []
     
-    # Save Anthropic key (if provided)
-    if anthropic_api_key and anthropic_api_key.strip():
-        # encrypt_api_key() converts "sk-ant-abc" → encrypted ciphertext
-        user.anthropic_api_key = encrypt_api_key(anthropic_api_key.strip())
-        saved.append("anthropic")
+    # Get keys from request body if provided
+    if request:
+        if request.anthropic_api_key and request.anthropic_api_key.strip():
+            user.anthropic_api_key = encrypt_api_key(request.anthropic_api_key.strip())
+            saved.append("anthropic")
+            print(f"  ✅ Saved Anthropic key for {user_id}")
+        
+        if request.openai_api_key and request.openai_api_key.strip():
+            user.openai_api_key = encrypt_api_key(request.openai_api_key.strip())
+            saved.append("openai")
+            print(f"  ✅ Saved OpenAI key for {user_id}")
+        
+        if request.tavily_api_key and request.tavily_api_key.strip():
+            user.tavily_api_key = encrypt_api_key(request.tavily_api_key.strip())
+            saved.append("tavily")
+            print(f"  ✅ Saved Tavily key for {user_id}")
     
-    # Save OpenAI key (if provided)
-    if openai_api_key and openai_api_key.strip():
-        user.openai_api_key = encrypt_api_key(openai_api_key.strip())
-        saved.append("openai")
+    if not saved:
+        print(f"  ⚠️ No keys to save for {user_id}")
+        print(f"  Request body: {request}")
     
-    # Save Tavily key (if provided)
-    if tavily_api_key and tavily_api_key.strip():
-        user.tavily_api_key = encrypt_api_key(tavily_api_key.strip())
-        saved.append("tavily")
-    
-    # Commit to database — this actually writes the encrypted keys
     db.commit()
     
     return {
-        "message": f"Keys saved: {', '.join(saved)}",
+        "message": f"Keys saved: {', '.join(saved)}" if saved else "No keys provided",
         "saved": saved
     }
 
@@ -224,7 +224,7 @@ async def test_api_key(
             client = Anthropic(api_key=api_key)
             # Send a minimal test message
             client.messages.create(
-                model="claude-3-haiku-20240307",
+                model="claude-haiku-4-5",
                 max_tokens=5,
                 messages=[{"role": "user", "content": "Hi"}]
             )

@@ -136,16 +136,24 @@ def writer_node(state: AgentState) -> AgentState:
     except Exception as e:
         print(f"⚠️ Knowledge Graph storage: {e}")
     
-    # ========== Record in User Memory ==========
+        # ========== RECORD IN USER MEMORY ==========
     try:
+        from app.knowledge_graph.user_memory import user_memory
+        from app.knowledge_graph.hybrid_search import hybrid
+        
+        entities = hybrid._extract_entities(state['query'])
+        
+        # Use session_id as user_id (this will be the email when logged in)
+        user_id = state.get('session_id', 'guest_user')
+        
         user_memory.record_research(
-            user_id="guest_user",
-            research_query=state['query'],  # ← Renamed
+            user_id=user_id,  # ← NOW DYNAMIC
+            query=state['query'],
             answer=answer,
             topics=entities,
-            confidence=conf,
+            confidence=state.get('critique', {}).get('overall_confidence', 0),
             mode="research",
-            sources=json.dumps(state['citations'])  # ← Serialize to string
+            sources=state.get('citations', [])
         )
         print("🧠 Recorded in User Memory")
     except Exception as e:

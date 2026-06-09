@@ -36,7 +36,7 @@ def get_llm_response(messages, user_api_key=None, provider="anthropic", temperat
         user_msgs = [m for m in messages if m["role"] != "system"]
         
         response = client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5",
             max_tokens=800,
             temperature=temperature,
             system=system_msg if system_msg else "You are a helpful research assistant.",

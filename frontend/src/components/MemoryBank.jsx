@@ -190,6 +190,7 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
     { icon: "database", label: "Memory Bank", path: "/memory", active: true },
     { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" },
     { icon: "monitoring", label: "Analytics", path: "/analytics" },
+     { icon: "settings",       label: "Settings",        path: "/settings" },
   ];
 
   const handleNav = (p) => onNavigate ? onNavigate(p) : (window.location.href = p);

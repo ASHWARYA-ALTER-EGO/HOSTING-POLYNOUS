@@ -157,6 +157,7 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
     { icon: "database", label: "Memory Bank", path: "/memory" },
     { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" },
     { icon: "analytics", label: "Analytics", path: "/analytics" },
+     { icon: "settings", label: "Settings", path: "/settings" },
   ];
   const handleNav = (p) => onNavigate ? onNavigate(p) : window.location.href = p;
   const handleLogout = () => onLogout ? onLogout() : (localStorage.clear(), window.location.href = '/');
@@ -798,7 +799,7 @@ export default function ResearchInterface({ user, onNavigate, onLogout }) {
               margin: "0 0 10px",
               letterSpacing: "-0.03em",
               textShadow: "0 0 40px rgba(0,255,15,0.3)",
-            }}>🔬 Neural Research Engine</h1>
+            }}> Neural Research Engine</h1>
             <p style={{
               fontFamily: "'JetBrains Mono',monospace",
               fontSize: 14,

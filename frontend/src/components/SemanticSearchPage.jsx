@@ -649,6 +649,7 @@ const NAV_ITEMS = [
   { icon: "database",       label: "Memory Bank",     path: "/memory" },
   { icon: "picture_as_pdf", label: "PDF Lab",         path: "/pdf-lab" },
   { icon: "analytics",      label: "Analytics",       path: "/analytics" },
+   { icon: "settings",       label: "Settings",        path: "/settings" },
 ]
 
 function NavItem({ icon, label, path, active, collapsed, onNavigate }) {

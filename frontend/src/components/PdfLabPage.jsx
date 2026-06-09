@@ -122,6 +122,7 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
     { icon: "database", label: "Memory Bank", path: "/memory" },
     { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab", active: true },
     { icon: "analytics", label: "Analytics", path: "/analytics" },
+     { icon: "settings",       label: "Settings",        path: "/settings" },
   ];
   const handleNav = (p) => onNavigate ? onNavigate(p) : (window.location.href = p);
   const handleLogout = () => onLogout ? onLogout() : (localStorage.clear(), window.location.href = "/");

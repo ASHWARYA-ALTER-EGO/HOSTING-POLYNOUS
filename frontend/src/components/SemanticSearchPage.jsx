@@ -151,7 +151,7 @@ function CornerInfoCard() {
       </button>
 
       <div style={{ fontFamily: "'Sora',sans-serif", fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 10 }}>
-        🌌 vs 🧠
+        🌌 vs .
       </div>
 
       {[

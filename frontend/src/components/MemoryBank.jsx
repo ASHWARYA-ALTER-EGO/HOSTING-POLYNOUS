@@ -601,7 +601,7 @@ export default function MemoryBank({ user, onNavigate, onStartResearch, onLogout
     letterSpacing: "-0.03em",
     textShadow: "0 0 40px rgba(255,140,0,0.3)",
   }}>
-    🧠 Neural Memory Bank
+    . Neural Memory Bank
   </h1>
   <p style={{
     fontFamily: "'JetBrains Mono',monospace",
@@ -829,7 +829,7 @@ export default function MemoryBank({ user, onNavigate, onStartResearch, onLogout
         {interests.length > 0 && (
           <section style={{ marginBottom: 40 }}>
             <h3 style={{ fontFamily: C.fontHead, fontSize: 20, color: "#fff", marginBottom: 16 }}>
-              🧠 Active Clusters
+              . Active Clusters
             </h3>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {interests.slice(0, 10).map((int, i) => (

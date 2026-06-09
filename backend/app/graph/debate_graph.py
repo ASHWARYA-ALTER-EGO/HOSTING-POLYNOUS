@@ -249,7 +249,7 @@ def judge_node(state: AgentState) -> AgentState:
                 session_id="guest_user"
             )
         
-        print("🧠 Created rich debate graph nodes (Arguments + Claims)")
+        print(". Created rich debate graph nodes (Arguments + Claims)")
     except Exception as e:
         print(f"⚠️ Rich debate graph error: {e}")
     

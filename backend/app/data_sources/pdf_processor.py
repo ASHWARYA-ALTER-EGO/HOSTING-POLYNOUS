@@ -170,7 +170,7 @@ def process_pdf(file_path: str, pdf_name: str) -> Dict:
     
     # Create embeddings and store
     upload_progress[file_key]['status'] = 'embedding'
-    print("🧠 Creating embeddings with OpenAI...")
+    print(". Creating embeddings with OpenAI...")
     index = get_pdf_index()
     
     total_chunks = len(chunks)

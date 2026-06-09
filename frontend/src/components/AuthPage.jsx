@@ -370,7 +370,7 @@ function LoginCard({ onLogin }) {
       <SynapseDot style={{ bottom: 16, right: 16 }} />
 
       <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div className="pulse-brain" style={{ fontSize: 56, marginBottom: 12, lineHeight: 1 }}>🧠</div>
+        <div className="pulse-brain" style={{ fontSize: 56, marginBottom: 12, lineHeight: 1 }}>.</div>
         <h1 style={{ fontFamily: "'Sora', sans-serif", fontSize: 38, fontWeight: 700, color: C.green, letterSpacing: "-0.03em", marginBottom: 4 }}>POLYNOUS</h1>
         <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: C.onSurfaceVariant, textTransform: "uppercase", letterSpacing: "0.2em" }}>Cerebral Vitality Engine</p>
       </div>

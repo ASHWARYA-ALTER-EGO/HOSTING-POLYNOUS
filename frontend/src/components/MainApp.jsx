@@ -222,7 +222,7 @@ try {
           <div id="chat" style={{ background: 'rgba(255,255,255,0.015)', borderRadius: '20px', padding: '24px', minHeight: '420px', maxHeight: '520px', overflowY: 'auto', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)' }}>
             {messages.length === 0 && (
               <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '12px' }}>🧠</div>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>.</div>
                 <h2 style={{ color: '#fff', fontSize: '1.6em', margin: '0 0 8px' }}>POLYNOUS</h2>
                 <p style={{ color: '#777', marginBottom: '24px' }}>Select a mode and ask any research question.</p>
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>

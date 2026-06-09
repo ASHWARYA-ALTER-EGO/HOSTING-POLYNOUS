@@ -70,12 +70,22 @@ function getUserId() {
 }
 
 const api = {
+  // API Keys
   getApiKeys:   () => fetch(`${BASE}/settings/api-keys?user_id=${encodeURIComponent(getUserId())}`).then(r => r.json()),
   saveApiKey:   (p, k) => fetch(`${BASE}/settings/api-keys?user_id=${encodeURIComponent(getUserId())}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [`${p}_api_key`]: k }) }).then(r => r.json()),
   deleteApiKey: (p) => fetch(`${BASE}/settings/api-keys?user_id=${encodeURIComponent(getUserId())}&provider=${p}`, { method: "DELETE" }).then(r => r.json()),
   testApiKey:   (p) => fetch(`${BASE}/settings/api-keys/test?provider=${p}&user_id=${encodeURIComponent(getUserId())}`, { method: "POST" }).then(r => r.json()),
+  
+  // Stats & Memory
   getStats:     () => fetch(`${BASE}/memory/stats/${encodeURIComponent(getUserId())}`).then(r => r.json()),
   getInterests: () => fetch(`${BASE}/memory/interests/${encodeURIComponent(getUserId())}`).then(r => r.json()),
+  
+  // Preferences
+  getPreferences: () => fetch(`${BASE}/settings/preferences?user_id=${encodeURIComponent(getUserId())}`).then(r => r.json()),
+  savePreferences: (prefs) => fetch(`${BASE}/settings/preferences?user_id=${encodeURIComponent(getUserId())}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(prefs) }).then(r => r.json()),
+  
+  // Profile
+  updateProfile: (data) => fetch(`${BASE}/settings/profile?user_id=${encodeURIComponent(getUserId())}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -116,7 +126,11 @@ function Icon({ name, style }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function NeuralCanvas({ C }) {
   const ref = useRef(null);
+  const animationsEnabled = localStorage.getItem("polynous_animations") !== "false";
+  
   useEffect(() => {
+    if (!animationsEnabled) return;
+    
     const canvas = ref.current;
     const ctx = canvas.getContext("2d");
     let pts = [], raf;
@@ -161,7 +175,8 @@ function NeuralCanvas({ C }) {
     init();
     draw();
     return () => { window.removeEventListener("resize", init); cancelAnimationFrame(raf); };
-  }, []);
+  }, [animationsEnabled]);
+  
   return (
     <canvas
       ref={ref}
@@ -171,6 +186,7 @@ function NeuralCanvas({ C }) {
         zIndex: 0,
         opacity: C === DARK ? 0.22 : 0.06,
         pointerEvents: "none",
+        display: animationsEnabled ? "block" : "none",
       }}
     />
   );
@@ -183,13 +199,14 @@ function useToast() {
   const [toasts, setToasts] = useState([]);
   const push = useCallback((msg, type = "ok") => {
     const id = Date.now();
-    setToasts(t => [...t, { id, msg, type }]);
+    setToasts(t => [...t, { id, msg: msg || "", type }]);
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3200);
   }, []);
   return { toasts, push };
 }
 
 function ToastBox({ toasts, C }) {
+  if (!toasts || toasts.length === 0) return null;
   return (
     <div style={{
       position: "fixed", bottom: "1.75rem", right: "1.75rem",
@@ -215,7 +232,7 @@ function ToastBox({ toasts, C }) {
           <span style={{ fontSize: 8, opacity: 0.7 }}>
             {t.type === "err" ? "◆" : "◆"}
           </span>
-          {msg}
+          {t.msg || "Unknown"}
         </div>
       ))}
     </div>
@@ -609,6 +626,7 @@ function ProfileSection({ user, push, C }) {
   const [editing, setEditing] = useState(false);
   const [username, setUsername] = useState(user?.username || "");
   const [email, setEmail] = useState(user?.email || "");
+  const [saving, setSaving] = useState(false);
   const initials = (username || "U").split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "US";
   const inp = inputStyle(C);
 
@@ -619,6 +637,22 @@ function ProfileSection({ user, push, C }) {
   const handleBlur = e => {
     e.target.style.border = `1px solid ${C.border}`;
     e.target.style.boxShadow = "none";
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      await api.updateProfile({ username, email });
+      // Update local storage
+      const currentUser = JSON.parse(localStorage.getItem("polynous_user") || "{}");
+      localStorage.setItem("polynous_user", JSON.stringify({ ...currentUser, username, email }));
+      push("Profile updated successfully");
+      setEditing(false);
+    } catch {
+      push("Failed to update profile", "err");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -699,21 +733,29 @@ function ProfileSection({ user, push, C }) {
         </div>
 
         <button
-          onClick={() => { if (editing) push("Profile updated"); setEditing(!editing); }}
+          onClick={() => { 
+            if (editing) {
+              handleSaveProfile();
+            } else {
+              setEditing(true);
+            }
+          }}
+          disabled={saving}
           style={{
             padding: ".45rem 1.3rem",
             borderRadius: 8,
             border: editing ? "none" : `1px solid ${C.green}40`,
             background: editing ? C.green : "transparent",
             color: editing ? "#000" : C.green,
-            cursor: "pointer",
+            cursor: saving ? "wait" : "pointer",
             fontWeight: 600, fontSize: 12.5,
             fontFamily: C.fontDisplay,
             letterSpacing: ".01em",
             transition: "all .18s",
+            opacity: saving ? 0.7 : 1,
           }}
         >
-          {editing ? "Save Changes" : "Edit Profile"}
+          {saving ? "Saving…" : editing ? "Save Changes" : "Edit Profile"}
         </button>
       </div>
     </Card>
@@ -721,7 +763,7 @@ function ProfileSection({ user, push, C }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KEY CARD
+// KEY CARD — with debug logging
 // ─────────────────────────────────────────────────────────────────────────────
 function KeyCard({ providerId, connected, preview, onSave, onRemove, push, C }) {
   const [val, setVal] = useState("");
@@ -743,11 +785,13 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push, C }) 
   const handleSave = async () => {
     if (!val.trim()) { push("Enter a key first", "err"); return; }
     try {
-      await api.saveApiKey(providerId, val.trim());
-      push(`${p.label} key saved`);
+      const res = await api.saveApiKey(providerId, val.trim());
+      console.log("Save response:", res);
+      push(`${p.label} key saved!`);
       setVal("");
-      onSave(providerId);
-    } catch {
+      if (onSave) onSave(providerId);
+    } catch (err) {
+      console.error("Save error:", err);
       push("Failed to save", "err");
     }
   };
@@ -755,7 +799,7 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push, C }) 
     try {
       await api.deleteApiKey(providerId);
       push(`${p.label} key removed`);
-      onRemove(providerId);
+      if (onRemove) onRemove(providerId);
     } catch {
       push("Failed to remove", "err");
     }
@@ -765,8 +809,10 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push, C }) 
     setTestResult(null);
     try {
       const r = await api.testApiKey(providerId);
-      setTestResult(r.status === "ok" ? "ok" : "fail");
-    } catch {
+      console.log("Test result:", r);
+      setTestResult(r && r.status === "ok" ? "ok" : "fail");
+    } catch (err) {
+      console.error("Test error:", err);
       setTestResult("fail");
     } finally {
       setTesting(false);
@@ -848,7 +894,7 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push, C }) 
             textTransform: "uppercase",
           }}
         >
-          {testing ? "Testing…" : testResult === "ok" ? "Valid" : testResult === "fail" ? "Invalid" : "Test"}
+          {testing ? "Testing…" : testResult === "ok" ? "Valid ✅" : testResult === "fail" ? "Invalid ❌" : "Test"}
         </button>
         <div style={{ width: 1, height: 14, background: C.border }} />
         <button
@@ -885,7 +931,7 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push, C }) 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API KEYS SECTION
+// API KEYS SECTION — with debug logging
 // ─────────────────────────────────────────────────────────────────────────────
 function ApiKeysSection({ push, C }) {
   const [connected, setConnected] = useState({ anthropic: false, openai: false, tavily: false });
@@ -896,11 +942,20 @@ function ApiKeysSection({ push, C }) {
   useEffect(() => {
     api.getApiKeys()
       .then(data => {
-        setConnected({ anthropic: data.has_anthropic || false, openai: data.has_openai || false, tavily: data.has_tavily || false });
-        setPreviews({ anthropic: data.anthropic_preview || null, openai: data.openai_preview || null, tavily: data.tavily_preview || null });
+        console.log("API Keys loaded:", data);
+        setConnected({ 
+          anthropic: data.has_anthropic || false, 
+          openai: data.has_openai || false, 
+          tavily: data.has_tavily || false 
+        });
+        setPreviews({ 
+          anthropic: data.anthropic_preview || null, 
+          openai: data.openai_preview || null, 
+          tavily: data.tavily_preview || null 
+        });
         setPreferred(data.preferred_provider || "anthropic");
       })
-      .catch(() => {})
+      .catch(err => console.error("Load keys error:", err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -955,15 +1010,21 @@ function ApiKeysSection({ push, C }) {
               providerId={id}
               connected={connected[id]}
               preview={previews[id]}
-              onSave={(id) => {
-                setConnected(prev => ({ ...prev, [id]: true }));
+              onSave={(savedId) => {
+                setConnected(prev => ({ ...prev, [savedId]: true }));
                 api.getApiKeys()
-                  .then(data => setPreviews({ anthropic: data.anthropic_preview, openai: data.openai_preview, tavily: data.tavily_preview }))
+                  .then(data => {
+                    if (data) setPreviews({ 
+                      anthropic: data.anthropic_preview || null, 
+                      openai: data.openai_preview || null, 
+                      tavily: data.tavily_preview || null 
+                    });
+                  })
                   .catch(() => {});
               }}
-              onRemove={(id) => {
-                setConnected(prev => ({ ...prev, [id]: false }));
-                setPreviews(prev => ({ ...prev, [id]: null }));
+              onRemove={(removedId) => {
+                setConnected(prev => ({ ...prev, [removedId]: false }));
+                setPreviews(prev => ({ ...prev, [removedId]: null }));
               }}
               push={push}
               C={C}
@@ -979,8 +1040,31 @@ function ApiKeysSection({ push, C }) {
 // APPEARANCE SECTION
 // ─────────────────────────────────────────────────────────────────────────────
 function AppearanceSection({ theme, setTheme, C }) {
-  const [animations, setAnimations] = useState(true);
+  const [animations, setAnimations] = useState(() => {
+    return localStorage.getItem("polynous_animations") !== "false";
+  });
+  const [fontSize, setFontSize] = useState(() => {
+    return localStorage.getItem("polynous_font_size") || "Medium";
+  });
   const inp = inputStyle(C);
+
+  // Save animations preference
+  const toggleAnimations = () => {
+    const newVal = !animations;
+    setAnimations(newVal);
+    localStorage.setItem("polynous_animations", newVal);
+    // Reload to apply/remove canvas
+    window.location.reload();
+  };
+
+  // Save font size preference
+  const changeFontSize = (size) => {
+    setFontSize(size);
+    localStorage.setItem("polynous_font_size", size);
+    // Apply font size to document
+    const sizes = { Small: "14px", Medium: "16px", Large: "18px" };
+    document.documentElement.style.fontSize = sizes[size] || "16px";
+  };
 
   return (
     <Card C={C}>
@@ -999,7 +1083,11 @@ function AppearanceSection({ theme, setTheme, C }) {
         </div>
         <div>
           <MetaLabel C={C}>Font Size</MetaLabel>
-          <select style={{ ...inp, cursor: "pointer" }}>
+          <select 
+            value={fontSize}
+            onChange={e => changeFontSize(e.target.value)}
+            style={{ ...inp, cursor: "pointer" }}
+          >
             <option>Medium</option>
             <option>Small</option>
             <option>Large</option>
@@ -1020,7 +1108,7 @@ function AppearanceSection({ theme, setTheme, C }) {
             Particle field background
           </div>
         </div>
-        <Toggle on={animations} onToggle={() => setAnimations(!animations)} color={C.green} />
+        <Toggle on={animations} onToggle={toggleAnimations} color={C.green} />
       </div>
     </Card>
   );
@@ -1029,13 +1117,41 @@ function AppearanceSection({ theme, setTheme, C }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PREFERENCES SECTION
 // ─────────────────────────────────────────────────────────────────────────────
-function PreferencesSection({ C }) {
-  const [mode, setMode] = useState("Research");
-  const [style, setStyle] = useState("Academic");
-  const [streaming, setStreaming] = useState(true);
-  const [autoSave, setAutoSave] = useState(true);
-  const [conf, setConf] = useState(70);
+function PreferencesSection({ push, C }) {
+  const [mode, setMode] = useState(() => localStorage.getItem("polynous_mode") || "Research");
+  const [style, setStyle] = useState(() => localStorage.getItem("polynous_style") || "Academic");
+  const [streaming, setStreaming] = useState(() => localStorage.getItem("polynous_streaming") !== "false");
+  const [autoSave, setAutoSave] = useState(() => localStorage.getItem("polynous_autosave") !== "false");
+  const [conf, setConf] = useState(() => parseInt(localStorage.getItem("polynous_confidence") || "70"));
+  const [loading, setLoading] = useState(true);
   const inp = inputStyle(C);
+
+  // Load preferences from backend on mount
+  useEffect(() => {
+    api.getPreferences()
+      .then(data => {
+        if (data.mode) { setMode(data.mode); localStorage.setItem("polynous_mode", data.mode); }
+        if (data.style) { setStyle(data.style); localStorage.setItem("polynous_style", data.style); }
+        if (data.streaming !== undefined) { setStreaming(data.streaming); localStorage.setItem("polynous_streaming", data.streaming); }
+        if (data.auto_save !== undefined) { setAutoSave(data.auto_save); localStorage.setItem("polynous_autosave", data.auto_save); }
+        if (data.confidence_threshold) { setConf(data.confidence_threshold); localStorage.setItem("polynous_confidence", data.confidence_threshold); }
+      })
+      .catch(() => {
+        // Backend not available, use localStorage values
+        console.log("Using local preferences");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Save preferences to backend
+  const savePrefs = useCallback((updatedPrefs) => {
+    api.savePreferences(updatedPrefs)
+      .then(() => push("Preferences saved"))
+      .catch(() => {
+        // Backend save failed, but localStorage is already updated
+        console.log("Preferences saved locally only");
+      });
+  }, [push]);
 
   const toggleRow = (label, sublabel, on, toggle, color) => (
     <div style={{
@@ -1057,6 +1173,17 @@ function PreferencesSection({ C }) {
     </div>
   );
 
+  if (loading) {
+    return (
+      <Card C={C}>
+        <SectionHead icon="science" title="Research Preferences" subtitle="Default behaviour & response configuration" C={C} />
+        <div style={{ color: C.textMuted, padding: "1.2rem", textAlign: "center", fontFamily: C.fontMono, fontSize: 11 }}>
+          Loading preferences…
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card C={C}>
       <SectionHead icon="science" title="Research Preferences" subtitle="Default behaviour & response configuration" C={C} />
@@ -1067,7 +1194,11 @@ function PreferencesSection({ C }) {
             {["Research", "Debate"].map(m => (
               <button
                 key={m}
-                onClick={() => setMode(m)}
+                onClick={() => {
+                  setMode(m);
+                  localStorage.setItem("polynous_mode", m);
+                  savePrefs({ mode: m, style, streaming, auto_save: autoSave, confidence_threshold: conf });
+                }}
                 style={{
                   padding: ".38rem 1.1rem",
                   borderRadius: 7,
@@ -1093,7 +1224,11 @@ function PreferencesSection({ C }) {
           <MetaLabel C={C}>Response Style</MetaLabel>
           <select
             value={style}
-            onChange={e => setStyle(e.target.value)}
+            onChange={e => {
+              setStyle(e.target.value);
+              localStorage.setItem("polynous_style", e.target.value);
+              savePrefs({ mode, style: e.target.value, streaming, auto_save: autoSave, confidence_threshold: conf });
+            }}
             style={{ ...inp, cursor: "pointer" }}
           >
             {["Academic", "Casual", "ELI5", "Technical"].map(o => <option key={o}>{o}</option>)}
@@ -1101,8 +1236,18 @@ function PreferencesSection({ C }) {
         </div>
       </div>
 
-      {toggleRow("Streaming", "Progressive token output", streaming, () => setStreaming(!streaming), C.green)}
-      {toggleRow("Auto-save", "Persist sessions automatically", autoSave, () => setAutoSave(!autoSave), C.cyan)}
+      {toggleRow("Streaming", "Progressive token output", streaming, () => {
+        const newVal = !streaming;
+        setStreaming(newVal);
+        localStorage.setItem("polynous_streaming", newVal);
+        savePrefs({ mode, style, streaming: newVal, auto_save: autoSave, confidence_threshold: conf });
+      }, C.green)}
+      {toggleRow("Auto-save", "Persist sessions automatically", autoSave, () => {
+        const newVal = !autoSave;
+        setAutoSave(newVal);
+        localStorage.setItem("polynous_autosave", newVal);
+        savePrefs({ mode, style, streaming, auto_save: newVal, confidence_threshold: conf });
+      }, C.cyan)}
 
       <div style={{ paddingTop: ".8rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: ".4rem" }}>
@@ -1120,7 +1265,17 @@ function PreferencesSection({ C }) {
         </div>
         <input
           type="range" min={0} max={100} value={conf}
-          onChange={e => setConf(Number(e.target.value))}
+          onChange={e => {
+            const newConf = Number(e.target.value);
+            setConf(newConf);
+            localStorage.setItem("polynous_confidence", newConf);
+          }}
+          onMouseUp={() => {
+            savePrefs({ mode, style, streaming, auto_save: autoSave, confidence_threshold: conf });
+          }}
+          onTouchEnd={() => {
+            savePrefs({ mode, style, streaming, auto_save: autoSave, confidence_threshold: conf });
+          }}
           style={{ accentColor: C.green, width: "100%", cursor: "pointer" }}
         />
         <div style={{
@@ -1140,9 +1295,25 @@ function PreferencesSection({ C }) {
 function StatsSection({ C }) {
   const [s, setS] = useState({ total_research: 0, total_debates: 0, avg_confidence: 0, unique_topics: 0 });
   const [interests, setInterests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   useEffect(() => {
-    api.getStats().then(setS).catch(() => {});
-    api.getInterests().then(d => setInterests(d.interests || [])).catch(() => {});
+    Promise.all([
+      api.getStats(),
+      api.getInterests()
+    ])
+      .then(([statsData, interestsData]) => {
+        console.log("✅ Stats loaded:", statsData);
+        console.log("✅ Interests loaded:", interestsData);
+        setS(statsData);
+        setInterests(interestsData.interests || []);
+      })
+      .catch(err => {
+        console.error("❌ Failed to load stats:", err);
+        setError(err.message);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const stats = [
@@ -1151,6 +1322,28 @@ function StatsSection({ C }) {
     { label: "Avg Confidence",    val: `${s.avg_confidence || 0}%`,   color: C.cyan   },
     { label: "Topics Tracked",    val: s.unique_topics || 0,          color: C.purple },
   ];
+
+  if (loading) {
+    return (
+      <Card C={C}>
+        <SectionHead icon="bar_chart" title="Usage Analytics" subtitle="Session stats & memory signals" C={C} />
+        <div style={{ color: C.textMuted, padding: "1.2rem", textAlign: "center", fontFamily: C.fontMono, fontSize: 11 }}>
+          Loading analytics…
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card C={C}>
+        <SectionHead icon="bar_chart" title="Usage Analytics" subtitle="Session stats & memory signals" C={C} />
+        <div style={{ color: C.crimson, padding: "1.2rem", textAlign: "center", fontFamily: C.fontMono, fontSize: 11 }}>
+          Stats unavailable — start a research session to generate data
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card C={C}>
@@ -1203,6 +1396,18 @@ function StatsSection({ C }) {
           </div>
         </>
       )}
+      {interests.length === 0 && !error && (
+        <div style={{ 
+          color: C.textMuted, 
+          textAlign: "center", 
+          padding: "1rem",
+          fontFamily: C.fontMono, 
+          fontSize: 10.5,
+          letterSpacing: ".04em",
+        }}>
+          No research topics yet — topics appear as you research
+        </div>
+      )}
     </Card>
   );
 }
@@ -1211,12 +1416,25 @@ function StatsSection({ C }) {
 // NOTIFICATIONS SECTION
 // ─────────────────────────────────────────────────────────────────────────────
 function NotificationsSection({ C }) {
-  const [items, setItems] = useState([
-    { label: "Email Notifications", sub: "Receive updates to your inbox",     on: false },
-    { label: "Research Alerts",     sub: "New citations and related papers",   on: true  },
-    { label: "Weekly Summary",      sub: "Activity digest every Monday",       on: false },
-    { label: "Rate Limit Warnings", sub: "Alert before API quota exhaustion",  on: true  },
-  ]);
+  const [items, setItems] = useState(() => {
+    const saved = localStorage.getItem("polynous_notifications");
+    if (saved) {
+      try { return JSON.parse(saved); } catch { /* use defaults */ }
+    }
+    return [
+      { label: "Email Notifications", sub: "Receive updates to your inbox",     on: false },
+      { label: "Research Alerts",     sub: "New citations and related papers",   on: true  },
+      { label: "Weekly Summary",      sub: "Activity digest every Monday",       on: false },
+      { label: "Rate Limit Warnings", sub: "Alert before API quota exhaustion",  on: true  },
+    ];
+  });
+
+  const toggleNotification = (i) => {
+    const n = [...items];
+    n[i].on = !n[i].on;
+    setItems(n);
+    localStorage.setItem("polynous_notifications", JSON.stringify(n));
+  };
 
   return (
     <Card C={C}>
@@ -1237,11 +1455,7 @@ function NotificationsSection({ C }) {
           </div>
           <Toggle
             on={item.on}
-            onToggle={() => {
-              const n = [...items];
-              n[i].on = !n[i].on;
-              setItems(n);
-            }}
+            onToggle={() => toggleNotification(i)}
             color={C.green}
           />
         </div>
@@ -1383,13 +1597,25 @@ function SecuritySection({ C }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function DataStorageSection({ push, C }) {
   const [s, setS] = useState({ total_research: 0, unique_topics: 0 });
-  useEffect(() => { api.getStats().then(setS).catch(() => {}); }, []);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { 
+    api.getStats()
+      .then(data => {
+        setS(data);
+      })
+      .catch(() => {
+        // Stats unavailable
+        setS({ total_research: 0, unique_topics: 0 });
+      })
+      .finally(() => setLoading(false)); 
+  }, []);
 
   const items = [
-    { label: "Research Stored",  val: s.total_research || 0 },
-    { label: "Topics Tracked",   val: s.unique_topics || 0 },
-    { label: "KG Nodes",         val: s.unique_topics || 0 },
-    { label: "Pinecone Vectors", val: Math.floor((s.total_research || 0) * 3) },
+    { label: "Research Stored",  val: loading ? "…" : (s.total_research || 0) },
+    { label: "Topics Tracked",   val: loading ? "…" : (s.unique_topics || 0) },
+    { label: "KG Nodes",         val: loading ? "…" : (s.unique_topics || 0) },
+    { label: "Pinecone Vectors", val: loading ? "…" : Math.floor((s.total_research || 0) * 3) },
   ];
 
   return (
@@ -1585,7 +1811,7 @@ export default function SettingsPage({ user, onNavigate, onLogout }) {
         <ProfileSection     user={user} push={push} C={C} />
         <ApiKeysSection     push={push} C={C} />
         <AppearanceSection  theme={theme} setTheme={setTheme} C={C} />
-        <PreferencesSection C={C} />
+        <PreferencesSection push={push} C={C} />
         <StatsSection       C={C} />
         <NotificationsSection C={C} />
         <IntegrationsSection  C={C} />

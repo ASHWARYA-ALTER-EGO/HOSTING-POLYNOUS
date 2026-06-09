@@ -113,11 +113,18 @@ export default function MainApp({ user, onLogout, onNavigate, currentPage }) {
     setStreamingContent('')
     setAgentProgress([])
     setAgentStatus('Initializing...')
-    try {
-      const response = await fetch('http://localhost:8000/ask-stream', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: userMsg.content, debate_mode: debateMode })
-      })
+    const userEmail = user?.email || localStorage.getItem('polynous_user') ? JSON.parse(localStorage.getItem('polynous_user') || '{}').email : 'guest_user';
+
+try {
+  const response = await fetch('http://localhost:8000/ask-stream', {
+    method: 'POST', 
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      query: userMsg.content, 
+      debate_mode: debateMode,
+      session_id: userEmail  // ← Send user's email as session_id
+    })
+  })
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       const assistantMsg = { role: 'assistant', content: '', sources: [], confidence: 0, debate_verdict: null }

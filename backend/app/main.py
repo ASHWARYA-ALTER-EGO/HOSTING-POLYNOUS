@@ -1,4 +1,6 @@
 from app.routes.api_keys import router as api_keys_router
+from app.routes.user_stats import router as user_stats_router
+from app.routes.preferences import router as preferences_router
 from app.routes.pdfs import router as pdfs_router
 from app.routes.memory import router as memory_router
 from app.routes.semantic_search import router as search_router
@@ -53,6 +55,8 @@ async def startup():
 app.include_router(api_keys_router)
 app.include_router(auth_router)
 app.include_router(conversations_router)
+app.include_router(user_stats_router)
+app.include_router(preferences_router)
 app.include_router(oauth_router)
 app.include_router(knowledge_router)
 app.include_router(search_router)

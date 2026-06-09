@@ -130,7 +130,7 @@ def writer_node(state: AgentState) -> AgentState:
             sources=state['citations'],
             confidence=conf,
             topics=entities,
-            session_id="guest_user"
+            session_id=state.get('session_id', 'guest_user')
         )
         print("🧠 Stored in Knowledge Graph")
     except Exception as e:

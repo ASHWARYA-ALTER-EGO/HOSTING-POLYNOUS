@@ -129,7 +129,7 @@ def judge_node(state: AgentState) -> AgentState:
     print(f"📌 Storing debate for user_id: guest_user")
     try:
         user_memory.record_debate(
-            user_id="guest_user",
+            user_id=state.get('session_id', 'guest_user'),
             topic=state['query'],
             for_score=for_score,
             against_score=against_score,

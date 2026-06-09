@@ -333,19 +333,7 @@ POLYNOUS/
 | **Analysts** | Competitive intelligence and market research with confidence scoring |
 | **Debaters** | Stress-test arguments by seeing both sides evaluated by an AI judge |
 | **Knowledge workers** | Build a personal knowledge graph; search past research by meaning |
-
----
-
-## ◈ Contributing
-
-Issues and pull requests are welcome. Please open an issue first to discuss significant changes.
-
----
-
-## ◈ License
-
-MIT — see [LICENSE](LICENSE) for details.
-
+ 
 ---
 
 <div align="center">

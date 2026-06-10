@@ -344,7 +344,7 @@ function NeuralSynthesisReport({ query, answer, sources, confidence, onCopy, onN
             <Icon name="psychology" style={{ color: C.green, fontSize: 32 }} />
           </div>
           <div>
-            <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: "clamp(1rem,2.5vw,1.4rem)", textTransform: "uppercase", letterSpacing: "0.1em", color: C.onSurface, margin: "0 0 6px" }}>. Neural Synthesis Report</h2>
+            <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: "clamp(1rem,2.5vw,1.4rem)", textTransform: "uppercase", letterSpacing: "0.1em", color: C.onSurface, margin: "0 0 6px" }}>Neural Synthesis Report</h2>
 
             {/* ── INCREASED: Query line ── */}
             <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 600, color: C.green, marginBottom: 4 }}>

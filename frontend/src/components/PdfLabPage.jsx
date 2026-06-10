@@ -696,7 +696,7 @@ function HowItWorksVisual() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-            <span style={{ fontSize: 22 }}>🤖</span>
+            <span style={{ fontSize: 22 }}></span>
             <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#fff" }}>
               How PDF RAG Actually Works
             </h3>
@@ -1046,7 +1046,7 @@ export default function PdfLabPage({ user, onNavigate, onLogout }) {
               letterSpacing: "-0.03em",
               textShadow: "0 0 40px rgba(255,215,0,0.3)",
             }}>
-              📄 PDF Neural Lab
+               PDF Neural Lab
             </h1>
             <p style={{
               fontFamily: "'JetBrains Mono',monospace",

@@ -53,22 +53,7 @@ function InfoTable({ collapsed: defaultCollapsed = true }) {
       transition: "all 0.3s ease",
     }}>
       {/* Header — click to expand/collapse */}
-      <div
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "14px 20px", cursor: "pointer",
-          background: expanded ? "rgba(0,204,255,0.06)" : "transparent",
-          transition: "background 0.2s",
-        }}
-      >
-        
-        <span style={{
-          color: C.cyan, fontSize: 18,
-          transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-          transition: "transform 0.3s ease",
-        }}>▼</span>
-      </div>
+      
 
       {/* Expandable content */}
       <div style={{

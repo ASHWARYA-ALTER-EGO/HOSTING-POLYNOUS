@@ -602,7 +602,7 @@ export default function MemoryBank({ user, onNavigate, onStartResearch, onLogout
     letterSpacing: "-0.03em",
     textShadow: "0 0 40px rgba(255,140,0,0.3)",
   }}>
-    . Neural Memory Bank
+                   Neural Memory Bank
   </h1>
   <p style={{
     fontFamily: "'JetBrains Mono',monospace",

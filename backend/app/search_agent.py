@@ -55,7 +55,7 @@ def format_search_results(results):
 def ask_claude_with_context(query: str, context: str, session_id: str = "guest_user") -> str:
     """Ask Claude AI with search context"""
     try:
-        print(f"🤖 Asking Claude about: {query} (session: {session_id})")
+        print(f" Asking Claude about: {query} (session: {session_id})")
         message = anthropic.messages.create(
             model="claude-haiku-4-5",  # Fixed model name
             max_tokens=500,

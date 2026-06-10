@@ -1088,7 +1088,7 @@ export default function SemanticSearchPage({ user, onStartResearch, onNavigate, 
     margin: "0 0 10px",
     letterSpacing: "-0.03em",
     textShadow: "0 0 40px rgba(0,204,255,0.3)",
-  }}>🔍 Neural Semantic Search</h1>
+  }}> Neural Semantic Search</h1>
   <p style={{
     fontFamily: "'JetBrains Mono',monospace",
     fontSize: 14,

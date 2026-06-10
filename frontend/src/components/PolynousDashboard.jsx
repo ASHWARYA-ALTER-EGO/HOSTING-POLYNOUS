@@ -1002,7 +1002,7 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
           <div>
             <div style={{ textAlign: "center", marginBottom: 36, paddingTop: 10, animation: "fadeSlideUp 0.6s ease both" }}>
               <h1 style={{ fontFamily: "'Sora',sans-serif", fontSize: "clamp(2rem,4.5vw,3rem)", fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 10px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <span>📊</span>
+                <span></span>
                 <span style={{ background: "linear-gradient(90deg, #ff0000, #ff7700, #ffff00, #00ff0f, #00ccff, #a855f7, #ff2040)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 25px rgba(168,85,247,0.4))" }}>
                   Neural Analytics
                 </span>
@@ -1022,11 +1022,58 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: 60 }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
-            <div style={{ color: C.green, fontFamily: "'Sora',sans-serif", fontSize: 18, fontWeight: 700 }}>Loading analytics...</div>
-          </div>
-        ) : (
+  <div style={{ textAlign: "center", padding: "60px 32px", display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+    <style>{`
+      @keyframes pulse-bar {
+        0%, 100% { opacity: 0.25; transform: scaleY(0.5); }
+        50% { opacity: 1; transform: scaleY(1); }
+      }
+      @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(200%); }
+      }
+      .loader-bar {
+        display: inline-block;
+        width: 4px;
+        border-radius: 2px;
+        margin: 0 3px;
+        background: ${C.green};
+        animation: pulse-bar 1.1s ease-in-out infinite;
+        transform-origin: bottom;
+      }
+      .shimmer-line {
+        position: relative;
+        overflow: hidden;
+        background: #f0f0f0;
+        border-radius: 4px;
+      }
+      .shimmer-line::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%);
+        animation: shimmer 1.5s ease-in-out infinite;
+      }
+    `}</style>
+
+    <div style={{ display: "flex", alignItems: "flex-end", height: 32 }}>
+      {[18, 26, 22, 32, 20, 28, 16].map((h, i) => (
+        <div key={i} className="loader-bar" style={{ height: h, animationDelay: `${i * 0.15}s` }} />
+      ))}
+    </div>
+
+    <div style={{ fontFamily: "'Sora', sans-serif", fontSize: 16, fontWeight: 600, color: "#111", letterSpacing: "0.01em" }}>
+      Loading analytics
+    </div>
+    <div style={{ fontSize: 13, color: "#888" }}>Crunching your numbers…</div>
+
+    <div style={{ width: 220, display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+      {[100, 75, 90].map((w, i) => (
+        <div key={i} className="shimmer-line" style={{ height: 8, width: `${w}%` }} />
+      ))}
+    </div>
+  </div>
+) : (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14, marginBottom: 20 }}>
               <StatCard icon="psychology" color={C.cyan} label="Total Queries" value={stats?.totalQueries || 0} trend={confTrend} />

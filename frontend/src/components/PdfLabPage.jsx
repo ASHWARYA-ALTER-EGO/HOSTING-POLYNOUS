@@ -1,101 +1,120 @@
-import { useState, useEffect, useRef } from "react";
+// PDF Neural Lab — fully enhanced
+import { useState, useEffect, useRef, useCallback } from "react";
 
-const C = {
-  green: "#00ff0f", cyan: "#00ccff", crimson: "#ff2040", purple: "#a855f7",
-  gold: "#ffd700", void: "#0a0a1e", surface: "#111125", surfaceContainer: "#1e1e32",
-  onSurface: "#e2e0fc", onSurfaceVariant: "#b9ccb0",
-  textSecondary: "#8899aa", white10: "rgba(255,255,255,0.1)", white5: "rgba(255,255,255,0.05)",
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const T = {
+  gold:       "#FFD60A",
+  goldDim:    "rgba(255,214,10,0.15)",
+  goldBorder: "rgba(255,214,10,0.22)",
+  green:      "#00ff6a",
+  cyan:       "#00d4ff",
+  crimson:    "#ff3355",
+  purple:     "#a855f7",
+  void:       "#0A0A1E",
+  surface:    "rgba(14,14,36,0.75)",
+  surfaceHi:  "rgba(20,20,48,0.88)",
+  border:     "rgba(255,255,255,0.07)",
+  borderGold: "rgba(255,214,10,0.18)",
+  text:       "#e2eaf4",
+  textMid:    "#9fb3c8",
+  textDim:    "#4a5f72",
+  mono:       "'JetBrains Mono', monospace",
+  display:    "'Sora', sans-serif",
+  body:       "'Inter', sans-serif",
 };
 
-function Icon({ name, style }) {
+// ─── Global CSS ───────────────────────────────────────────────────────────────
+const GLOBAL_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:#0A0A1E;color:#e2eaf4;font-family:'Inter',sans-serif;overflow-x:hidden}
+::selection{background:rgba(255,214,10,0.2);color:#fff}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,214,10,0.18);border-radius:3px}
+input,textarea{font-family:'Inter',sans-serif}
+input:focus,textarea:focus{outline:none}
+button{cursor:pointer;font-family:'Inter',sans-serif}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes dotPulse{0%,80%,100%{transform:scale(0);opacity:0.3}40%{transform:scale(1);opacity:1}}
+@keyframes shimmer{0%{background-position:-600px 0}100%{background-position:600px 0}}
+@keyframes borderGlow{0%,100%{border-color:rgba(255,214,10,0.18)}50%{border-color:rgba(255,214,10,0.45)}}
+@keyframes floatUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 6px rgba(255,214,10,0.15)}50%{box-shadow:0 0 22px rgba(255,214,10,0.4)}}
+@keyframes slideRight{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}
+@keyframes barFill{from{width:0}to{width:var(--w,100%)}}
+@keyframes float{0%,100%{transform:translateY(0px)}50%{transform:translateY(-6px)}}
+@keyframes lightStreak{0%{opacity:0;transform:translateX(-100%) rotate(-7deg)}40%{opacity:0.55}100%{opacity:0;transform:translateX(200%) rotate(-7deg)}}
+@keyframes smGlow{0%,100%{text-shadow:0 0 30px rgba(255,214,10,0.45),0 0 80px rgba(255,214,10,0.18)}50%{text-shadow:0 0 50px rgba(255,214,10,0.7),0 0 120px rgba(255,214,10,0.3)}}
+
+.fade-up{animation:fadeUp 0.45s ease both}
+.shimmer-line{background:linear-gradient(90deg,rgba(255,255,255,0.03) 25%,rgba(255,214,10,0.07) 50%,rgba(255,255,255,0.03) 75%);background-size:600px 100%;animation:shimmer 1.8s infinite linear;border-radius:6px}
+.spin{animation:spin 0.9s linear infinite}
+.nav-item{transition:color 0.18s,background 0.18s}
+.nav-item:hover{color:${T.gold}!important;background:rgba(255,214,10,0.06)!important}
+.doc-card{transition:border-color 0.2s,background 0.2s,transform 0.2s}
+.doc-card:hover{transform:translateY(-2px)}
+.btn-primary{transition:filter 0.18s,transform 0.18s,box-shadow 0.18s}
+.btn-primary:hover:not(:disabled){filter:brightness(1.1);transform:translateY(-2px);box-shadow:0 8px 28px rgba(255,214,10,0.28)}
+.btn-ghost{transition:color 0.18s,background 0.18s,border-color 0.18s,transform 0.18s}
+.btn-ghost:hover{background:rgba(255,214,10,0.07)!important;border-color:rgba(255,214,10,0.3)!important;color:${T.gold}!important;transform:translateY(-1px)}
+.suggest-chip:hover{background:rgba(255,214,10,0.08)!important;border-color:rgba(255,214,10,0.3)!important;color:${T.gold}!important}
+.rag-step:hover{transform:translateY(-3px)}
+.rag-step{transition:transform 0.2s,border-color 0.2s,background 0.2s,box-shadow 0.2s}
+.cta-primary{transition:filter 0.2s,transform 0.2s,box-shadow 0.2s}
+.cta-primary:hover{filter:brightness(1.12);transform:translateY(-3px);box-shadow:0 10px 36px rgba(255,214,10,0.38)!important}
+.cta-secondary{transition:background 0.2s,border-color 0.2s,transform 0.2s,color 0.2s}
+.cta-secondary:hover{background:rgba(255,214,10,0.09)!important;border-color:rgba(255,214,10,0.4)!important;color:${T.gold}!important;transform:translateY(-3px)}
+`;
+
+// ─── Icon helper ──────────────────────────────────────────────────────────────
+function Icon({ name, size = 20, color, style: s }) {
   return (
     <span style={{
       fontFamily: "Material Symbols Outlined",
-      fontVariationSettings: "'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24",
-      lineHeight: 1, ...(style || {})
+      fontVariationSettings: "'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24",
+      fontSize: size, lineHeight: 1, color: color || "inherit",
+      userSelect: "none", flexShrink: 0, ...(s || {}),
     }}>{name}</span>
   );
 }
 
-function Styles() {
-  return (
-    <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Hanken+Grotesk:wght@400;500;600&family=Material+Symbols+Outlined&display=swap');
-      *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-      body{background:#0a0a1e;color:#e2e0fc;font-family:'Inter',sans-serif;overflow-x:hidden;font-size:16px}
-      ::selection{background:rgba(255,215,0,0.25)}
-      @keyframes borderPulse{0%,100%{opacity:0.5}50%{opacity:1}}
-      @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-      @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-      @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-      @keyframes fadeSlideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-      @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
-      @keyframes dotPulse{0%,80%,100%{transform:scale(0);opacity:0.3}40%{transform:scale(1);opacity:1}}
-      @keyframes breathe{0%,100%{opacity:0.4;transform:scale(0.97)}50%{opacity:1;transform:scale(1)}}
-      @keyframes floatUp{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
-      @keyframes glowPulse{0%,100%{box-shadow:0 0 8px rgba(255,215,0,0.2)}50%{box-shadow:0 0 22px rgba(255,215,0,0.5)}}
-      @keyframes packetMove{0%{opacity:0;transform:translateX(0)}20%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translateX(var(--tx,60px)) translateY(var(--ty,0px))}}
-      @keyframes nodeFlash{0%,100%{background:rgba(255,215,0,0.08)}50%{background:rgba(255,215,0,0.22)}}
-      @keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-      .gold-border-pulse{border:2px dashed #ffd700;animation:borderPulse 2s infinite ease-in-out}
-      .animate-bounce{animation:bounce 1s infinite}
-      .animate-spin-slow{animation:spin 10s linear infinite}
-      .animate-spin-slow-reverse{animation:spin 15s linear infinite reverse}
-      .hover-lift:hover{transform:translateY(-4px);transition:transform 0.3s}
-      .custom-scroll::-webkit-scrollbar{width:4px}
-      .custom-scroll::-webkit-scrollbar-thumb{background:rgba(255,215,0,0.2);border-radius:10px}
-      .spinner{animation:spin 1s linear infinite}
-      .shimmer-line{
-        background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,215,0,0.08) 50%,rgba(255,255,255,0.04) 75%);
-        background-size:400px 100%;
-        animation:shimmer 1.6s infinite linear;
-        border-radius:6px;
-      }
-      .rag-step-card{transition:all 0.25s ease;cursor:pointer;}
-      .rag-step-card:hover{transform:translateY(-3px);}
-      .rag-step-card.active-step{transform:translateY(-3px);}
-    `}</style>
-  );
-}
-
-// ─── Neural Background ────────────────────────────────────────
-function NeuralCanvas() {
+// ─── Neural background canvas ─────────────────────────────────────────────────
+function NeuralBg() {
   const ref = useRef(null);
   useEffect(() => {
-    const canvas = ref.current;
+    const canvas = ref.current; if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    let particles = [], animId;
-    const N = 150;
+    let animId;
     const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
-    window.addEventListener("resize", resize);
-    resize();
-    const colors = [
-      { color: "#ffd700", speed: 0.5 },
-      { color: "#00ff0f", speed: 1.5 },
-      { color: "#a855f7", speed: 1.0 },
-    ];
-    for (let i = 0; i < N; i++) {
-      const c = colors[Math.floor(Math.random() * colors.length)];
-      particles.push({
-        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * c.speed, vy: (Math.random() - 0.5) * c.speed,
-        size: Math.random() * 2 + 1, color: c.color, opacity: Math.random() * 0.5 + 0.2,
-      });
-    }
+    window.addEventListener("resize", resize); resize();
+    // 15-20% more particles
+    const pts = Array.from({ length: 108 }, () => ({
+      x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.35, vy: (Math.random() - 0.5) * 0.35,
+      r: Math.random() * 1.4 + 0.4,
+      c: [T.gold, T.cyan, T.purple][Math.floor(Math.random() * 3)],
+      op: Math.random() * 0.4 + 0.1,
+    }));
     const loop = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach((p, i) => {
+      pts.forEach((p, i) => {
         p.x += p.vx; p.y += p.vy;
         if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
         if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = p.color; ctx.globalAlpha = p.opacity; ctx.fill();
-        for (let j = i + 1; j < particles.length; j++) {
-          const d = Math.hypot(p.x - particles[j].x, p.y - particles[j].y);
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.c; ctx.globalAlpha = p.op; ctx.fill();
+        for (let j = i + 1; j < pts.length; j++) {
+          const d = Math.hypot(p.x - pts[j].x, p.y - pts[j].y);
           if (d < 100) {
-            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(255,255,255,${0.04 * (1 - d / 100)})`;
-            ctx.lineWidth = 0.3; ctx.stroke();
+            ctx.globalAlpha = 0.03 * (1 - d / 100);
+            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(pts[j].x, pts[j].y);
+            ctx.strokeStyle = "#aab8ff"; ctx.lineWidth = 0.4; ctx.stroke();
           }
         }
       });
@@ -104,827 +123,733 @@ function NeuralCanvas() {
     loop();
     return () => { cancelAnimationFrame(animId); window.removeEventListener("resize", resize); };
   }, []);
-  return (
-    <canvas ref={ref} style={{
-      position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-      zIndex: 0, pointerEvents: "none",
-    }} />
-  );
+  return <canvas ref={ref} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />;
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────
-function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
-  const NAV = [
-    { icon: "travel_explore", label: "Research", path: "/research" },
-    { icon: "forum", label: "Debate Chamber", path: "/debate" },
-    { icon: "account_tree", label: "Knowledge Graph", path: "/graph" },
-    { icon: "search", label: "Semantic Search", path: "/search" },
-    { icon: "database", label: "Memory Bank", path: "/memory" },
-    { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab", active: true },
-    { icon: "analytics", label: "Analytics", path: "/analytics" },
-     { icon: "settings",       label: "Settings",        path: "/settings" },
-  ];
-  const handleNav = (p) => onNavigate ? onNavigate(p) : (window.location.href = p);
-  const handleLogout = () => onLogout ? onLogout() : (localStorage.clear(), window.location.href = "/");
+// ─── 3D Document Canvas Visual — enhanced ────────────────────────────────────
+function DocCanvas3D({ uploading }) {
+  const ref = useRef(null);
+  const mouse = useRef({ x: 240, y: 240 });
+  const targetMouse = useRef({ x: 240, y: 240 });
+  const frame = useRef(0);
+  const anim = useRef(null);
 
-  if (collapsed) return (
-    <aside style={{
-      position: "fixed", left: 0, top: 0, height: "100%", width: 56,
-      background: "rgba(10,10,30,0.6)", backdropFilter: "blur(24px)",
-      borderRight: "1px solid " + C.white10, display: "flex", flexDirection: "column",
-      alignItems: "center", padding: "16px 0", zIndex: 20,
-    }}>
-      <button onClick={() => setCollapsed(false)} style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", marginBottom: 32 }}>
-        <Icon name="chevron_right" style={{ fontSize: 22 }} />
-      </button>
-      {NAV.map(({ icon, label, path, active }) => (
-        <div key={label} onClick={() => handleNav(path)} title={label}
-          style={{ padding: "12px 0", cursor: "pointer", color: active ? C.gold : C.onSurfaceVariant, width: "100%", display: "flex", justifyContent: "center" }}>
-          <Icon name={icon} style={{ fontSize: 20, color: "inherit" }} />
-        </div>
-      ))}
-      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-        <div onClick={() => handleNav("/research")} style={{ width: 34, height: 34, borderRadius: "50%", background: C.gold, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <Icon name="add" style={{ fontSize: 16, color: C.void }} />
-        </div>
-        <div title={user?.username || "Guest"} style={{ width: 30, height: 30, borderRadius: "50%", background: C.surfaceContainer, border: "1px solid rgba(255,215,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon name="face" style={{ color: C.gold, fontSize: 14 }} />
-        </div>
-        <div onClick={handleLogout} title="Disconnect" style={{ cursor: "pointer", color: C.crimson }}>
-          <Icon name="logout" style={{ fontSize: 14 }} />
-        </div>
-      </div>
-    </aside>
-  );
-
-  return (
-    <aside style={{
-      position: "fixed", left: 0, top: 0, height: "100%", width: 320,
-      background: "rgba(10,10,30,0.6)", backdropFilter: "blur(24px)",
-      borderRight: "1px solid " + C.white10, boxShadow: "0 0 20px rgba(0,255,15,0.1)",
-      display: "flex", flexDirection: "column", padding: 24, zIndex: 20,
-      transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), padding 0.35s cubic-bezier(0.4,0,0.2,1)",
-      overflow: "hidden",
-    }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40, minWidth: 0 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 style={{ fontFamily: "'Sora',sans-serif", fontSize: 28, fontWeight: 800, color: C.gold, letterSpacing: "-0.03em", whiteSpace: "nowrap" }}>POLYNOUS</h1>
-          <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: C.onSurfaceVariant, textTransform: "uppercase", letterSpacing: "0.2em", opacity: 0.7, whiteSpace: "nowrap" }}>Cerebral Vitality Engine</p>
-        </div>
-        <button onClick={() => setCollapsed(true)} style={{ background: "none", border: "none", color: C.textSecondary, cursor: "pointer", padding: 4, flexShrink: 0, marginLeft: 8 }}
-          onMouseEnter={e => e.target.style.color = "#fff"} onMouseLeave={e => e.target.style.color = C.textSecondary}>
-          <Icon name="chevron_left" style={{ fontSize: 20 }} />
-        </button>
-      </div>
-      <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4, overflow: "hidden" }}>
-        {NAV.map(({ icon, label, path, active }) => (
-          <div key={label} onClick={() => handleNav(path)}
-            style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", borderRadius: 9999, cursor: "pointer", color: active ? C.gold : C.onSurfaceVariant, background: active ? "rgba(255,215,0,0.08)" : "transparent", fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: active ? 700 : 400, transition: "all 0.2s", whiteSpace: "nowrap", overflow: "hidden" }}
-            onMouseEnter={e => { if (!active) { e.currentTarget.style.color = C.gold; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; } }}
-            onMouseLeave={e => { if (!active) { e.currentTarget.style.color = C.onSurfaceVariant; e.currentTarget.style.background = "transparent"; } }}>
-            <Icon name={icon} style={{ fontSize: 20, color: "inherit", flexShrink: 0 }} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
-          </div>
-        ))}
-      </nav>
-      <div style={{ borderTop: "1px solid " + C.white5, paddingTop: 24, marginTop: 24 }}>
-        <button onClick={() => handleNav("/research")}
-          style={{ width: "100%", padding: "12px", background: C.gold, color: C.void, fontWeight: 700, borderRadius: 9999, border: "none", cursor: "pointer", fontFamily: "'Sora',sans-serif", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.2s", whiteSpace: "nowrap" }}
-          onMouseEnter={e => e.currentTarget.style.transform = "scale(1.03)"}
-          onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
-          <Icon name="add" style={{ fontSize: 18, color: C.void, flexShrink: 0 }} />
-          New Research
-        </button>
-        <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.surfaceContainer, border: "1px solid rgba(255,215,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Icon name="face" style={{ color: C.gold, fontSize: 22 }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.username || "Guest"}</p>
-            <button onClick={handleLogout} style={{ fontSize: 11, color: C.crimson, background: "none", border: "none", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", padding: 0 }}>Disconnect</button>
-          </div>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-// ─── API LAYER ────────────────────────────────────────────────
-const BASE = "http://localhost:8000";
-
-async function apiUploadPDF(file) {
-  const form = new FormData();
-  form.append("file", file);
-  const r = await fetch(`${BASE}/pdfs/upload`, { method: "POST", body: form });
-  return r.json();
-}
-async function apiCheckProgress(filename) {
-  const r = await fetch(`${BASE}/pdfs/progress?filename=${encodeURIComponent(filename)}`);
-  return r.json();
-}
-async function apiListPDFs() {
-  const r = await fetch(`${BASE}/pdfs/list`);
-  return r.json();
-}
-async function apiSearchPDFs(query, pdfName = null) {
-  const p = new URLSearchParams({ query, top_k: 5 });
-  if (pdfName) p.append("pdf_name", pdfName);
-  const r = await fetch(`${BASE}/pdfs/search?${p}`);
-  return r.json();
-}
-async function apiAskPDF(query, pdfName = null) {
-  const p = new URLSearchParams({ query });
-  if (pdfName) p.append("pdf_name", pdfName);
-  const r = await fetch(`${BASE}/pdfs/ask?${p}`, { method: "POST" });
-  return r.json();
-}
-
-// ─── Loading Skeleton ─────────────────────────────────────────
-function LoadingSkeleton({ mode }) {
-  const steps = mode === "rag"
-    ? ["Retrieving relevant chunks…", "Ranking by semantic similarity…", "Synthesising answer with LLM…"]
-    : ["Encoding query to vector…", "Scanning embedding space…", "Ranking top matches…"];
-
-  const [step, setStep] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setStep(s => Math.min(s + 1, steps.length - 1)), 900);
-    return () => clearInterval(t);
+    const canvas = ref.current; if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = 480, H = 480;
+    canvas.width = W; canvas.height = H;
+
+    const particles = Array.from({ length: 65 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.28, vy: (Math.random() - 0.5) * 0.28,
+      r: Math.random() * 1.6 + 0.3, op: Math.random() * 0.5 + 0.15,
+      phase: Math.random() * Math.PI * 2,
+      col: [T.gold, T.cyan, T.purple][Math.floor(Math.random() * 3)],
+    }));
+
+    const rings = [
+      { rx: 148, ry: 40, tilt: -20, spd: 0.005, dots: 9,  col: T.gold },
+      { rx: 105, ry: 27, tilt: -12, spd: 0.0085, dots: 6, col: T.cyan },
+      { rx: 170, ry: 46, tilt: -28, spd: 0.0038, dots: 13, col: T.purple },
+    ];
+
+    function drawDoc(cx, cy, rotY, sc, alpha, glow) {
+      ctx.save(); ctx.globalAlpha = alpha;
+      const w = 76 * sc, h = 100 * sc;
+      const sk = Math.sin(rotY) * 16 * sc;
+
+      ctx.save();
+      ctx.shadowColor = `rgba(255,214,10,${glow * 0.5})`; ctx.shadowBlur = 28;
+      const path = new Path2D();
+      path.moveTo(cx - w/2 + sk, cy - h/2);
+      path.lineTo(cx + w/2 + sk, cy - h/2);
+      path.lineTo(cx + w/2 - sk, cy + h/2);
+      path.lineTo(cx - w/2 - sk, cy + h/2);
+      path.closePath();
+      const g = ctx.createLinearGradient(cx - w/2, cy - h/2, cx + w/2, cy + h/2);
+      g.addColorStop(0, `rgba(255,214,10,${0.16 * glow})`);
+      g.addColorStop(0.55, `rgba(255,190,8,${0.24 * glow})`);
+      g.addColorStop(1, `rgba(180,130,0,${0.1 * glow})`);
+      ctx.fillStyle = g; ctx.fill(path); ctx.restore();
+
+      ctx.beginPath();
+      ctx.moveTo(cx - w/2 + sk, cy - h/2);
+      ctx.lineTo(cx + w/2 + sk, cy - h/2);
+      ctx.lineTo(cx + w/2 - sk, cy + h/2);
+      ctx.lineTo(cx - w/2 - sk, cy + h/2);
+      ctx.closePath();
+      ctx.strokeStyle = `rgba(255,214,10,${0.65 * glow})`;
+      ctx.lineWidth = 1.4; ctx.stroke();
+
+      const d = 13 * sc;
+      ctx.beginPath();
+      ctx.moveTo(cx + w/2 + sk - d, cy - h/2);
+      ctx.lineTo(cx + w/2 + sk, cy - h/2 + d);
+      ctx.lineTo(cx + w/2 + sk - d, cy - h/2 + d);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(255,200,20,${0.45 * glow})`; ctx.fill();
+      ctx.strokeStyle = `rgba(255,214,10,${0.35 * glow})`; ctx.stroke();
+
+      [0.62, 0.85, 0.73, 0.52, 0.78, 0.67].forEach((lw, i) => {
+        const ly = cy - h/2 + 26*sc + i*10.5*sc;
+        const lx = cx - w/2 + sk + 9*sc;
+        ctx.beginPath(); ctx.moveTo(lx, ly);
+        ctx.lineTo(lx + (w - 18*sc) * lw, ly);
+        ctx.strokeStyle = `rgba(255,214,10,${0.36 * glow})`;
+        ctx.lineWidth = 1.8; ctx.stroke();
+      });
+      ctx.restore();
+    }
+
+    const tick = () => {
+      frame.current++;
+      const t = frame.current;
+      // Smooth mouse interpolation
+      mouse.current.x += (targetMouse.current.x - mouse.current.x) * 0.06;
+      mouse.current.y += (targetMouse.current.y - mouse.current.y) * 0.06;
+
+      ctx.clearRect(0, 0, W, H);
+      const mx = (mouse.current.x - W/2) / W;
+      const my = (mouse.current.y - H/2) / H;
+
+      const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, 210);
+      bg.addColorStop(0, "rgba(255,214,10,0.065)");
+      bg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+      // Extra ambient glow on hover proximity
+      const dist = Math.hypot(mouse.current.x - W/2, mouse.current.y - H/2);
+      const hoverAmt = Math.max(0, 1 - dist / 200);
+      if (hoverAmt > 0) {
+        const hg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, 160);
+        hg.addColorStop(0, `rgba(255,214,10,${0.06 * hoverAmt})`);
+        hg.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = hg; ctx.fillRect(0, 0, W, H);
+      }
+
+      // Particles (multi-color)
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.phase += 0.025;
+        if (p.x < 0 || p.x > W) p.vx *= -1;
+        if (p.y < 0 || p.y > H) p.vy *= -1;
+        const op = p.op * (0.55 + 0.45 * Math.sin(p.phase));
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.col; ctx.globalAlpha = op; ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      // Autonomous float offset (4-6px oscillation)
+      const floatY = Math.sin(t * 0.012) * 5;
+      const floatX = Math.cos(t * 0.009) * 2;
+      const cx = W/2 + mx * 18 + floatX;
+      const cy = H/2 + my * 18 + 28 + floatY;
+
+      // Rings
+      rings.forEach((ring, ri) => {
+        ctx.save(); ctx.translate(cx, cy);
+        ctx.rotate(ring.tilt * Math.PI / 180);
+        ctx.scale(1, ring.ry / ring.rx);
+        ctx.beginPath(); ctx.ellipse(0, 0, ring.rx, ring.rx, 0, 0, Math.PI * 2);
+        ctx.setLineDash([3, 7]);
+        ctx.globalAlpha = 0.13 + ri * 0.06;
+        ctx.strokeStyle = ring.col; ctx.lineWidth = 1; ctx.stroke();
+        ctx.setLineDash([]); ctx.restore();
+
+        for (let d = 0; d < ring.dots; d++) {
+          const angle = (d / ring.dots) * Math.PI * 2 + t * ring.spd;
+          const px = Math.cos(angle) * ring.rx;
+          const py = Math.sin(angle) * ring.ry;
+          const cosT = Math.cos(ring.tilt * Math.PI / 180);
+          const fx = cx + px, fy = cy + py * cosT;
+          const fz = py * Math.sin(ring.tilt * Math.PI / 180);
+          const sz = Math.max(0.5, 1.4 + fz / 90);
+          const op2 = 0.25 + 0.65 * ((fz + ring.rx) / (ring.rx * 2));
+          ctx.beginPath(); ctx.arc(fx, fy, sz, 0, Math.PI * 2);
+          ctx.globalAlpha = op2;
+          if (d === 0) { ctx.shadowColor = ring.col; ctx.shadowBlur = 7; }
+          ctx.fillStyle = ring.col; ctx.fill();
+          ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+        }
+      });
+
+      // Each satellite card gets independent gentle movement
+      const docs = [
+        { ox: 0,   oy: 0,  rotY: Math.sin(t*0.011)*0.5 - mx*0.3,  sc: 1,    alpha: 1 },
+        { ox: -105+Math.sin(t*0.009)*7+Math.sin(t*0.013)*3, oy: 28+Math.cos(t*0.011)*5, rotY: -0.38 - mx*0.15, sc: 0.68, alpha: 0.55+0.18*Math.sin(t*0.04+1) },
+        { ox:  112+Math.cos(t*0.008)*7+Math.cos(t*0.017)*3, oy: 24+Math.sin(t*0.013)*5, rotY:  0.42 - mx*0.15, sc: 0.68, alpha: 0.55+0.18*Math.sin(t*0.04+2) },
+        { ox: -52+Math.sin(t*0.007)*6+Math.sin(t*0.019)*4,  oy:-82+Math.cos(t*0.009)*5, rotY:  0.18 - mx*0.1, sc: 0.48, alpha: 0.42+0.18*Math.sin(t*0.04+3) },
+        { ox:  58+Math.cos(t*0.01)*6+Math.cos(t*0.021)*4,   oy:-78+Math.sin(t*0.008)*5, rotY: -0.28 - mx*0.1, sc: 0.48, alpha: 0.42+0.18*Math.sin(t*0.04+4) },
+      ];
+
+      // Connection lines + packets
+      docs.forEach((doc, i) => {
+        if (i === 0) return;
+        const ax = cx + doc.ox, ay = cy + doc.oy;
+        const pulse = (Math.sin(t * 0.06 + i * 1.4) + 1) / 2;
+        ctx.globalAlpha = 0.04 + pulse * 0.09;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ax, ay);
+        ctx.strokeStyle = T.gold; ctx.lineWidth = 0.8; ctx.stroke();
+
+        const progress = ((t * 0.01 + i * 0.22) % 1);
+        const px2 = cx + (ax - cx) * progress;
+        const py2 = cy + (ay - cy) * progress;
+        ctx.globalAlpha = 0.35 + pulse * 0.45;
+        ctx.beginPath(); ctx.arc(px2, py2, 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = T.gold; ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+
+      [...docs].reverse().forEach((doc, ri) => {
+        const i = docs.length - 1 - ri;
+        const glow = i === 0 ? 1 + hoverAmt * 0.4 : 0.48 + 0.22 * Math.sin(t * 0.035 + i);
+        drawDoc(cx + doc.ox, cy + doc.oy, doc.rotY, doc.sc, doc.alpha, glow);
+      });
+
+      if (uploading) {
+        const pr = 58 + Math.sin(t * 0.14) * 18;
+        ctx.globalAlpha = 0.28 + 0.28 * Math.sin(t * 0.14);
+        ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI * 2);
+        ctx.strokeStyle = T.gold; ctx.lineWidth = 2; ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      anim.current = requestAnimationFrame(tick);
+    };
+    anim.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(anim.current);
+  }, [uploading]);
+
+  const onMouseMove = useCallback(e => {
+    const rect = ref.current?.getBoundingClientRect(); if (!rect) return;
+    targetMouse.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }, []);
+
+  const onMouseLeave = useCallback(() => {
+    targetMouse.current = { x: 240, y: 240 };
   }, []);
 
   return (
-    <div style={{ animation: "fadeSlideUp 0.3s ease", marginTop: 16 }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10, marginBottom: 18,
-        padding: "12px 18px", borderRadius: 10,
-        background: "rgba(255,215,0,0.04)", border: "1px solid rgba(255,215,0,0.1)",
-      }}>
-        <div style={{ display: "flex", gap: 4 }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{
-              width: 7, height: 7, borderRadius: "50%", background: C.gold,
-              animation: `dotPulse 1.2s ${i * 0.2}s infinite ease-in-out`,
-            }} />
-          ))}
-        </div>
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: C.gold }}>
-          {steps[step]}
-        </span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {mode === "rag" ? (
-          <>
-            <div className="shimmer-line" style={{ height: 38, width: "55%", marginBottom: 4 }} />
-            {[90, 75, 85].map((w, i) => <div key={i} className="shimmer-line" style={{ height: 16, width: `${w}%` }} />)}
-            <div className="shimmer-line" style={{ height: 38, width: "45%", marginTop: 8, marginBottom: 4 }} />
-            {[80, 70, 88, 65].map((w, i) => <div key={i} className="shimmer-line" style={{ height: 16, width: `${w}%` }} />)}
-            <div className="shimmer-line" style={{ height: 38, width: "50%", marginTop: 8, marginBottom: 4 }} />
-            {[78, 60].map((w, i) => <div key={i} className="shimmer-line" style={{ height: 16, width: `${w}%` }} />)}
-          </>
-        ) : (
-          [1, 2, 3].map(i => (
-            <div key={i} style={{ border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 18 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                <div className="shimmer-line" style={{ height: 20, width: 100 }} />
-                <div className="shimmer-line" style={{ height: 20, width: 60 }} />
-              </div>
-              {[90, 80, 70].map((w, j) => <div key={j} className="shimmer-line" style={{ height: 15, width: `${w}%`, marginBottom: 7 }} />)}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
+    <canvas ref={ref} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave}
+      style={{ maxWidth: "100%", height: "auto", cursor: "crosshair", display: "block", marginTop: -50 }} />
   );
 }
 
-// ─── RAG Answer Renderer ──────────────────────────────────────
-const SECTION_ICONS = ["📋", "🔑", "📊", "⚠️", "💡", "📌", "🔍", "✅"];
-
-function isSectionHeader(line) {
-  return SECTION_ICONS.some(icon => line.trim().startsWith(icon));
-}
-function isBullet(line) {
-  return line.trim().startsWith("•") || line.trim().startsWith("-") || /^\d+\./.test(line.trim());
-}
-
-function RagAnswer({ text, confidence, sources, getConfColor, onCopy }) {
-  const lines = text.split("\n");
-  const sections = [];
-  let current = null;
-
-  lines.forEach(line => {
-    if (!line.trim()) {
-      if (current) current.lines.push({ type: "blank", content: "" });
-      return;
-    }
-    if (isSectionHeader(line)) {
-      if (current) sections.push(current);
-      current = { header: line.trim(), lines: [] };
-    } else {
-      if (!current) current = { header: null, lines: [] };
-      if (isBullet(line)) {
-        current.lines.push({ type: "bullet", content: line.trim().replace(/^[-•]\s*/, "").replace(/^\d+\.\s*/, "") });
-      } else {
-        current.lines.push({ type: "text", content: line.trim() });
-      }
-    }
-  });
-  if (current) sections.push(current);
-
-  return (
-    <div style={{ animation: "fadeSlideUp 0.35s ease" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 22 }}>
-        {sections.map((sec, si) => (
-          <div key={si} style={{
-            borderRadius: 14,
-            background: sec.header ? "rgba(255,215,0,0.03)" : "transparent",
-            border: sec.header ? "1px solid rgba(255,215,0,0.1)" : "none",
-            overflow: "hidden",
-          }}>
-            {sec.header && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "13px 18px",
-                background: "rgba(255,215,0,0.06)",
-                borderBottom: "1px solid rgba(255,215,0,0.08)",
-              }}>
-                <span style={{ fontSize: 18 }}>{sec.header.match(/^(\S+)/)?.[1]}</span>
-                <span style={{
-                  fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 15,
-                  color: C.gold, letterSpacing: "0.01em",
-                }}>
-                  {sec.header.replace(/^(\S+)\s*/, "")}
-                </span>
-              </div>
-            )}
-            <div style={{
-              padding: sec.header ? "14px 18px" : "0 2px",
-              display: "flex", flexDirection: "column", gap: 8,
-            }}>
-              {sec.lines.filter(l => l.type !== "blank").map((line, li) => {
-                if (line.type === "bullet") return (
-                  <div key={li} style={{
-                    display: "flex", alignItems: "flex-start", gap: 12,
-                    padding: "11px 16px",
-                    background: "rgba(255,255,255,0.025)",
-                    borderRadius: 9,
-                    borderLeft: `3px solid rgba(255,215,0,0.3)`,
-                  }}>
-                    <span style={{ color: C.gold, fontSize: 16, lineHeight: "24px", flexShrink: 0 }}>›</span>
-                    <span style={{
-                      fontFamily: "'Inter',sans-serif",
-                      fontWeight: 400,
-                      fontSize: 16,
-                      color: "#dde6f0",
-                      lineHeight: 1.75,
-                    }}>{line.content}</span>
-                  </div>
-                );
-                return (
-                  <p key={li} style={{
-                    fontFamily: "'Inter',sans-serif",
-                    fontWeight: 400,
-                    fontSize: 16,
-                    color: "#cdd8e3",
-                    lineHeight: 1.82,
-                    letterSpacing: "0.01em",
-                  }}>{line.content}</p>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{
-        display: "flex", flexDirection: "column", gap: 14,
-        borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 16,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: C.textSecondary }}>Relevance:</span>
-          <div style={{ width: 110, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-            <div style={{ width: `${confidence}%`, height: "100%", background: getConfColor(confidence), borderRadius: 3, transition: "width 0.6s ease" }} />
-          </div>
-          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: getConfColor(confidence), fontWeight: 700 }}>
-            {Math.round(confidence)}%
-          </span>
-          <button onClick={onCopy}
-            style={{ marginLeft: "auto", padding: "6px 16px", borderRadius: 15, border: "1px solid " + C.white10, background: "transparent", color: C.textSecondary, cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>
-            📋 Copy
-          </button>
-        </div>
-
-        {sources.length > 0 && (
-          <div style={{
-            background: "rgba(0,0,0,0.2)", borderRadius: 12,
-            border: "1px solid rgba(255,215,0,0.08)", padding: "14px 16px",
-          }}>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: C.gold, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
-              📚 Source Chunks · {sources.length} found
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {sources.map((s, i) => (
-                <div key={i} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "8px 12px", borderRadius: 8,
-                  background: "rgba(255,255,255,0.025)",
-                }}>
-                  <span style={{
-                    background: "rgba(255,215,0,0.12)", padding: "2px 10px",
-                    borderRadius: 5, color: C.gold, fontWeight: 700,
-                    fontFamily: "'JetBrains Mono',monospace", fontSize: 11,
-                    minWidth: 28, textAlign: "center",
-                  }}>
-                    #{s.chunk_id !== undefined ? s.chunk_id : s.chunk_index}
-                  </span>
-                  <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#aab", flex: 1 }}>{s.pdf_name}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: getConfColor(s.relevance), fontWeight: 700 }}>
-                    {s.relevance}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+// ─── Typewriter ───────────────────────────────────────────────────────────────
+function useTypewriter(text, speed = 9) {
+  const [out, setOut] = useState("");
+  useEffect(() => {
+    setOut(""); if (!text) return;
+    let i = 0;
+    const id = setInterval(() => { i++; setOut(text.slice(0, i)); if (i >= text.length) clearInterval(id); }, speed);
+    return () => clearInterval(id);
+  }, [text, speed]);
+  return out;
 }
 
-// ─── HOW IT WORKS — Interactive RAG Visual ────────────────────
-const RAG_STEPS = [
+// ─── How It Works — interactive pipeline (FIXED) ──────────────────────────────
+const PIPELINE = [
   {
-    id: 0,
-    emoji: "📄",
-    icon: "upload_file",
-    title: "Upload & Chunk",
-    color: "#a855f7",
-    colorBg: "rgba(168,85,247,0.08)",
-    colorBorder: "rgba(168,85,247,0.25)",
-    tagline: "Your PDF becomes knowledge bites",
-    detail: "Your PDF is split into overlapping text chunks — think of it like cutting a book into index cards, each holding ~500 words. Overlap ensures no idea is cut mid-sentence.",
-    tech: "PyMuPDF · Recursive text splitter · 500-token chunks with 50-token overlap",
+    id: 0, col: T.purple, colBg: "rgba(168,85,247,0.07)", colBorder: "rgba(168,85,247,0.22)",
+    icon: "upload_file", label: "Upload & Chunk",
+    tagline: "PDF → index cards",
+    detail: "Your PDF is parsed page by page, then split into overlapping ~500-word chunks. Overlap keeps ideas whole — no concept gets cut mid-sentence.",
+    tech: "PyMuPDF · Recursive text splitter · 500-token chunks, 50-token overlap",
     visual: "chunks",
   },
   {
-    id: 1,
-    emoji: ".",
-    icon: "hub",
-    title: "Vector Embedding",
-    color: "#00ccff",
-    colorBg: "rgba(0,204,255,0.06)",
-    colorBorder: "rgba(0,204,255,0.25)",
-    tagline: "Meaning converted to numbers",
-    detail: "Each chunk is passed through a transformer model that converts the text into a high-dimensional vector — a unique fingerprint of its meaning. Similar ideas cluster together in this mathematical space.",
-    tech: "sentence-transformers · all-MiniLM-L6 · 384-dim vectors · cosine similarity",
+    id: 1, col: T.cyan, colBg: "rgba(0,212,255,0.06)", colBorder: "rgba(0,212,255,0.22)",
+    icon: "hub", label: "Vector Embedding",
+    tagline: "Meaning → numbers",
+    detail: "A transformer model converts each chunk into a 384-dimensional vector — a fingerprint of meaning. Similar ideas cluster nearby in this mathematical space.",
+    tech: "sentence-transformers · all-MiniLM-L6 · 384-dim vectors",
     visual: "vectors",
   },
   {
-    id: 2,
-    emoji: "🔍",
-    icon: "travel_explore",
-    title: "Semantic Retrieval",
-    color: C.gold,
-    colorBg: "rgba(255,215,0,0.06)",
-    colorBorder: "rgba(255,215,0,0.25)",
-    tagline: "Your question finds its closest cousins",
-    detail: "Your query is also embedded into a vector. We then find the top-K chunks whose vectors are closest in meaning — not just keyword matches. \"cardiac arrest\" matches \"heart stopped\" because the meaning is similar.",
-    tech: "FAISS index · top-5 retrieval · MMR deduplication · cross-encoder rerank",
+    id: 2, col: T.gold, colBg: "rgba(255,214,10,0.06)", colBorder: "rgba(255,214,10,0.22)",
+    icon: "travel_explore", label: "Semantic Retrieval",
+    tagline: "Query finds its cousins",
+    detail: "Your question is embedded the same way, then we find the top-K chunks closest in meaning — not just keywords. 'heart stopped' matches 'cardiac arrest'.",
+    tech: "FAISS index · top-5 retrieval · cosine similarity · cross-encoder rerank",
     visual: "retrieval",
   },
   {
-    id: 3,
-    emoji: "✨",
-    icon: "auto_awesome",
-    title: "LLM Synthesis",
-    color: C.green,
-    colorBg: "rgba(0,255,15,0.05)",
-    colorBorder: "rgba(0,255,15,0.2)",
-    tagline: "AI reads only your docs, answers only from them",
-    detail: "The retrieved chunks are stuffed into the LLM's prompt as context. The LLM is strictly instructed: answer ONLY from the provided chunks. No hallucinations, no internet — just your document.",
-    tech: "Claude / GPT-4o · system-prompt grounding · source citation · confidence scoring",
+    id: 3, col: T.green, colBg: "rgba(0,255,106,0.05)", colBorder: "rgba(0,255,106,0.18)",
+    icon: "auto_awesome", label: "LLM Synthesis",
+    tagline: "Grounded, cited answer",
+    detail: "Retrieved chunks are passed to the LLM as the only context. It answers strictly from your document — no web, no hallucination, with chunk citations.",
+    tech: "Claude API · system-prompt grounding · source citation · confidence score",
     visual: "synthesis",
   },
 ];
 
-function ChunksVisual({ active }) {
-  const chunks = [
-    "The mitochondria is the powerhouse...",
-    "ATP synthesis occurs via oxidative...",
-    "Electron transport chain accepts...",
-    "NADH donates electrons to Complex I...",
-    "The proton gradient drives ATP...",
-  ];
+function ChunksViz() {
+  const rows = ["The mitochondria is the powerhouse…","ATP synthesis occurs via oxidative…","Electron transport chain accepts…","NADH donates electrons to Complex I…","Proton gradient drives ATP synthase…"];
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 7, width: "100%" }}>
-      {chunks.map((c, i) => (
+    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+      {rows.map((r, i) => (
         <div key={i} style={{
-          background: active ? "rgba(168,85,247,0.12)" : "rgba(255,255,255,0.03)",
-          border: `1px solid ${active ? "rgba(168,85,247,0.3)" : "rgba(255,255,255,0.06)"}`,
-          borderRadius: 8, padding: "8px 12px",
-          display: "flex", alignItems: "center", gap: 10,
-          transition: "all 0.3s ease",
-          animation: active ? `floatUp 0.4s ${i * 0.08}s both ease` : "none",
+          background: "rgba(168,85,247,0.1)",
+          border: "1px solid rgba(168,85,247,0.28)",
+          borderRadius: 8, padding: "7px 11px", display:"flex", gap:10, alignItems:"center",
+          animation: `floatUp 0.35s ${i*0.07}s both ease`,
         }}>
-          <span style={{
-            fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#a855f7",
-            background: "rgba(168,85,247,0.15)", padding: "1px 7px", borderRadius: 5, flexShrink: 0,
-          }}>#{i + 1}</span>
-          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "#8899aa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c}</span>
+          <span style={{ fontFamily:T.mono, fontSize:10, color:T.purple, background:"rgba(168,85,247,0.14)", padding:"1px 7px", borderRadius:4, flexShrink:0 }}>#{i+1}</span>
+          <span style={{ fontFamily:T.mono, fontSize:11, color:T.textDim, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r}</span>
         </div>
       ))}
     </div>
   );
 }
 
-function VectorsVisual({ active }) {
+function VectorsViz() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 80); return () => clearTimeout(t); }, []);
   const vecs = [
-    { label: "Chunk #1", vec: [0.82, 0.34, 0.61], color: "#a855f7" },
-    { label: "Chunk #2", vec: [0.71, 0.55, 0.43], color: "#00ccff" },
-    { label: "Chunk #3", vec: [0.23, 0.88, 0.51], color: C.gold },
-    { label: "Chunk #4", vec: [0.65, 0.41, 0.77], color: C.green },
+    { label:"Chunk #1", vals:[0.82,0.34,0.61], col:T.purple },
+    { label:"Chunk #2", vals:[0.71,0.55,0.43], col:T.cyan },
+    { label:"Chunk #3", vals:[0.23,0.88,0.51], col:T.gold },
+    { label:"Chunk #4", vals:[0.65,0.41,0.77], col:T.green },
   ];
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+    <div style={{ display:"flex", flexDirection:"column", gap:11 }}>
       {vecs.map((v, i) => (
-        <div key={i} style={{
-          animation: active ? `floatUp 0.4s ${i * 0.1}s both ease` : "none",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: v.color, minWidth: 60 }}>{v.label}</span>
-            <div style={{ display: "flex", gap: 4 }}>
-              {v.vec.map((val, j) => (
+        <div key={i} style={{ animation: `floatUp 0.35s ${i*0.09}s both` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+            <span style={{ fontFamily:T.mono, fontSize:10, color:v.col, minWidth:58 }}>{v.label}</span>
+            <div style={{ display:"flex", gap:3 }}>
+              {v.vals.map((val, j) => (
                 <div key={j} style={{
-                  height: 18, width: active ? `${val * 60}px` : "10px",
-                  background: v.color, borderRadius: 3, opacity: 0.7,
-                  transition: "width 0.7s cubic-bezier(0.34,1.56,0.64,1)",
-                  transitionDelay: `${j * 0.1 + i * 0.05}s`,
+                  height:14,
+                  width: mounted ? `${val*52}px` : "6px",
+                  background: v.col, borderRadius:3, opacity:0.75,
+                  transition: `width 0.7s cubic-bezier(0.34,1.56,0.64,1) ${j*0.08+i*0.04}s`,
                 }} />
               ))}
             </div>
-            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#556", marginLeft: 4 }}>
-              [{v.vec.map(x => x.toFixed(2)).join(", ")}, ...]
+            <span style={{ fontFamily:T.mono, fontSize:10, color:T.textDim }}>
+              [{v.vals.map(x=>x.toFixed(2)).join(", ")}, …]
             </span>
           </div>
         </div>
       ))}
-      <div style={{
-        fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#556",
-        textAlign: "center", marginTop: 4,
-      }}>↑ 384-dimensional vectors (simplified to 3D)</div>
+      <div style={{ fontFamily:T.mono, fontSize:10, color:T.textDim, textAlign:"center", marginTop:2 }}>
+        ↑ 384-dim vectors (shown as 3-dim)
+      </div>
     </div>
   );
 }
 
-function RetrievalVisual({ active }) {
+function RetrievalViz() {
   const items = [
-    { label: "Your query", text: "How does ATP synthesis work?", score: null, isQuery: true },
-    { label: "Chunk #5", text: "ATP synthesis occurs via oxidative...", score: 94, match: true },
-    { label: "Chunk #3", text: "Electron transport chain accepts...", score: 87, match: true },
-    { label: "Chunk #1", text: "The mitochondria is the powerhouse...", score: 72, match: true },
-    { label: "Chunk #7", text: "Cell membrane consists of lipids...", score: 18, match: false },
+    { label:"Your query", text:"How does ATP synthesis work?", score:null, q:true },
+    { label:"Chunk #5",   text:"ATP synthesis via oxidative phosphorylation…", score:94, hit:true },
+    { label:"Chunk #3",   text:"Electron transport chain accepts NADH…",       score:87, hit:true },
+    { label:"Chunk #1",   text:"Mitochondria is the powerhouse…",               score:72, hit:true },
+    { label:"Chunk #7",   text:"Cell membrane consists of lipid bilayer…",      score:19, hit:false },
   ];
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 7, width: "100%" }}>
+    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
       {items.map((item, i) => (
         <div key={i} style={{
-          background: item.isQuery ? "rgba(255,215,0,0.08)" : item.match ? "rgba(255,215,0,0.04)" : "rgba(255,255,255,0.02)",
-          border: `1px solid ${item.isQuery ? "rgba(255,215,0,0.4)" : item.match ? "rgba(255,215,0,0.15)" : "rgba(255,255,255,0.04)"}`,
-          borderRadius: 9, padding: "8px 12px",
-          display: "flex", alignItems: "center", gap: 10,
-          opacity: active ? 1 : 0.4,
-          transition: "all 0.4s ease",
-          animation: active ? `floatUp 0.35s ${i * 0.07}s both ease` : "none",
+          background: item.q ? "rgba(255,214,10,0.07)" : item.hit ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.01)",
+          border: `1px solid ${item.q ? "rgba(255,214,10,0.35)" : item.hit ? T.borderGold : T.border}`,
+          borderRadius:8, padding:"7px 11px", display:"flex", alignItems:"center", gap:9,
+          animation: `floatUp 0.3s ${i*0.07}s both`,
         }}>
-          <span style={{
-            fontFamily: "'JetBrains Mono',monospace", fontSize: 10,
-            color: item.isQuery ? C.gold : item.match ? "#aab" : "#445",
-            minWidth: 58, flexShrink: 0,
-          }}>{item.label}</span>
-          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: item.match ? "#ccd" : "#445", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {item.text}
-          </span>
+          <span style={{ fontFamily:T.mono, fontSize:10, color: item.q ? T.gold : item.hit ? T.textMid : T.textDim, minWidth:56, flexShrink:0 }}>{item.label}</span>
+          <span style={{ fontFamily:T.mono, fontSize:11, color: item.hit ? "#bcd" : T.textDim, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.text}</span>
           {item.score != null && (
-            <span style={{
-              fontFamily: "'JetBrains Mono',monospace", fontSize: 11, fontWeight: 700,
-              color: item.score > 70 ? C.green : "#445",
-              background: item.score > 70 ? "rgba(0,255,15,0.08)" : "rgba(255,255,255,0.03)",
-              padding: "2px 8px", borderRadius: 5,
-            }}>
-              {item.score}%
-            </span>
+            <span style={{ fontFamily:T.mono, fontSize:11, fontWeight:600, color: item.score>70 ? T.green : T.textDim, background: item.score>70 ? "rgba(0,255,106,0.08)" : "transparent", padding:"1px 7px", borderRadius:5 }}>{item.score}%</span>
           )}
-          {!item.match && item.score != null && <span style={{ fontSize: 14 }}>✗</span>}
-          {item.match && <span style={{ fontSize: 14 }}>✓</span>}
+          {item.hit !== undefined && <span style={{ fontSize:13 }}>{item.hit ? "✓" : "✗"}</span>}
         </div>
       ))}
     </div>
   );
 }
 
-function SynthesisVisual({ active }) {
+function SynthesisViz() {
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    if (!active) return;
-    const t = setInterval(() => setTick(v => v + 1), 350);
-    return () => clearInterval(t);
-  }, [active]);
-
-  const words = "Based on the retrieved chunks, ATP synthesis occurs through the electron transport chain, which creates a proton gradient across the inner mitochondrial membrane...".split(" ");
-  const shown = active ? Math.min(tick * 2, words.length) : 0;
-
+    const id = setInterval(() => setTick(v => v + 1), 300);
+    return () => clearInterval(id);
+  }, []);
+  const words = "Based on the retrieved chunks, ATP synthesis occurs through the electron transport chain, which creates a proton gradient across the inner mitochondrial membrane, driving ATP synthase…".split(" ");
+  const shown = Math.min(tick * 2, words.length);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
       <div style={{
-        display: "flex", gap: 6, flexWrap: "wrap", alignItems: "flex-start",
-        background: "rgba(0,255,15,0.03)", border: "1px solid rgba(0,255,15,0.1)",
-        borderRadius: 10, padding: "12px 14px", minHeight: 80,
+        background:"rgba(0,255,106,0.03)", border:"1px solid rgba(0,255,106,0.1)",
+        borderRadius:10, padding:"12px 14px", minHeight:76,
+        display:"flex", flexWrap:"wrap", gap:"0 5px", alignContent:"flex-start",
       }}>
         {words.slice(0, shown).map((w, i) => (
-          <span key={i} style={{
-            fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#c8e6c8", lineHeight: 1.6,
-            animation: "floatUp 0.2s ease both",
-          }}>{w}</span>
+          <span key={i} style={{ fontFamily:T.body, fontSize:12, color:"#b8e0c0", lineHeight:1.7, animation:"floatUp 0.15s ease both" }}>{w}</span>
         ))}
-        {shown < words.length && active && (
-          <span style={{ display: "inline-block", width: 2, height: 16, background: C.green, animation: "pulse 0.7s infinite", marginLeft: 1, verticalAlign: "middle" }} />
+        {shown < words.length && (
+          <span style={{ display:"inline-block", width:2, height:14, background:T.green, animation:"pulse 0.7s infinite", marginLeft:1, verticalAlign:"middle" }} />
         )}
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {["chunk #5", "chunk #3", "chunk #1"].map((s, i) => (
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {["chunk #5","chunk #3","chunk #1"].map((s, i) => (
           <span key={i} style={{
-            fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: C.gold,
-            background: "rgba(255,215,0,0.08)", border: "1px solid rgba(255,215,0,0.15)",
-            padding: "2px 10px", borderRadius: 10,
-            opacity: active ? 1 : 0,
-            transition: `opacity 0.4s ${i * 0.15}s ease`,
-          }}>
-            📌 cited: {s}
-          </span>
+            fontFamily:T.mono, fontSize:10, color:T.gold,
+            background:"rgba(255,214,10,0.07)", border:"1px solid rgba(255,214,10,0.15)",
+            padding:"2px 10px", borderRadius:10,
+            animation: `floatUp 0.4s ${i*0.14}s both`,
+          }}>cited: {s}</span>
         ))}
       </div>
     </div>
   );
 }
 
-function HowItWorksVisual() {
-  const [activeStep, setActiveStep] = useState(0);
-  const [autoPlay, setAutoPlay] = useState(false);
+// Map step visual to component — each mounts fresh when active changes
+const VIZ_MAP = { chunks: ChunksViz, vectors: VectorsViz, retrieval: RetrievalViz, synthesis: SynthesisViz };
+
+function HowItWorks() {
+  const [active, setActive] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [vizKey, setVizKey] = useState(0);
 
   useEffect(() => {
-    if (!autoPlay) return;
-    const t = setInterval(() => setActiveStep(s => (s + 1) % RAG_STEPS.length), 3500);
-    return () => clearInterval(t);
-  }, [autoPlay]);
+    if (!playing) return;
+    const id = setInterval(() => {
+      setActive(s => (s + 1) % PIPELINE.length);
+      setVizKey(k => k + 1);
+    }, 3400);
+    return () => clearInterval(id);
+  }, [playing]);
 
-  const step = RAG_STEPS[activeStep];
-
-  const VisualMap = {
-    chunks: ChunksVisual,
-    vectors: VectorsVisual,
-    retrieval: RetrievalVisual,
-    synthesis: SynthesisVisual,
+  const handleStepClick = (i) => {
+    setActive(i);
+    setVizKey(k => k + 1);
+    setPlaying(false);
   };
-  const VisualComp = VisualMap[step.visual];
+
+  const step = PIPELINE[active];
+  const Viz = VIZ_MAP[step.visual];
 
   return (
     <div style={{
-      background: "rgba(10,10,30,0.7)", backdropFilter: "blur(20px)",
-      border: "1px solid rgba(255,215,0,0.12)", borderRadius: 20,
-      padding: 28, marginBottom: 28,
+      background: T.surface, backdropFilter:"blur(20px)",
+      border: `1px solid ${T.borderGold}`, borderRadius:20,
+      padding:28, marginBottom:28,
     }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:22, gap:16 }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-            <span style={{ fontSize: 22 }}></span>
-            <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: "#fff" }}>
-              How PDF RAG Actually Works
-            </h3>
-          </div>
-          <p style={{ fontFamily: "'Inter',sans-serif", fontSize: 14, color: C.textSecondary }}>
-            Click each step to explore the pipeline — or hit Play to watch it run
-          </p>
+          <h3 style={{ fontFamily:T.display, fontWeight:800, fontSize:20, color:"#fff", marginBottom:5 }}>How PDF RAG works</h3>
+          <p style={{ fontFamily:T.mono, fontSize:12, color:T.textDim }}>Click each step — or hit Play to watch the pipeline run</p>
         </div>
-        <button
-          onClick={() => setAutoPlay(p => !p)}
-          style={{
-            padding: "8px 18px", borderRadius: 20,
-            background: autoPlay ? C.gold : "rgba(255,215,0,0.08)",
-            border: `1px solid ${autoPlay ? C.gold : "rgba(255,215,0,0.2)"}`,
-            color: autoPlay ? C.void : C.gold,
-            fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700,
-            cursor: "pointer", transition: "all 0.2s", flexShrink: 0,
-          }}>
-          {autoPlay ? "⏸ Pause" : "▶ Play"}
-        </button>
+        <button onClick={() => setPlaying(p => !p)} style={{
+          padding:"8px 18px", borderRadius:20,
+          background: playing ? T.gold : "rgba(255,214,10,0.08)",
+          border: `1px solid ${playing ? T.gold : T.borderGold}`,
+          color: playing ? "#04090f" : T.gold,
+          fontFamily:T.mono, fontSize:12, fontWeight:700,
+          cursor:"pointer", transition:"all 0.2s", flexShrink:0,
+        }}>{playing ? "⏸ Pause" : "▶ Play"}</button>
       </div>
 
-      {/* Step selector */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 24 }}>
-        {RAG_STEPS.map((s, i) => (
-          <div
-            key={s.id}
-            className="rag-step-card"
-            onClick={() => { setActiveStep(i); setAutoPlay(false); }}
-            style={{
-              background: activeStep === i ? s.colorBg : "rgba(255,255,255,0.02)",
-              border: `2px solid ${activeStep === i ? s.colorBorder : "rgba(255,255,255,0.06)"}`,
-              borderRadius: 14, padding: "14px 12px", textAlign: "center",
-              animation: activeStep === i ? "glowPulse 2s infinite" : "none",
-              boxShadow: activeStep === i ? `0 0 16px ${s.color}22` : "none",
-            }}
-          >
-            <div style={{ fontSize: 24, marginBottom: 6 }}>{s.emoji}</div>
-            <div style={{
-              fontFamily: "'JetBrains Mono',monospace", fontSize: 9,
-              color: "#556", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em",
-            }}>Step {i + 1}</div>
-            <div style={{
-              fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 13,
-              color: activeStep === i ? s.color : "#8899aa",
-            }}>{s.title}</div>
-
-            {/* Progress bar under active step */}
-            {activeStep === i && autoPlay && (
-              <div style={{ marginTop: 8, height: 2, borderRadius: 1, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", background: s.color, borderRadius: 1,
-                  animation: "shimmer 3.5s linear",
-                  width: "100%",
-                }} />
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:22 }}>
+        {PIPELINE.map((s, i) => (
+          <div key={s.id} className="rag-step" onClick={() => handleStepClick(i)} style={{
+            background: active===i ? s.colBg : "rgba(255,255,255,0.02)",
+            border: `2px solid ${active===i ? s.colBorder : T.border}`,
+            borderRadius:13, padding:"14px 12px", textAlign:"center", cursor:"pointer",
+            boxShadow: active===i ? `0 0 18px ${s.col}1a` : "none",
+          }}>
+            <Icon name={s.icon} size={22} color={active===i ? s.col : T.textDim} style={{ marginBottom:7, display:"block" }} />
+            <div style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, marginBottom:3, textTransform:"uppercase", letterSpacing:"0.05em" }}>Step {i+1}</div>
+            <div style={{ fontFamily:T.display, fontWeight:700, fontSize:12, color: active===i ? s.col : T.textMid, lineHeight:1.3 }}>{s.label}</div>
+            {active===i && playing && (
+              <div style={{ marginTop:8, height:2, borderRadius:1, background:"rgba(255,255,255,0.07)", overflow:"hidden" }}>
+                <div style={{ height:"100%", background:s.col, animation:"barFill 3.4s linear forwards" }} />
               </div>
             )}
           </div>
         ))}
       </div>
 
-      {/* Active step detail */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20,
-        background: step.colorBg,
-        border: `1px solid ${step.colorBorder}`,
-        borderRadius: 16, padding: "22px 24px",
-        animation: "slideInRight 0.3s ease",
-        minHeight: 260,
-      }} key={activeStep}>
-        {/* Left: explanation */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 28 }}>{step.emoji}</span>
-            <div>
-              <div style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 18, color: step.color }}>{step.title}</div>
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: step.color, opacity: 0.7 }}>{step.tagline}</div>
-            </div>
+      <div key={`${active}-${vizKey}`} style={{
+        display:"grid", gridTemplateColumns:"1fr 1fr", gap:20,
+        background: step.colBg, border:`1px solid ${step.colBorder}`,
+        borderRadius:16, padding:"22px 24px",
+        animation:"slideRight 0.3s ease",
+        minHeight:240,
+      }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div>
+            <div style={{ fontFamily:T.display, fontWeight:800, fontSize:17, color:step.col, marginBottom:4 }}>{step.label}</div>
+            <div style={{ fontFamily:T.mono, fontSize:11, color:step.col, opacity:0.65, marginBottom:12 }}>{step.tagline}</div>
+            <p style={{ fontFamily:T.body, fontSize:14, color:"#c2d4e4", lineHeight:1.8 }}>{step.detail}</p>
           </div>
-          <p style={{
-            fontFamily: "'Inter',sans-serif", fontSize: 15, color: "#c8d8e8",
-            lineHeight: 1.78, letterSpacing: "0.01em",
-          }}>{step.detail}</p>
-          <div style={{
-            background: "rgba(0,0,0,0.25)", borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.05)", padding: "10px 14px",
-          }}>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#556", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.1em" }}>Tech Stack</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: step.color, opacity: 0.85 }}>{step.tech}</div>
+          <div style={{ background:"rgba(0,0,0,0.22)", borderRadius:9, border:"1px solid rgba(255,255,255,0.05)", padding:"9px 13px" }}>
+            <div style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, marginBottom:4, textTransform:"uppercase", letterSpacing:"0.1em" }}>Tech</div>
+            <div style={{ fontFamily:T.mono, fontSize:11, color:step.col, opacity:0.8, lineHeight:1.6 }}>{step.tech}</div>
           </div>
         </div>
-
-        {/* Right: mini interactive visual */}
-        <div style={{
-          background: "rgba(0,0,0,0.2)", borderRadius: 12,
-          border: "1px solid rgba(255,255,255,0.05)", padding: 16,
-          display: "flex", flexDirection: "column",
-          overflow: "hidden",
-        }}>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: "#445", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>
-            Live Preview
-          </div>
-          <div style={{ flex: 1, overflow: "hidden" }}>
-            <VisualComp active={true} />
-          </div>
+        <div style={{ background:"rgba(0,0,0,0.18)", borderRadius:11, border:"1px solid rgba(255,255,255,0.05)", padding:"14px 16px", overflow:"hidden" }}>
+          <div style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:11 }}>Live preview</div>
+          <Viz key={vizKey} />
         </div>
       </div>
 
-      {/* Flow arrow connector */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 18 }}>
-        {RAG_STEPS.map((s, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginTop:18 }}>
+        {PIPELINE.map((s, i) => (
+          <div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}>
             <div style={{
-              width: 10, height: 10, borderRadius: "50%",
-              background: i <= activeStep ? s.color : "rgba(255,255,255,0.1)",
-              transition: "background 0.3s ease",
-              boxShadow: i === activeStep ? `0 0 8px ${s.color}` : "none",
+              width:9, height:9, borderRadius:"50%",
+              background: i<=active ? s.col : "rgba(255,255,255,0.1)",
+              boxShadow: i===active ? `0 0 8px ${s.col}` : "none",
+              transition:"background 0.3s",
             }} />
-            {i < RAG_STEPS.length - 1 && (
-              <div style={{
-                width: 40, height: 2, borderRadius: 1,
-                background: i < activeStep
-                  ? `linear-gradient(90deg, ${s.color}, ${RAG_STEPS[i + 1].color})`
-                  : "rgba(255,255,255,0.06)",
-                transition: "background 0.3s ease",
-              }} />
+            {i < PIPELINE.length-1 && (
+              <div style={{ width:36, height:2, borderRadius:1, background: i<active ? `linear-gradient(90deg,${s.col},${PIPELINE[i+1].col})` : "rgba(255,255,255,0.06)", transition:"background 0.3s" }} />
             )}
           </div>
         ))}
       </div>
-
-      {/* Fun tagline */}
-      <div style={{
-        marginTop: 18, textAlign: "center",
-        fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#445",
-        letterSpacing: "0.05em",
-      }}>
-        🎓 TL;DR — It's like a very fast, very smart intern who read all your documents and never forgets anything.
+      <div style={{ textAlign:"center", fontFamily:T.mono, fontSize:11, color:T.textDim, marginTop:14 }}>
+        A very fast intern that read all your documents and never forgets.
       </div>
     </div>
   );
 }
 
-// ─── Mode Info Banner ─────────────────────────────────────────
-function ModeBanner({ mode }) {
-  const config = {
-    rag: {
-      icon: "auto_awesome",
-      title: "Retrieval-Augmented Generation (RAG)",
-      color: C.gold,
-      colorBg: "rgba(255,215,0,0.05)",
-      colorBorder: "rgba(255,215,0,0.14)",
-      pills: [
-        { icon: "description", label: "Document-only context" },
-        { icon: "hub", label: "LLM-synthesised answer" },
-        { icon: "block", label: "No web scraping" },
-        { icon: "verified", label: "Cited sources" },
-      ],
-      description: "Fetches the most relevant passages directly from your uploaded PDFs, then passes them to an LLM to compose a clear, cited answer — nothing from the web, nothing hallucinated beyond your documents.",
-    },
-    search: {
-      icon: "travel_explore",
-      title: "Semantic Vector Search",
-      color: C.cyan,
-      colorBg: "rgba(0,204,255,0.04)",
-      colorBorder: "rgba(0,204,255,0.14)",
-      pills: [
-        { icon: "psychology", label: "Meaning-aware matching" },
-        { icon: "list_alt", label: "Raw chunk results" },
-        { icon: "speed", label: "No LLM overhead" },
-      ],
-      description: "Converts your query into a high-dimensional vector and finds the closest matching chunks in your document embeddings — by meaning, not keywords. Great for pinpointing exact passages fast.",
-    },
-  }[mode];
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+const NAV = [
+  { icon:"travel_explore",  label:"Research",        path:"/research" },
+  { icon:"forum",           label:"Debate Chamber",  path:"/debate" },
+  { icon:"account_tree",    label:"Knowledge Graph", path:"/graph" },
+  { icon:"search",          label:"Semantic Search", path:"/search" },
+  { icon:"database",        label:"Memory Bank",     path:"/memory" },
+  { icon:"picture_as_pdf",  label:"PDF Lab",         path:"/pdf-lab", active:true },
+  { icon:"analytics",       label:"Analytics",       path:"/analytics" },
+  { icon:"settings",        label:"Settings",        path:"/settings" },
+];
+
+function Sidebar({ user, onNavigate, onLogout, collapsed, setCollapsed }) {
+  const go = p => onNavigate ? onNavigate(p) : (window.location.href = p);
+  const logout = () => onLogout ? onLogout() : (localStorage.clear(), window.location.href = "/");
+
+  if (collapsed) return (
+    <aside style={{
+      position:"fixed", left:0, top:0, height:"100%", width:56,
+      background:"rgba(10,10,30,0.82)", backdropFilter:"blur(22px)",
+      borderRight:`1px solid ${T.border}`, zIndex:30,
+      display:"flex", flexDirection:"column", alignItems:"center", padding:"16px 0",
+    }}>
+      <button onClick={() => setCollapsed(false)} style={{ background:"none", border:"none", color:T.gold, cursor:"pointer", marginBottom:28, padding:8 }}>
+        <Icon name="chevron_right" size={20} />
+      </button>
+      {NAV.map(({ icon, label, path, active }) => (
+        <div key={label} onClick={() => go(path)} title={label} className="nav-item"
+          style={{ padding:"10px 0", cursor:"pointer", color: active ? T.gold : T.textMid, width:"100%", display:"flex", justifyContent:"center" }}>
+          <Icon name={icon} size={19} />
+        </div>
+      ))}
+      <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", alignItems:"center", gap:12, paddingBottom:8 }}>
+        <div onClick={() => go("/research")} style={{ width:32, height:32, borderRadius:"50%", background:T.gold, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+          <Icon name="add" size={15} color="#04090f" />
+        </div>
+        <div style={{ width:28, height:28, borderRadius:"50%", background:T.surfaceHi, border:`1px solid ${T.borderGold}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <Icon name="face" size={14} color={T.gold} />
+        </div>
+        <div onClick={logout} style={{ cursor:"pointer" }} title="Disconnect">
+          <Icon name="logout" size={14} color={T.crimson} />
+        </div>
+      </div>
+    </aside>
+  );
 
   return (
-    <div style={{
-      background: config.colorBg,
-      border: `1px solid ${config.colorBorder}`,
-      borderRadius: 16,
-      padding: "16px 20px",
-      marginBottom: 18,
-      display: "flex",
-      flexDirection: "column",
-      gap: 12,
+    <aside style={{
+      position:"fixed", left:0, top:0, height:"100%", width:300,
+      background:"rgba(10,10,30,0.82)", backdropFilter:"blur(24px)",
+      borderRight:`1px solid ${T.border}`, zIndex:30,
+      display:"flex", flexDirection:"column", padding:"24px 20px",
+      transition:"width 0.32s cubic-bezier(0.4,0,0.2,1)",
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Icon name={config.icon} style={{ fontSize: 20, color: config.color }} />
-        <span style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 15, color: config.color }}>
-          {config.title}
-        </span>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:36 }}>
+        <div>
+          <h1 style={{ fontFamily:T.display, fontSize:26, fontWeight:800, color:T.gold, letterSpacing:"-0.03em", lineHeight:1 }}>POLYNOUS</h1>
+          <p style={{ fontFamily:T.mono, fontSize:9, color:T.textDim, textTransform:"uppercase", letterSpacing:"0.2em", marginTop:4 }}>Cerebral Vitality Engine</p>
+        </div>
+        <button onClick={() => setCollapsed(true)} style={{ background:"none", border:"none", color:T.textDim, cursor:"pointer", padding:4 }}
+          onMouseEnter={e=>e.target.style.color="#fff"} onMouseLeave={e=>e.target.style.color=T.textDim}>
+          <Icon name="chevron_left" size={18} />
+        </button>
       </div>
-      <p style={{
-        fontFamily: "'Inter',sans-serif", fontSize: 15, color: "#8fa3b4",
-        lineHeight: 1.7, letterSpacing: "0.01em",
-      }}>
-        {config.description}
-      </p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-        {config.pills.map((pill, i) => (
-          <div key={i} style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "5px 12px", borderRadius: 20,
-            background: "rgba(255,255,255,0.04)",
-            border: `1px solid ${config.colorBorder}`,
-          }}>
-            <Icon name={pill.icon} style={{ fontSize: 13, color: config.color }} />
-            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#9ab" }}>
-              {pill.label}
-            </span>
+
+      <nav style={{ flex:1, display:"flex", flexDirection:"column", gap:2 }}>
+        {NAV.map(({ icon, label, path, active }) => (
+          <div key={label} onClick={() => go(path)} className="nav-item"
+            style={{
+              display:"flex", alignItems:"center", gap:11, padding:"10px 14px",
+              borderRadius:9999, cursor:"pointer",
+              color: active ? T.gold : T.textMid,
+              background: active ? "rgba(255,214,10,0.07)" : "transparent",
+              fontFamily:T.mono, fontSize:13, fontWeight: active ? 600 : 400,
+            }}>
+            <Icon name={icon} size={18} />
+            <span>{label}</span>
           </div>
         ))}
+      </nav>
+
+      <div style={{ borderTop:`1px solid ${T.border}`, paddingTop:20, marginTop:20 }}>
+        <button onClick={() => go("/research")} className="btn-primary"
+          style={{
+            width:"100%", padding:"11px", background:T.gold, color:"#04090f",
+            fontWeight:700, borderRadius:9999, border:"none", cursor:"pointer",
+            fontFamily:T.display, fontSize:14,
+            display:"flex", alignItems:"center", justifyContent:"center", gap:7,
+          }}>
+          <Icon name="add" size={17} color="#04090f" />
+          New Research
+        </button>
+        <div style={{ marginTop:18, display:"flex", alignItems:"center", gap:11 }}>
+          <div style={{ width:38, height:38, borderRadius:"50%", background:T.surfaceHi, border:`1px solid ${T.borderGold}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+            <Icon name="face" size={20} color={T.gold} />
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ fontFamily:T.mono, fontSize:13, fontWeight:700, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user?.username || "Guest"}</p>
+            <button onClick={logout} style={{ fontSize:11, color:T.crimson, background:"none", border:"none", cursor:"pointer", fontFamily:T.mono, padding:0 }}>Disconnect</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ─── API layer ────────────────────────────────────────────────────────────────
+const BASE = "http://localhost:8000";
+const apiFetch = async (path, opts = {}) => {
+  const r = await fetch(BASE + path, opts);
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+};
+const apiUpload = file => { const f = new FormData(); f.append("file", file); return apiFetch("/pdfs/upload", { method:"POST", body:f }); };
+const apiProgress = name => apiFetch(`/pdfs/progress?filename=${encodeURIComponent(name)}`);
+const apiList = () => apiFetch("/pdfs/list");
+const apiAsk = (query, pdf) => apiFetch(`/pdfs/ask?query=${encodeURIComponent(query)}${pdf?`&pdf_name=${encodeURIComponent(pdf)}`:""}`, { method:"POST" });
+const apiSearch = (query, pdf) => apiFetch(`/pdfs/search?query=${encodeURIComponent(query)}&top_k=5${pdf?`&pdf_name=${encodeURIComponent(pdf)}`:""}`);
+
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+function LoadingDots({ label }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px", borderRadius:10, background:"rgba(255,214,10,0.04)", border:`1px solid ${T.borderGold}`, marginTop:14 }}>
+      <div style={{ display:"flex", gap:4 }}>
+        {[0,1,2].map(i => <div key={i} style={{ width:7, height:7, borderRadius:"50%", background:T.gold, animation:`dotPulse 1.2s ${i*0.2}s infinite` }} />)}
+      </div>
+      <span style={{ fontFamily:T.mono, fontSize:12, color:T.gold }}>{label}</span>
+    </div>
+  );
+}
+
+function SkeletonLines({ n = 4 }) {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:9, marginTop:14 }}>
+      {Array.from({ length:n }, (_, i) => (
+        <div key={i} className="shimmer-line" style={{ height:15, width:`${[88,72,80,65][i%4]}%` }} />
+      ))}
+    </div>
+  );
+}
+
+// ─── RAG answer ───────────────────────────────────────────────────────────────
+function RagAnswer({ text, confidence, sources, onCopy }) {
+  const displayed = useTypewriter(text, 7);
+  const confCol = confidence >= 80 ? T.green : confidence >= 55 ? T.gold : T.crimson;
+
+  return (
+    <div style={{ animation:"fadeUp 0.35s ease", marginTop:20 }}>
+      <div style={{ background:"rgba(255,214,10,0.04)", border:`1px solid ${T.borderGold}`, borderRadius:14, padding:"18px 20px", marginBottom:16 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:13 }}>
+          <div style={{ width:7, height:7, borderRadius:"50%", background:T.gold, boxShadow:`0 0 8px ${T.gold}`, animation:"pulse 2s infinite" }} />
+          <span style={{ fontFamily:T.mono, fontSize:10, color:T.gold, fontWeight:600, letterSpacing:"0.1em", textTransform:"uppercase" }}>AI Response</span>
+        </div>
+        <p style={{ fontFamily:T.body, fontSize:15, color:"#d4e0ec", lineHeight:1.82, whiteSpace:"pre-wrap" }}>{displayed}</p>
+      </div>
+
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+        <span style={{ fontFamily:T.mono, fontSize:11, color:T.textDim }}>Relevance</span>
+        <div style={{ width:100, height:5, borderRadius:3, background:"rgba(255,255,255,0.06)", overflow:"hidden" }}>
+          <div style={{ width:`${confidence}%`, height:"100%", background:confCol, borderRadius:3, transition:"width 0.6s ease" }} />
+        </div>
+        <span style={{ fontFamily:T.mono, fontSize:11, color:confCol, fontWeight:700 }}>{Math.round(confidence)}%</span>
+        <button onClick={onCopy} className="btn-ghost" style={{
+          marginLeft:"auto", padding:"5px 14px", borderRadius:20, border:`1px solid ${T.border}`,
+          background:"transparent", color:T.textMid, fontFamily:T.mono, fontSize:11,
+        }}>📋 Copy</button>
+      </div>
+
+      {sources?.length > 0 && (
+        <div style={{ background:"rgba(0,0,0,0.18)", borderRadius:12, border:`1px solid ${T.border}`, padding:"13px 15px" }}>
+          <div style={{ fontFamily:T.mono, fontSize:10, color:T.gold, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:9 }}>
+            Source chunks · {sources.length}
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {sources.map((s, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 11px", borderRadius:8, background:"rgba(255,255,255,0.025)" }}>
+                <span style={{ fontFamily:T.mono, fontSize:10, color:T.gold, background:"rgba(255,214,10,0.1)", padding:"1px 9px", borderRadius:5, flexShrink:0 }}>
+                  #{s.chunk_id !== undefined ? s.chunk_id : s.chunk_index ?? i+1}
+                </span>
+                <span style={{ fontFamily:T.body, fontSize:12, color:T.textMid, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.pdf_name}</span>
+                <span style={{ fontFamily:T.mono, fontSize:11, fontWeight:700, color: s.relevance >= 70 ? T.green : T.textDim }}>{s.relevance}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Mode banner ──────────────────────────────────────────────────────────────
+function ModeBanner({ mode }) {
+  const cfg = {
+    ask:   { col:T.gold, bg:"rgba(255,214,10,0.05)", border:T.borderGold, icon:"auto_awesome", title:"Retrieval-Augmented Generation", desc:"Finds the most relevant passages in your PDFs, then passes them to an LLM for a grounded, cited answer. Nothing from the web." },
+    search:{ col:T.cyan, bg:"rgba(0,212,255,0.05)", border:"rgba(0,212,255,0.2)", icon:"travel_explore", title:"Semantic Vector Search", desc:"Converts your query to a vector and finds the closest matching chunks by meaning — not just keywords. Fast, no LLM overhead." },
+  }[mode];
+  return (
+    <div style={{ background:cfg.bg, border:`1px solid ${cfg.border}`, borderRadius:13, padding:"14px 18px", marginBottom:18, display:"flex", gap:13, alignItems:"flex-start" }}>
+      <Icon name={cfg.icon} size={20} color={cfg.col} style={{ marginTop:2, flexShrink:0 }} />
+      <div>
+        <div style={{ fontFamily:T.display, fontWeight:700, fontSize:14, color:cfg.col, marginBottom:5 }}>{cfg.title}</div>
+        <div style={{ fontFamily:T.body, fontSize:13, color:T.textMid, lineHeight:1.7 }}>{cfg.desc}</div>
       </div>
     </div>
   );
 }
 
-// ─── MAIN PAGE ────────────────────────────────────────────────
-export default function PdfLabPage({ user, onNavigate, onLogout }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function Toast({ msg, onClose }) {
+  useEffect(() => { if (msg) { const id = setTimeout(onClose, 3600); return () => clearTimeout(id); } }, [msg, onClose]);
+  if (!msg) return null;
+  return (
+    <div style={{
+      position:"fixed", bottom:28, right:28, zIndex:100,
+      background:T.surfaceHi, border:`1px solid ${T.borderGold}`, borderRadius:10,
+      padding:"11px 20px", color:T.gold, fontFamily:T.mono, fontSize:13, fontWeight:600,
+      backdropFilter:"blur(14px)", boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+      animation:"fadeUp 0.3s ease",
+    }}>{msg}</div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function PDFNeuralLab({ user, onNavigate, onLogout }) {
+  const [sbCollapsed, setSbCollapsed] = useState(false);
+  const [tab, setTab] = useState("ask");
+  const [drag, setDrag] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPct, setUploadPct] = useState(0);
   const [uploadMsg, setUploadMsg] = useState("");
-  const [uploadStage, setUploadStage] = useState("");
   const [pdfs, setPdfs] = useState([]);
   const [selectedPdf, setSelectedPdf] = useState(null);
-  const [activeTab, setActiveTab] = useState("ask");
-  const [dragging, setDragging] = useState(false);
 
   const [askQuery, setAskQuery] = useState("");
   const [askLoading, setAskLoading] = useState(false);
@@ -935,346 +860,432 @@ export default function PdfLabPage({ user, onNavigate, onLogout }) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [searchError, setSearchError] = useState("");
+  const [toast, setToast] = useState("");
 
   const fileRef = useRef(null);
+  const notify = msg => setToast(msg);
 
-  useEffect(() => { loadPdfs(); }, []);
+  useEffect(() => { fetchPdfs(); }, []);
 
-  const loadPdfs = async () => {
-    try {
-      const data = await apiListPDFs();
-      setPdfs(data.pdfs || []);
-    } catch (e) {}
+  const fetchPdfs = async () => {
+    try { const d = await apiList(); setPdfs(d.pdfs || []); } catch {}
   };
 
-  const triggerUpload = async (file) => {
-    if (!file || !file.name.endsWith(".pdf")) return;
-    setUploading(true); setUploadProgress(0);
-    setUploadMsg("Uploading…"); setUploadStage("extracting");
+  const triggerUpload = async file => {
+    if (!file?.name?.endsWith(".pdf")) { notify("⚠ Please upload a PDF file."); return; }
+    setUploading(true); setUploadPct(0); setUploadMsg("Uploading…");
     let poll;
     try {
-      const uploadPromise = apiUploadPDF(file);
+      const up = apiUpload(file);
       poll = setInterval(async () => {
         try {
-          const d = await apiCheckProgress(file.name);
-          const pct = Math.max(d.extraction || 0, d.embedding || 0, d.storing || 0);
-          setUploadProgress(pct); setUploadStage(d.status || "extracting");
-          if (d.status === "complete" || pct >= 100) {
-            setUploadProgress(100); setUploadStage("complete");
-            setUploadMsg("Processing complete!"); clearInterval(poll);
-          } else if (d.status === "error") { setUploadMsg("Processing failed!"); clearInterval(poll); }
-          else if (d.status === "extracting") setUploadMsg("Extracting text from PDF…");
-          else if (d.status === "chunking") setUploadMsg("Chunking document…");
-          else if (d.status === "embedding") setUploadMsg("Creating vector embeddings…");
-        } catch (e) {}
+          const d = await apiProgress(file.name);
+          const pct = Math.max(d.extraction||0, d.embedding||0, d.storing||0);
+          setUploadPct(pct);
+          if      (d.status === "extracting") setUploadMsg("Extracting text…");
+          else if (d.status === "chunking")   setUploadMsg("Chunking document…");
+          else if (d.status === "embedding")  setUploadMsg("Building embeddings…");
+          else if (d.status === "complete")   { setUploadPct(100); setUploadMsg("Done!"); clearInterval(poll); }
+          else if (d.status === "error")      { setUploadMsg("Processing failed."); clearInterval(poll); }
+        } catch {}
       }, 500);
-      const data = await uploadPromise;
+      const data = await up;
       clearInterval(poll);
-      setUploadProgress(100); setUploadStage("complete");
-      setUploadMsg(data.message || `✅ Indexed ${data.total_chunks ?? "?"} chunks!`);
-      await loadPdfs();
-    } catch (e) {
+      setUploadPct(100);
+      setUploadMsg(data.message || `✓ Indexed ${data.total_chunks ?? "?"} chunks`);
+      notify(`✓ "${file.name}" is ready`);
+      await fetchPdfs();
+    } catch {
       if (poll) clearInterval(poll);
       setUploadMsg("Upload failed — is the server running?");
+      notify("✗ Upload failed");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
 
-  const handleFileChange = (e) => { const f = e.target.files?.[0]; if (f) triggerUpload(f); };
-  const handleDrop = (e) => {
-    e.preventDefault(); setDragging(false);
-    const f = e.dataTransfer.files[0]; if (f) triggerUpload(f);
-  };
+  const onFileChange = e => { if (e.target.files[0]) triggerUpload(e.target.files[0]); };
+  const onDrop = e => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files[0]) triggerUpload(e.dataTransfer.files[0]); };
 
   const askPdf = async () => {
-    const query = askQuery.trim();
-    if (!query || askLoading) return;
+    const q = askQuery.trim(); if (!q || askLoading) return;
     setAskLoading(true); setAskAnswer(null); setAskQuery("");
-    setConversation(prev => [...prev, { role: "user", content: query }]);
+    setConversation(prev => [...prev, { role:"user", content:q }]);
     try {
-      const data = await apiAskPDF(query, selectedPdf);
-      const result = { text: data.answer || "No answer found.", sources: data.sources || [], confidence: data.confidence || 0 };
-      setAskAnswer(result);
-      setConversation(prev => [...prev, { role: "assistant", content: result.text, sources: result.sources, confidence: result.confidence }]);
-    } catch (e) {
-      setAskAnswer({ text: "Error querying PDF — is the server running?", sources: [], confidence: 0 });
+      const data = await apiAsk(q, selectedPdf);
+      const res = { text: data.answer || "No answer found.", sources: data.sources || [], confidence: data.confidence || 0 };
+      setAskAnswer(res);
+      setConversation(prev => [...prev, { role:"assistant", ...res }]);
+    } catch {
+      const res = { text:"Failed to get answer — is the server running?", sources:[], confidence:0 };
+      setAskAnswer(res);
     } finally { setAskLoading(false); }
   };
 
   const doSearch = async () => {
-    const query = searchQuery.trim();
-    if (!query || searchLoading) return;
+    const q = searchQuery.trim(); if (!q || searchLoading) return;
     setSearchLoading(true); setSearchResults([]); setSearchError("");
     try {
-      const data = await apiSearchPDFs(query, selectedPdf);
+      const data = await apiSearch(q, selectedPdf);
       const chunks = data.results || data.chunks || [];
       setSearchResults(chunks);
-      if (!chunks.length) setSearchError("No results found.");
-    } catch (e) { setSearchError("Search failed — is the server running?"); }
+      if (!chunks.length) setSearchError("No results found for that query.");
+    } catch { setSearchError("Search failed — is the server running?"); }
     finally { setSearchLoading(false); }
   };
 
-  const getConfColor = (v) => v >= 80 ? C.green : v >= 60 ? "#ffaa00" : C.crimson;
-  const stageThresholds = { extracting: 20, chunking: 50, embedding: 80, complete: 100 };
-  const stageDone = (s) => uploadProgress >= (stageThresholds[s] || 0);
+  const sidebarW = sbCollapsed ? 56 : 300;
+  const suggestions = ["Summarise this document","What are the key findings?","List main topics covered","Extract important dates and numbers"];
 
   return (
-    <div style={{ minHeight: "100vh", background: C.void, position: "relative", overflow: "auto" }}>
-      <Styles />
-      <NeuralCanvas />
-      <Sidebar onNavigate={onNavigate} user={user} onLogout={onLogout} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
+    <div style={{ minHeight:"100vh", background:T.void, position:"relative" }}>
+      <style>{GLOBAL_CSS}</style>
+      <NeuralBg />
+      <Sidebar user={user} onNavigate={onNavigate} onLogout={onLogout} collapsed={sbCollapsed} setCollapsed={setSbCollapsed} />
 
       <main style={{
-        marginLeft: sidebarCollapsed ? 56 : 320,
-        padding: "28px 36px", position: "relative", zIndex: 10,
-        transition: "margin-left 0.35s cubic-bezier(0.4,0,0.2,1)",
-        width: sidebarCollapsed ? "calc(100% - 56px)" : "calc(100% - 320px)",
-        boxSizing: "border-box",
+        marginLeft:sidebarW, padding:"28px 36px 80px",
+        position:"relative", zIndex:10,
+        transition:"margin-left 0.32s cubic-bezier(0.4,0,0.2,1)",
+        minHeight:"100vh",
       }}>
-        <div style={{ maxWidth: 1040, margin: "0 auto" }}>
+        <div style={{ maxWidth:1060, margin:"0 auto" }}>
 
-          {/* Header */}
-          <div style={{ textAlign: "center", marginBottom: 32, paddingTop: 10, animation: "fadeSlideUp 0.6s ease both" }}>
-            <h1 style={{
-              fontFamily: "'Sora',sans-serif",
-              fontSize: "clamp(2.2rem,5vw,3.2rem)",
-              fontWeight: 800,
-              color: C.gold,
-              margin: "0 0 12px",
-              letterSpacing: "-0.03em",
-              textShadow: "0 0 40px rgba(255,215,0,0.3)",
-            }}>
-               PDF Neural Lab
-            </h1>
-            <p style={{
-              fontFamily: "'JetBrains Mono',monospace",
-              fontSize: 14,
-              color: C.textSecondary,
-              textTransform: "uppercase",
-              letterSpacing: "3px",
-            }}>Upload · Embed · Query Your Documents</p>
-          </div>
+          {/* ── HERO ─────────────────────────────────────────── */}
+          <section style={{
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+            gap:32, flexWrap:"wrap", marginBottom:52, paddingTop:8,
+            animation:"fadeUp 0.5s ease",
+          }}>
+            {/* Left copy */}
+            <div style={{ flex:"1 1 360px", position:"relative" }}>
 
-          {/* ─── HOW IT WORKS VISUAL ─── */}
-          <HowItWorksVisual />
+              {/* Animated light streak behind headline */}
+              <div style={{
+                position:"absolute", top:"38%", left:"-8%", width:"116%", height:3,
+                background:"linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.55) 45%,rgba(255,214,10,0.35) 55%,transparent 100%)",
+                transform:"rotate(-7deg)",
+                pointerEvents:"none",
+                animation:"lightStreak 4s ease-in-out infinite",
+                animationDelay:"1.2s",
+              }} />
+              {/* Static decorative underline */}
+              <div style={{
+                position:"absolute", top:"44%", left:"-6%", width:"112%", height:1.5,
+                background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)",
+                transform:"rotate(-7deg)",
+                pointerEvents:"none",
+              }} />
 
-          {/* Upload Zone */}
-          <div
-            onDragOver={e => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
+              <h1 style={{
+                fontFamily:T.display, fontWeight:800,
+                // 5-8% smaller than original ~104px max
+                fontSize:"clamp(46px,6.9vw,96px)",
+                lineHeight:0.93, letterSpacing:"-0.03em",
+                transform:"skewX(-7deg)", position:"relative", zIndex:1,
+                display:"flex", flexDirection:"column", gap:4,
+              }}>
+                <span style={{ color:"#fff" }}>YOUR PDF.</span>
+                <span style={{
+                  color:T.gold,
+                  animation:"smGlow 3s ease-in-out infinite",
+                }}>SMARTER</span>
+                <span style={{ color:"#fff" }}>INSIGHTS.</span>
+              </h1>
+
+              {/* Subtitle — brighter, more readable */}
+              <p style={{
+                fontFamily:T.body, fontSize:15, color:"#c8d8e8",
+                lineHeight:1.78, maxWidth:390, marginTop:24,
+                borderLeft:`2px solid ${T.borderGold}`, paddingLeft:16,
+                opacity:0.92,
+              }}>
+                Upload your documents and let AI turn them into knowledge you can query, explore, and trust.
+              </p>
+
+              {/* CTA buttons */}
+              <div style={{ display:"flex", gap:12, marginTop:28, flexWrap:"wrap" }}>
+                {/* Primary */}
+                <button
+                  className="cta-primary"
+                  onClick={() => fileRef.current?.click()}
+                  style={{
+                    display:"flex", alignItems:"center", gap:8,
+                    padding:"12px 26px", borderRadius:9999, border:"none",
+                    background:T.gold, color:"#04090f",
+                    fontFamily:T.display, fontWeight:700, fontSize:14,
+                    cursor:"pointer",
+                    boxShadow:"0 4px 20px rgba(255,214,10,0.22)",
+                  }}
+                >
+                  <Icon name="upload_file" size={16} color="#04090f" />
+                  Upload PDF
+                </button>
+                {/* Secondary */}
+                <button
+                  className="cta-secondary"
+                  onClick={() => document.querySelector(".how-it-works-anchor")?.scrollIntoView({ behavior:"smooth" })}
+                  style={{
+                    display:"flex", alignItems:"center", gap:8,
+                    padding:"12px 26px", borderRadius:9999,
+                    border:"1px solid rgba(255,255,255,0.14)",
+                    background:"rgba(255,255,255,0.04)",
+                    backdropFilter:"blur(10px)",
+                    color:T.textMid,
+                    fontFamily:T.display, fontWeight:600, fontSize:14,
+                    cursor:"pointer",
+                  }}
+                >
+                  <Icon name="play_circle" size={16} color={T.textMid} />
+                  View Demo
+                </button>
+              </div>
+            </div>
+
+            {/* Right canvas — shifted up */}
+            <div style={{ flex:"1 1 340px", display:"flex", justifyContent:"center", position:"relative", marginTop:-50 }}>
+              <div style={{ position:"absolute", inset:0, background:"radial-gradient(circle at center,rgba(255,214,10,0.09) 0%,transparent 65%)", pointerEvents:"none" }} />
+              <DocCanvas3D uploading={uploading} />
+            </div>
+          </section>
+
+          {/* hidden anchor for "View Demo" scroll target */}
+          <div className="how-it-works-anchor" style={{ height:0 }} />
+
+          {/* ── HOW IT WORKS ─────────────────────────────────── */}
+          <HowItWorks />
+
+          {/* ── UPLOAD ZONE ──────────────────────────────────── */}
+          <section
+            onDragOver={e => { e.preventDefault(); setDrag(true); }}
+            onDragLeave={() => setDrag(false)}
+            onDrop={onDrop}
             onClick={() => !uploading && fileRef.current?.click()}
             style={{
-              background: dragging ? "rgba(255,215,0,0.08)" : "rgba(10,10,30,0.6)",
-              backdropFilter: "blur(20px)",
-              border: `2px dashed ${dragging ? C.gold : "rgba(255,215,0,0.3)"}`,
-              borderRadius: 18, padding: 48, textAlign: "center",
-              cursor: uploading ? "default" : "pointer", marginBottom: 26,
-              animation: dragging || uploading ? "none" : "borderPulse 2s infinite ease-in-out",
-              transition: "all 0.3s",
+              border:`2px dashed ${drag ? T.gold : T.borderGold}`,
+              borderRadius:20, padding:"52px 28px",
+              background: drag ? "rgba(255,214,10,0.04)" : T.surface,
+              backdropFilter:"blur(14px)", textAlign:"center",
+              cursor: uploading ? "default" : "pointer",
+              transform: drag ? "scale(1.012)" : "scale(1)",
+              transition:"all 0.22s", marginBottom:26,
+              animation:"borderGlow 3s infinite ease-in-out",
             }}
           >
-            <input type="file" accept=".pdf" ref={fileRef} onChange={handleFileChange} style={{ display: "none" }} />
-            <div className={uploading ? "" : "animate-bounce"} style={{ width: 84, height: 84, borderRadius: "50%", background: "rgba(255,215,0,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 22px" }}>
-              <Icon name={uploading ? "hourglass_top" : "upload_file"} style={{ fontSize: 42, color: C.gold }} />
+            <input ref={fileRef} type="file" accept=".pdf" style={{ display:"none" }} onChange={onFileChange} />
+            <div style={{ width:76, height:76, borderRadius:"50%", background:"rgba(255,214,10,0.12)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
+              <Icon name={uploading ? "hourglass_top" : "upload_file"} size={38} color={T.gold} />
             </div>
-            <h3 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 700, fontSize: 20, color: C.gold, marginBottom: 10 }}>
-              {uploading ? "Processing Document…" : "Drop PDF Here or Click to Browse"}
-            </h3>
-            <p style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, color: C.textSecondary }}>
+            <h2 style={{ fontFamily:T.display, fontWeight:800, fontSize:18, color:"#fff", marginBottom:8, letterSpacing:"0.01em" }}>
+              {uploading ? "Processing document…" : "Drop your PDF here or click to browse"}
+            </h2>
+            <p style={{ fontFamily:T.body, fontSize:14, color:T.textMid, marginBottom:24 }}>
               Upload research papers, reports, or any PDF document
             </p>
-            {uploading && (
-              <div style={{ marginTop: 22, width: "100%", maxWidth: 420, margin: "22px auto 0" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7, fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: C.textSecondary }}>
-                  <span>{uploadMsg}</span><span>{Math.round(uploadProgress)}%</span>
+
+            {uploading ? (
+              <div style={{ maxWidth:420, margin:"0 auto" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:7, fontFamily:T.mono, fontSize:12, color:T.textMid }}>
+                  <span>{uploadMsg}</span><span>{Math.round(uploadPct)}%</span>
                 </div>
-                <div style={{ height: 7, borderRadius: 4, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                  <div style={{ width: `${uploadProgress}%`, height: "100%", background: `linear-gradient(90deg, ${C.gold}, ${C.green})`, borderRadius: 4, transition: "width 0.5s ease" }} />
+                <div style={{ height:6, borderRadius:3, background:"rgba(255,255,255,0.07)", overflow:"hidden" }}>
+                  <div style={{ width:`${uploadPct}%`, height:"100%", background:`linear-gradient(90deg,${T.gold},${T.green})`, borderRadius:3, transition:"width 0.4s ease" }} />
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>
-                  {[["extracting", "📖 Extract"], ["chunking", "✂️ Chunk"], ["embedding", ". Embed"], ["complete", "✅ Done"]].map(([stage, label]) => (
-                    <span key={stage} style={{ color: stageDone(stage) ? C.green : C.textSecondary, transition: "color 0.3s" }}>{label}</span>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontFamily:T.mono, fontSize:11 }}>
+                  {[["extracting","Extract"],["chunking","Chunk"],["embedding","Embed"],["complete","Done"]].map(([stage, label]) => (
+                    <span key={stage} style={{ color: uploadPct >= {extracting:20,chunking:50,embedding:80,complete:100}[stage] ? T.green : T.textDim, transition:"color 0.3s" }}>{label}</span>
                   ))}
                 </div>
               </div>
-            )}
-            {!uploading && uploadMsg && (
-              <div style={{ marginTop: 18, padding: "11px 22px", borderRadius: 12, background: "rgba(255,215,0,0.08)", border: "1px solid rgba(255,215,0,0.2)", color: C.gold, fontFamily: "'JetBrains Mono',monospace", fontSize: 14, display: "inline-block" }}>
+            ) : uploadMsg ? (
+              <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"9px 20px", borderRadius:20, background:"rgba(255,214,10,0.07)", border:`1px solid ${T.borderGold}`, color:T.gold, fontFamily:T.mono, fontSize:13 }}>
                 {uploadMsg}
               </div>
-            )}
-          </div>
-
-          {/* PDF Library */}
-          {pdfs.length > 0 && (
-            <div style={{ marginBottom: 26 }}>
-              <h3 style={{ fontFamily: "'Sora',sans-serif", fontSize: 18, fontWeight: 700, color: "#fff", marginBottom: 16 }}>📚 Your Knowledge Library</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14 }}>
-                {pdfs.map((pdf, i) => (
-                  <div key={i} onClick={() => setSelectedPdf(selectedPdf === pdf.pdf_name ? null : pdf.pdf_name)}
-                    style={{
-                      background: selectedPdf === pdf.pdf_name ? "rgba(255,215,0,0.08)" : "rgba(10,10,30,0.6)",
-                      backdropFilter: "blur(20px)",
-                      border: selectedPdf === pdf.pdf_name ? "1px solid rgba(255,215,0,0.4)" : "1px solid " + C.white10,
-                      borderRadius: 14, padding: 18, cursor: "pointer", transition: "all 0.2s",
-                    }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
-                      <Icon name="picture_as_pdf" style={{ color: C.gold, fontSize: 26 }} />
-                      <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: C.green, background: "rgba(0,255,15,0.1)", padding: "2px 9px", borderRadius: 10 }}>Ready</span>
-                    </div>
-                    <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 14, color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 5 }}>{pdf.pdf_name}</div>
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: C.textSecondary }}>{pdf.total_chunks ?? "?"} chunks</div>
+            ) : (
+              <div style={{ display:"flex", justifyContent:"center", gap:24, flexWrap:"wrap" }}>
+                {[["lock","Secure & private"],["description","Any PDF"],["bolt","Fast processing"]].map(([icon, label]) => (
+                  <div key={icon} style={{ display:"flex", alignItems:"center", gap:7, color:T.textDim, fontFamily:T.mono, fontSize:12 }}>
+                    <Icon name={icon} size={14} color={T.textDim} /> {label}
                   </div>
                 ))}
               </div>
+            )}
+          </section>
+
+          {/* ── LIBRARY ──────────────────────────────────────── */}
+          {pdfs.length > 0 && (
+            <section style={{ marginBottom:26 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                <h3 style={{ fontFamily:T.display, fontWeight:700, fontSize:16, color:"#fff" }}>Knowledge Library</h3>
+                <span style={{ fontFamily:T.mono, fontSize:12, color:T.textDim }}>{pdfs.length} doc{pdfs.length!==1?"s":""}</span>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:12 }}>
+                {pdfs.map((pdf, i) => {
+                  const sel = selectedPdf === pdf.pdf_name;
+                  return (
+                    <div key={i} className="doc-card" onClick={() => setSelectedPdf(sel ? null : pdf.pdf_name)} style={{
+                      background: sel ? "rgba(255,214,10,0.06)" : T.surface,
+                      backdropFilter:"blur(14px)",
+                      border: `1px solid ${sel ? "rgba(255,214,10,0.35)" : T.border}`,
+                      borderRadius:13, padding:"16px", cursor:"pointer",
+                    }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:9 }}>
+                        <Icon name="picture_as_pdf" size={24} color={T.gold} />
+                        <span style={{ fontFamily:T.mono, fontSize:10, color:T.green, background:"rgba(0,255,106,0.1)", padding:"2px 9px", borderRadius:9 }}>Ready</span>
+                      </div>
+                      <div style={{ fontFamily:T.body, fontSize:13, color:"#d0dce8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:4 }}>{pdf.pdf_name}</div>
+                      <div style={{ fontFamily:T.mono, fontSize:11, color:T.textDim }}>{pdf.total_chunks ?? "?"} chunks</div>
+                    </div>
+                  );
+                })}
+              </div>
               {selectedPdf && (
-                <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: C.gold, marginTop: 10 }}>
-                  📌 Scoped to: {selectedPdf} — queries will search this PDF only
-                </p>
+                <p style={{ fontFamily:T.mono, fontSize:12, color:T.gold, marginTop:10 }}>Scoped to: {selectedPdf}</p>
               )}
-            </div>
+            </section>
           )}
 
-          {/* Mode Tabs */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-            {[["ask", "🔍 Ask (RAG)"], ["search", "🧲 Semantic Search"]].map(([tab, label]) => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                style={{
-                  padding: "10px 24px", borderRadius: 9999,
-                  border: activeTab === tab ? "none" : "1px solid " + C.white10,
-                  background: activeTab === tab ? C.gold : "rgba(255,255,255,0.04)",
-                  color: activeTab === tab ? C.void : C.textSecondary,
-                  fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: activeTab === tab ? 700 : 400,
-                  cursor: "pointer", transition: "all 0.2s",
-                }}>
+          {/* ── QUERY TABS ────────────────────────────────────── */}
+          <div style={{ display:"flex", gap:6, marginBottom:18 }}>
+            {[["ask","auto_awesome","Ask (RAG)"],["search","travel_explore","Semantic Search"]].map(([t, icon, label]) => (
+              <button key={t} onClick={() => setTab(t)} style={{
+                display:"flex", alignItems:"center", gap:7, padding:"9px 20px",
+                borderRadius:9999, border:`1px solid ${tab===t ? T.gold : T.border}`,
+                background: tab===t ? T.gold : "rgba(255,255,255,0.03)",
+                color: tab===t ? "#04090f" : T.textMid,
+                fontFamily:T.mono, fontSize:13, fontWeight: tab===t ? 700 : 400,
+                cursor:"pointer", transition:"all 0.2s",
+              }}>
+                <Icon name={icon} size={15} color={tab===t ? "#04090f" : T.textMid} />
                 {label}
               </button>
             ))}
           </div>
 
-          {/* ── ASK TAB ── */}
-          {activeTab === "ask" && (
-            <>
-              <ModeBanner mode="rag" />
-              <div style={{ background: "rgba(10,10,30,0.6)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,215,0,0.15)", borderRadius: 18, padding: 26, marginBottom: 26 }}>
-                <h3 style={{ fontFamily: "'Sora',sans-serif", fontSize: 18, fontWeight: 700, color: C.gold, marginBottom: 18 }}>🔍 Ask Your PDFs</h3>
-                <div style={{ display: "flex", gap: 10, marginBottom: askAnswer || askLoading ? 22 : 0 }}>
+          {/* ── ASK TAB ───────────────────────────────────────── */}
+          {tab === "ask" && (
+            <div style={{ display:"flex", flexDirection:"column", gap:22, paddingBottom:60 }}>
+              <ModeBanner mode="ask" />
+              <div style={{ background:T.surface, backdropFilter:"blur(16px)", border:`1px solid ${T.borderGold}`, borderRadius:16, padding:24 }}>
+                <div style={{ display:"flex", gap:10 }}>
                   <input
-                    type="text" value={askQuery} onChange={e => setAskQuery(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && askPdf()}
-                    placeholder="Ask a question about your documents…"
-                    style={{ flex: 1, padding: "15px 22px", borderRadius: 30, border: "1px solid rgba(255,215,0,0.2)", background: "rgba(255,255,255,0.04)", color: "#fff", fontFamily: "'Inter',sans-serif", fontSize: 16, outline: "none" }}
+                    value={askQuery} onChange={e => setAskQuery(e.target.value)}
+                    onKeyDown={e => e.key==="Enter" && !e.shiftKey && askPdf()}
+                    placeholder="Ask anything about your documents…"
+                    style={{
+                      flex:1, padding:"14px 20px", borderRadius:30,
+                      border:`1px solid ${askLoading ? T.borderGold : T.border}`,
+                      background:"rgba(10,10,30,0.8)", color:"#fff",
+                      fontSize:15, transition:"border-color 0.2s",
+                    }}
                   />
-                  <button onClick={askPdf} disabled={askLoading || !askQuery.trim()}
-                    style={{ padding: "15px 30px", borderRadius: 30, border: "none", background: askLoading ? "#333" : `linear-gradient(135deg, ${C.gold}, #ca8a04)`, color: C.void, fontWeight: 700, cursor: askLoading || !askQuery.trim() ? "not-allowed" : "pointer", fontFamily: "'Sora',sans-serif", fontSize: 15, transition: "all 0.2s", whiteSpace: "nowrap" }}>
-                    {askLoading ? "…" : "Ask →"}
+                  <button onClick={askPdf} disabled={askLoading || !askQuery.trim()} className="btn-primary" style={{
+                    padding:"14px 26px", borderRadius:30, border:"none",
+                    background: askLoading || !askQuery.trim() ? "rgba(255,214,10,0.25)" : T.gold,
+                    color:"#04090f", fontWeight:700, fontFamily:T.display, fontSize:14,
+                    display:"flex", alignItems:"center", justifyContent:"center", gap:6, minWidth:90,
+                  }}>
+                    {askLoading
+                      ? <div className="spin" style={{ width:16,height:16,border:"2px solid #04090f",borderTopColor:"transparent",borderRadius:"50%" }} />
+                      : <><Icon name="send" size={15} color="#04090f" />Ask</>
+                    }
                   </button>
                 </div>
 
-                {askLoading && <LoadingSkeleton mode="rag" />}
+                <div style={{ marginTop:16 }}>
+                  <span style={{ fontFamily:T.mono, fontSize:10, color:T.textDim, letterSpacing:"0.1em", textTransform:"uppercase" }}>Try asking:</span>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:9 }}>
+                    {suggestions.map(s => (
+                      <button key={s} className="suggest-chip" onClick={() => setAskQuery(s)} style={{
+                        fontFamily:T.mono, fontSize:12, color:T.textMid,
+                        border:`1px solid ${T.border}`, borderRadius:20,
+                        padding:"6px 15px", background:"transparent", transition:"all 0.18s",
+                      }}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {askLoading && <><LoadingDots label="Retrieving and synthesising…" /><SkeletonLines n={5} /></>}
                 {!askLoading && askAnswer && (
-                  <RagAnswer
-                    text={askAnswer.text}
-                    confidence={askAnswer.confidence}
-                    sources={askAnswer.sources}
-                    getConfColor={getConfColor}
-                    onCopy={() => navigator.clipboard.writeText(askAnswer.text)}
-                  />
+                  <RagAnswer text={askAnswer.text} confidence={askAnswer.confidence} sources={askAnswer.sources} onCopy={() => { navigator.clipboard.writeText(askAnswer.text); notify("Copied to clipboard"); }} />
                 )}
               </div>
 
-              {/* Conversation History */}
-              {conversation.length > 1 && (
-                <div style={{ paddingBottom: 60 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                    <h3 style={{ fontFamily: "'Sora',sans-serif", fontSize: 18, fontWeight: 700, color: "#fff" }}>💬 Conversation History</h3>
-                    <button onClick={() => setConversation([])}
-                      style={{ padding: "6px 14px", borderRadius: 15, border: "1px solid " + C.white10, background: "transparent", color: C.textSecondary, cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>
-                      Clear
-                    </button>
+              {conversation.length > 0 && (
+                <div>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                    <h3 style={{ fontFamily:T.display, fontWeight:700, fontSize:16, color:"#fff" }}>Conversation</h3>
+                    <button onClick={() => setConversation([])} className="btn-ghost" style={{ padding:"5px 14px", borderRadius:20, border:`1px solid ${T.border}`, background:"transparent", color:T.textMid, fontFamily:T.mono, fontSize:11 }}>Clear</button>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                     {conversation.map((msg, i) => (
                       <div key={i} style={{
-                        background: msg.role === "user" ? "rgba(0,255,15,0.04)" : "rgba(255,215,0,0.04)",
-                        border: `1px solid ${msg.role === "user" ? "rgba(0,255,15,0.15)" : "rgba(255,215,0,0.15)"}`,
-                        borderRadius: 14, padding: "18px 22px",
+                        background: msg.role==="user" ? "rgba(0,255,106,0.04)" : "rgba(255,214,10,0.04)",
+                        border: `1px solid ${msg.role==="user" ? "rgba(0,255,106,0.14)" : T.borderGold}`,
+                        borderRadius:13, padding:"16px 20px", animation:"fadeUp 0.3s ease",
                       }}>
-                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: msg.role === "user" ? C.green : C.gold, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
-                          {msg.role === "user" ? "👤 You" : ". POLYNOUS"}
+                        <div style={{ fontFamily:T.mono, fontSize:11, color: msg.role==="user" ? T.green : T.gold, marginBottom:9, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>
+                          {msg.role==="user" ? "You" : "Polynous"}
                         </div>
-                        <div style={{
-                          fontFamily: "'Inter',sans-serif", fontWeight: 400,
-                          fontSize: 16, color: "#d4dde8", lineHeight: 1.78,
-                          letterSpacing: "0.01em",
-                        }}>
-                          {msg.content.substring(0, 400)}{msg.content.length > 400 ? "…" : ""}
-                        </div>
+                        <p style={{ fontFamily:T.body, fontSize:14, color:"#c8d8e8", lineHeight:1.78 }}>
+                          {msg.content.slice(0,500)}{msg.content.length>500?"…":""}
+                        </p>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
 
-          {/* ── SEARCH TAB ── */}
-          {activeTab === "search" && (
-            <div style={{ paddingBottom: 60 }}>
+          {/* ── SEARCH TAB ───────────────────────────────────── */}
+          {tab === "search" && (
+            <div style={{ display:"flex", flexDirection:"column", gap:20, paddingBottom:60 }}>
               <ModeBanner mode="search" />
-              <div style={{ background: "rgba(10,10,30,0.6)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,215,0,0.15)", borderRadius: 18, padding: 26, marginBottom: 22 }}>
-                <h3 style={{ fontFamily: "'Sora',sans-serif", fontSize: 18, fontWeight: 700, color: C.gold, marginBottom: 18 }}>🧲 Semantic Search</h3>
-                <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ background:T.surface, backdropFilter:"blur(16px)", border:`1px solid ${T.borderGold}`, borderRadius:16, padding:24 }}>
+                <div style={{ display:"flex", gap:10 }}>
                   <input
-                    type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && doSearch()}
-                    placeholder="Search chunks by meaning…"
-                    style={{ flex: 1, padding: "15px 22px", borderRadius: 30, border: "1px solid rgba(255,215,0,0.2)", background: "rgba(255,255,255,0.04)", color: "#fff", fontFamily: "'Inter',sans-serif", fontSize: 16, outline: "none" }}
+                    value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e => e.key==="Enter" && doSearch()}
+                    placeholder="Search by meaning, not keywords…"
+                    style={{ flex:1, padding:"14px 20px", borderRadius:30, border:`1px solid ${T.border}`, background:"rgba(10,10,30,0.8)", color:"#fff", fontSize:15 }}
                   />
-                  <button onClick={doSearch} disabled={searchLoading || !searchQuery.trim()}
-                    style={{ padding: "15px 30px", borderRadius: 30, border: "none", background: searchLoading ? "#333" : `linear-gradient(135deg, ${C.gold}, #ca8a04)`, color: C.void, fontWeight: 700, cursor: searchLoading || !searchQuery.trim() ? "not-allowed" : "pointer", fontFamily: "'Sora',sans-serif", fontSize: 15, transition: "all 0.2s", whiteSpace: "nowrap" }}>
-                    {searchLoading ? "…" : "Search →"}
+                  <button onClick={doSearch} disabled={searchLoading || !searchQuery.trim()} className="btn-primary" style={{
+                    padding:"14px 26px", borderRadius:30, border:"none",
+                    background: searchLoading || !searchQuery.trim() ? "rgba(255,214,10,0.25)" : T.gold,
+                    color:"#04090f", fontWeight:700, fontFamily:T.display, fontSize:14,
+                    display:"flex", alignItems:"center", justifyContent:"center", gap:6, minWidth:100,
+                  }}>
+                    {searchLoading
+                      ? <div className="spin" style={{ width:16,height:16,border:"2px solid #04090f",borderTopColor:"transparent",borderRadius:"50%" }} />
+                      : <><Icon name="search" size={15} color="#04090f" />Search</>
+                    }
                   </button>
                 </div>
               </div>
 
-              {searchLoading && <LoadingSkeleton mode="search" />}
-
+              {searchLoading && <><LoadingDots label="Scanning embedding space…" /><SkeletonLines n={6} /></>}
               {!searchLoading && searchError && (
-                <p style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, color: C.textSecondary, textAlign: "center", padding: 22 }}>{searchError}</p>
+                <p style={{ fontFamily:T.body, fontSize:14, color:T.textMid, textAlign:"center", padding:28 }}>{searchError}</p>
               )}
-
               {!searchLoading && searchResults.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                   {searchResults.map((chunk, i) => (
-                    <div key={i} style={{ background: "rgba(10,10,30,0.6)", backdropFilter: "blur(20px)", border: "1px solid " + C.white10, borderRadius: 14, padding: 22, animation: "fadeSlideUp 0.3s ease" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: C.gold, background: "rgba(255,215,0,0.08)", padding: "3px 11px", borderRadius: 10 }}>
-                            Chunk #{chunk.chunk_id ?? i + 1}
+                    <div key={i} style={{ background:T.surface, backdropFilter:"blur(14px)", border:`1px solid ${T.border}`, borderRadius:13, padding:"20px", animation:"fadeUp 0.3s ease" }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                          <span style={{ fontFamily:T.mono, fontSize:10, color:T.gold, background:"rgba(255,214,10,0.08)", padding:"2px 10px", borderRadius:9 }}>
+                            Chunk #{chunk.chunk_id ?? i+1}
                           </span>
-                          {chunk.pdf_name && (
-                            <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
-                              {chunk.pdf_name}
-                            </span>
-                          )}
+                          {chunk.pdf_name && <span style={{ fontFamily:T.body, fontSize:12, color:T.textDim }}>{chunk.pdf_name}</span>}
                         </div>
                         {chunk.relevance != null && (
-                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: getConfColor(chunk.relevance), fontWeight: 700 }}>
-                            {Math.round(chunk.relevance)}% match
-                          </span>
+                          <span style={{ fontFamily:T.mono, fontSize:12, fontWeight:700, color: chunk.relevance>=70 ? T.green : chunk.relevance>=45 ? T.gold : T.crimson }}>{Math.round(chunk.relevance)}% match</span>
                         )}
                       </div>
-                      <p style={{
-                        fontFamily: "'Inter',sans-serif", fontWeight: 400,
-                        fontSize: 15, color: "#c8d4de", lineHeight: 1.78,
-                        letterSpacing: "0.01em",
-                      }}>
-                        {(chunk.text || chunk.content || "").substring(0, 400)}
-                        {(chunk.text || chunk.content || "").length > 400 ? "…" : ""}
+                      <p style={{ fontFamily:T.body, fontSize:14, color:"#b8cad8", lineHeight:1.78 }}>
+                        {(chunk.text || chunk.content || "").slice(0, 420)}{(chunk.text||chunk.content||"").length>420?"…":""}
                       </p>
                     </div>
                   ))}
@@ -1282,9 +1293,10 @@ export default function PdfLabPage({ user, onNavigate, onLogout }) {
               )}
             </div>
           )}
-
         </div>
       </main>
+
+      <Toast msg={toast} onClose={() => setToast("")} />
     </div>
   );
 }

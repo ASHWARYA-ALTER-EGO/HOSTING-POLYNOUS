@@ -119,6 +119,59 @@ const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }),
+
+  // ── Security ──────────────────────────────────────────────────────────
+  changePassword: (currentPassword, newPassword) =>
+    safeFetch(`${BASE}/settings/security/change-password?user_id=${uid()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+
+  revokeSessions: () =>
+    safeFetch(`${BASE}/settings/security/revoke-sessions?user_id=${uid()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }),
+
+  // ── Integrations ─────────────────────────────────────────────────────
+  getIntegrations: () =>
+    safeFetch(`${BASE}/settings/integrations?user_id=${uid()}`),
+
+  connectIntegration: (provider) =>
+    safeFetch(`${BASE}/settings/integrations/${provider}/connect?user_id=${uid()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }),
+
+  disconnectIntegration: (provider) =>
+    safeFetch(`${BASE}/settings/integrations/${provider}/disconnect?user_id=${uid()}`, {
+      method: "DELETE",
+    }),
+
+  // ── Data & Storage ───────────────────────────────────────────────────
+  // Returns a URL rather than fetching — used directly as a download link
+  exportDataUrl: () =>
+    `${BASE}/settings/data/export?user_id=${uid()}`,
+
+  clearHistory: () =>
+    safeFetch(`${BASE}/settings/data/clear-history?user_id=${uid()}`, {
+      method: "DELETE",
+    }),
+
+  resetAllData: () =>
+    safeFetch(`${BASE}/settings/data/reset?user_id=${uid()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }),
+
+  deleteAccount: () =>
+    safeFetch(`${BASE}/settings/account?user_id=${uid()}`, {
+      method: "DELETE",
+    }),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -679,6 +732,35 @@ function Spinner() {
         Loading…
       </span>
     </div>
+  );
+}
+
+// Pill button used for the various confirm-style action buttons
+function PillButton({ children, onClick, disabled, tone = "neutral", style: extra }) {
+  const palette = {
+    neutral: { color: C.onSurface,  border: C.white10,            hover: C.silverFaint },
+    silver:  { color: C.silver,     border: C.silverBorder,       hover: C.silverFaint },
+    cyan:    { color: C.cyan,       border: "rgba(126,200,216,0.3)", hover: "rgba(126,200,216,0.06)" },
+    crimson: { color: C.crimson,    border: "rgba(224,80,104,0.4)",  hover: C.crimsonFaint },
+  };
+  const p = palette[tone] || palette.neutral;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "9px 20px", borderRadius: 9999,
+        border: `1px solid ${p.border}`, background: "transparent",
+        color: p.color, cursor: disabled ? "wait" : "pointer",
+        fontFamily: C.fontHead, fontSize: 14, fontWeight: 600,
+        transition: "background 0.18s", opacity: disabled ? 0.6 : 1,
+        ...(extra || {}),
+      }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = p.hover; }}
+      onMouseLeave={e => { if (!disabled) e.currentTarget.style.background = "transparent"; }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -1263,66 +1345,125 @@ function NotificationsSection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INTEGRATIONS SECTION
+// INTEGRATIONS SECTION — live status + working connect / disconnect
 // ─────────────────────────────────────────────────────────────────────────────
-const INTEGRATION_ROWS = [
-  { monogram: "G",  monogramColor: "#4285F4", label: "Google OAuth",  sub: "Drive, Docs, Calendar",  connected: true,  detail: "ash@gmail.com" },
-  { monogram: "GH", monogramColor: "#8e98a8", label: "GitHub",        sub: "Repos, Issues, Actions", connected: false, detail: null            },
-  { monogram: "N",  monogramColor: "#e05068", label: "Notion",        sub: "Pages, Databases",       connected: false, detail: null            },
-];
+const INTEGRATION_META = {
+  google: { monogram: "G",  monogramColor: "#4285F4", label: "Google OAuth", sub: "Drive, Docs, Calendar"  },
+  github: { monogram: "GH", monogramColor: "#8e98a8", label: "GitHub",       sub: "Repos, Issues, Actions" },
+  notion: { monogram: "N",  monogramColor: "#e05068", label: "Notion",       sub: "Pages, Databases"       },
+};
 
-function IntegrationsSection() {
+function IntegrationsSection({ push }) {
+  const [statuses, setStatuses] = useState({});
+  const [loading, setLoading]   = useState(true);
+  const [loadErr, setLoadErr]   = useState(null);
+  const [busyId, setBusyId]     = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setLoadErr(null);
+    try {
+      const data = await api.getIntegrations();
+      setStatuses(data.integrations || {});
+    } catch (err) {
+      setLoadErr(err.message || "Failed to load integrations");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggleIntegration = async (id, isConnected) => {
+    setBusyId(id);
+    try {
+      if (isConnected) {
+        await api.disconnectIntegration(id);
+        setStatuses(prev => ({ ...prev, [id]: { ...prev[id], connected: false, detail: null } }));
+        push(`${INTEGRATION_META[id].label} disconnected`);
+      } else {
+        const res = await api.connectIntegration(id);
+        if (res?.redirect_url) {
+          window.location.href = res.redirect_url;
+          return;
+        }
+        setStatuses(prev => ({ ...prev, [id]: { ...prev[id], connected: true, detail: res?.detail || null } }));
+        push(`${INTEGRATION_META[id].label} connected`);
+      }
+    } catch (err) {
+      push(err.message || "Action failed", "err");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <Card>
       <SectionHead icon="hub" title="Integrations" subtitle="Third-party service connections" />
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {INTEGRATION_ROWS.map(row => (
-          <div key={row.label} style={{
-            background: "rgba(9,10,14,0.55)", border: `1px solid ${C.white10}`,
-            borderRadius: 12, padding: "14px 18px",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            cursor: row.connected ? "default" : "pointer",
-            transition: "border-color 0.18s, background 0.18s",
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = C.silverBorder; e.currentTarget.style.background = C.surfaceHigh; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.white10; e.currentTarget.style.background = "rgba(9,10,14,0.55)"; }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 9,
-                background: `${row.monogramColor}14`, border: `1px solid ${row.monogramColor}30`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: C.fontHead, fontWeight: 700, fontSize: 12,
-                color: row.monogramColor, flexShrink: 0,
-              }}>
-                {row.monogram}
-              </div>
-              <div>
-                <div style={{ fontFamily: C.fontHead, fontWeight: 600, color: C.onSurface, fontSize: 15 }}>{row.label}</div>
-                <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>
-                  {row.connected ? row.detail : row.sub}
+      {loading ? <Spinner /> : loadErr ? (
+        <div style={{ padding: "16px 0", display: "flex", alignItems: "center", gap: 12, color: C.crimson, fontFamily: C.fontMono, fontSize: 13 }}>
+          <Icon name="error_outline" style={{ fontSize: 20, color: C.crimson }} />
+          <span>{loadErr}</span>
+          <button onClick={load} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 9999, border: `1px solid rgba(224,80,104,0.35)`, background: "transparent", color: C.crimson, cursor: "pointer", fontFamily: C.fontMono, fontSize: 11.5 }}>
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {Object.entries(INTEGRATION_META).map(([id, meta]) => {
+            const st = statuses[id] || { connected: false, detail: null };
+            const busy = busyId === id;
+            return (
+              <div key={id}
+                onClick={() => !busy && toggleIntegration(id, st.connected)}
+                style={{
+                  background: "rgba(9,10,14,0.55)", border: `1px solid ${C.white10}`,
+                  borderRadius: 12, padding: "14px 18px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  cursor: busy ? "wait" : "pointer",
+                  transition: "border-color 0.18s, background 0.18s",
+                  opacity: busy ? 0.7 : 1,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = C.silverBorder; e.currentTarget.style.background = C.surfaceHigh; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = C.white10; e.currentTarget.style.background = "rgba(9,10,14,0.55)"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 9,
+                    background: `${meta.monogramColor}14`, border: `1px solid ${meta.monogramColor}30`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: C.fontHead, fontWeight: 700, fontSize: 12,
+                    color: meta.monogramColor, flexShrink: 0,
+                  }}>
+                    {meta.monogram}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: C.fontHead, fontWeight: 600, color: C.onSurface, fontSize: 15 }}>{meta.label}</div>
+                    <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>
+                      {st.connected ? (st.detail || "Connected") : meta.sub}
+                    </div>
+                  </div>
                 </div>
+                <span style={{
+                  fontFamily: C.fontMono, fontSize: 10, letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: st.connected ? C.silver : C.textSecondary,
+                  background: st.connected ? C.silverFaint : "rgba(255,255,255,0.03)",
+                  padding: "5px 12px", borderRadius: 9999,
+                  border: `1px solid ${st.connected ? C.silverBorder : C.white10}`,
+                }}>
+                  {busy ? "…" : st.connected ? "Disconnect" : "Connect"}
+                </span>
               </div>
-            </div>
-            <span style={{
-              fontFamily: C.fontMono, fontSize: 10, letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              color: row.connected ? C.silver : C.textSecondary,
-              background: row.connected ? C.silverFaint : "rgba(255,255,255,0.03)",
-              padding: "5px 12px", borderRadius: 9999,
-              border: `1px solid ${row.connected ? C.silverBorder : C.white10}`,
-            }}>
-              {row.connected ? "Connected" : "Connect"}
-            </span>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECURITY SECTION
+// SECURITY SECTION — working change password + revoke sessions
 // ─────────────────────────────────────────────────────────────────────────────
 const SECURITY_ROWS = [
   { icon: "lock",    color: C.purple, title: "Fernet AES-128",    sub: "All keys encrypted at rest",      status: "Active"   },
@@ -1330,7 +1471,88 @@ const SECURITY_ROWS = [
   { icon: "vpn_key", color: C.gold,   title: "BYOK Architecture",  sub: "Keys never leave your device",   status: "Verified" },
 ];
 
-function SecuritySection() {
+function ChangePasswordForm({ onClose, push }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext]       = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving, setSaving]   = useState(false);
+
+  const submit = async () => {
+    if (!current || !next || !confirm) { push("Fill in all fields", "err"); return; }
+    if (next.length < 8) { push("New password must be at least 8 characters", "err"); return; }
+    if (next !== confirm) { push("New passwords don't match", "err"); return; }
+    setSaving(true);
+    try {
+      await api.changePassword(current, next);
+      push("Password updated");
+      onClose();
+    } catch (err) {
+      push(err.message || "Password change failed", "err");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{
+      background: "rgba(9,10,14,0.55)", border: `1px solid ${C.white10}`,
+      borderRadius: 12, padding: 18,
+      display: "flex", flexDirection: "column", gap: 12,
+    }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+        <input type="password" value={current} onChange={e => setCurrent(e.target.value)}
+          placeholder="Current password" style={inputStyle} onFocus={onFI} onBlur={onFO} />
+        <input type="password" value={next} onChange={e => setNext(e.target.value)}
+          placeholder="New password" style={inputStyle} onFocus={onFI} onBlur={onFO} />
+        <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && submit()}
+          placeholder="Confirm new password" style={inputStyle} onFocus={onFI} onBlur={onFO} />
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={submit} disabled={saving} style={{
+          padding: "9px 22px", borderRadius: 9999, border: "none",
+          background: C.silver, color: C.void, cursor: saving ? "wait" : "pointer",
+          fontFamily: C.fontHead, fontWeight: 700, fontSize: 14, opacity: saving ? 0.6 : 1,
+        }}>
+          {saving ? "Updating…" : "Update Password"}
+        </button>
+        <button onClick={onClose} disabled={saving} style={{
+          padding: "9px 22px", borderRadius: 9999, border: `1px solid ${C.white10}`,
+          background: "transparent", color: C.onSurfaceVariant, cursor: "pointer",
+          fontFamily: C.fontHead, fontWeight: 600, fontSize: 14,
+        }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SecuritySection({ push }) {
+  const [showPwForm, setShowPwForm]       = useState(false);
+  const [revokeConfirm, setRevokeConfirm] = useState(false);
+  const [revoking, setRevoking]           = useState(false);
+
+  useEffect(() => {
+    if (!revokeConfirm) return;
+    const t = setTimeout(() => setRevokeConfirm(false), 4000);
+    return () => clearTimeout(t);
+  }, [revokeConfirm]);
+
+  const doRevoke = async () => {
+    if (!revokeConfirm) { setRevokeConfirm(true); return; }
+    setRevoking(true);
+    try {
+      await api.revokeSessions();
+      push("All other sessions revoked");
+    } catch (err) {
+      push(err.message || "Revoke failed", "err");
+    } finally {
+      setRevoking(false);
+      setRevokeConfirm(false);
+    }
+  };
+
   return (
     <Card>
       <SectionHead icon="security" title="Security" subtitle="Encryption & access controls" />
@@ -1365,36 +1587,43 @@ function SecuritySection() {
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {["Change Password", "Revoke All Sessions"].map(label => (
-          <button key={label} style={{
-            padding: "9px 20px", borderRadius: 9999,
-            border: `1px solid ${C.white10}`, background: "transparent",
-            color: C.onSurface, cursor: "pointer",
-            fontFamily: C.fontHead, fontSize: 14, fontWeight: 500,
-            transition: "background 0.18s, border-color 0.18s",
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = C.silverFaint; e.currentTarget.style.borderColor = C.silverBorder; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.white10; }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+
+      {showPwForm ? (
+        <ChangePasswordForm onClose={() => setShowPwForm(false)} push={push} />
+      ) : (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <PillButton onClick={() => setShowPwForm(true)}>Change Password</PillButton>
+          <PillButton onClick={doRevoke} disabled={revoking} tone={revokeConfirm ? "crimson" : "neutral"}>
+            {revoking ? "Revoking…" : revokeConfirm ? "Click again to confirm" : "Revoke All Sessions"}
+          </PillButton>
+        </div>
+      )}
     </Card>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DATA & STORAGE SECTION
+// DATA & STORAGE SECTION — working export + clear history
 // ─────────────────────────────────────────────────────────────────────────────
 function DataStorageSection({ push }) {
   const [s,       setS]       = useState({ total_research: 0, unique_topics: 0 });
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting]   = useState(false);
+  const [clearConfirm, setClearConfirm] = useState(false);
+  const [clearing, setClearing]     = useState(false);
 
-  useEffect(() => {
+  const loadStats = useCallback(() => {
+    setLoading(true);
     api.getStats().then(d => setS(d || {})).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
+
+  useEffect(() => {
+    if (!clearConfirm) return;
+    const t = setTimeout(() => setClearConfirm(false), 4000);
+    return () => clearTimeout(t);
+  }, [clearConfirm]);
 
   const ITEMS = [
     { label: "Research Stored",  val: s.total_research || 0 },
@@ -1402,6 +1631,38 @@ function DataStorageSection({ push }) {
     { label: "KG Nodes",         val: s.unique_topics  || 0 },
     { label: "Pinecone Vectors", val: Math.floor((s.total_research || 0) * 3) },
   ];
+
+  const doExport = async () => {
+    setExporting(true);
+    try {
+      const a = document.createElement("a");
+      a.href = api.exportDataUrl();
+      a.download = `polynous-export-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      push("Export started — check your downloads");
+    } catch (err) {
+      push(err.message || "Export failed", "err");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const doClear = async () => {
+    if (!clearConfirm) { setClearConfirm(true); return; }
+    setClearing(true);
+    try {
+      await api.clearHistory();
+      push("Research history cleared");
+      loadStats();
+    } catch (err) {
+      push(err.message || "Clear failed", "err");
+    } finally {
+      setClearing(false);
+      setClearConfirm(false);
+    }
+  };
 
   return (
     <Card>
@@ -1422,45 +1683,68 @@ function DataStorageSection({ push }) {
         ))}
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button onClick={() => push("Export started")} style={{
-          padding: "9px 20px", borderRadius: 9999,
-          border: `1px solid ${C.silverBorder}`, background: "transparent",
-          color: C.silver, cursor: "pointer",
-          fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s",
-        }}
-          onMouseEnter={e => e.currentTarget.style.background = C.silverFaint}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-        >
-          Export All Data
-        </button>
-        <button onClick={() => push("Research history cleared")} style={{
-          padding: "9px 20px", borderRadius: 9999,
-          border: "1px solid rgba(126,200,216,0.3)", background: "transparent",
-          color: C.cyan, cursor: "pointer",
-          fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s",
-        }}
-          onMouseEnter={e => e.currentTarget.style.background = "rgba(126,200,216,0.06)"}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-        >
-          Clear History
-        </button>
+        <PillButton onClick={doExport} disabled={exporting} tone="silver">
+          {exporting ? "Exporting…" : "Export All Data"}
+        </PillButton>
+        <PillButton onClick={doClear} disabled={clearing} tone={clearConfirm ? "crimson" : "cyan"}>
+          {clearing ? "Clearing…" : clearConfirm ? "Click again to confirm" : "Clear History"}
+        </PillButton>
       </div>
     </Card>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DANGER ZONE
+// DANGER ZONE — working delete account + reset all data
 // ─────────────────────────────────────────────────────────────────────────────
-function DangerZone() {
-  const [confirm, setConfirm] = useState(false);
-  const reset = () => { if (confirm) { localStorage.clear(); window.location.href = "/auth"; } else setConfirm(true); };
-  // Auto-clear confirm state after 4 s if user changes their mind
+function DangerZone({ push }) {
+  const [resetConfirm, setResetConfirm]   = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [busy, setBusy]                   = useState(false);
+
   useEffect(() => {
-    if (!confirm) return;
-    const t = setTimeout(() => setConfirm(false), 4000);
+    if (!resetConfirm) return;
+    const t = setTimeout(() => setResetConfirm(false), 4000);
     return () => clearTimeout(t);
-  }, [confirm]);
+  }, [resetConfirm]);
+
+  useEffect(() => {
+    if (!deleteConfirm) return;
+    const t = setTimeout(() => setDeleteConfirm(false), 4000);
+    return () => clearTimeout(t);
+  }, [deleteConfirm]);
+
+  const doReset = async () => {
+    if (!resetConfirm) { setResetConfirm(true); return; }
+    setBusy(true);
+    try {
+      await api.resetAllData();
+      localStorage.removeItem("polynous_notifications");
+      localStorage.removeItem("polynous_theme");
+      localStorage.removeItem("polynous_animations");
+      localStorage.removeItem("polynous_font_size");
+      push("All data reset");
+    } catch (err) {
+      push(err.message || "Reset failed", "err");
+    } finally {
+      setBusy(false);
+      setResetConfirm(false);
+    }
+  };
+
+  const doDelete = async () => {
+    if (!deleteConfirm) { setDeleteConfirm(true); return; }
+    setBusy(true);
+    try {
+      await api.deleteAccount();
+      localStorage.clear();
+      window.location.href = "/auth";
+    } catch (err) {
+      push(err.message || "Delete failed", "err");
+      setBusy(false);
+      setDeleteConfirm(false);
+    }
+  };
 
   return (
     <Card danger>
@@ -1472,31 +1756,12 @@ function DangerZone() {
         These actions cannot be undone. All stored data, memory, and API keys will be permanently removed.
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button
-          onClick={() => { localStorage.clear(); window.location.href = "/auth"; }}
-          style={{
-            padding: "9px 22px", borderRadius: 9999,
-            border: "1px solid rgba(224,80,104,0.4)", background: "transparent",
-            color: C.crimson, cursor: "pointer",
-            fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s",
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = C.crimsonFaint}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-        >
-          Delete Account
-        </button>
-        <button
-          onClick={reset}
-          style={{
-            padding: "9px 22px", borderRadius: 9999,
-            border: "1px solid rgba(224,80,104,0.4)",
-            background: confirm ? C.crimsonFaint : "transparent",
-            color: C.crimson, cursor: "pointer",
-            fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s",
-          }}
-        >
-          {confirm ? "Click again to confirm" : "Reset All Data"}
-        </button>
+        <PillButton onClick={doDelete} disabled={busy} tone="crimson">
+          {deleteConfirm ? "Click again to confirm" : "Delete Account"}
+        </PillButton>
+        <PillButton onClick={doReset} disabled={busy} tone="crimson">
+          {resetConfirm ? "Click again to confirm" : "Reset All Data"}
+        </PillButton>
       </div>
     </Card>
   );
@@ -1570,10 +1835,10 @@ export default function SettingsPage({ user, onNavigate, onLogout }) {
         <AppearanceSection />
         <PreferencesSection push={push} />
         <NotificationsSection />
-        <IntegrationsSection />
-        <SecuritySection />
+        <IntegrationsSection push={push} />
+        <SecuritySection    push={push} />
         <DataStorageSection push={push} />
-        <DangerZone />
+        <DangerZone         push={push} />
       </main>
 
       <ToastBox toasts={toasts} />

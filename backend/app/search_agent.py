@@ -25,7 +25,7 @@ anthropic = Anthropic(api_key=anthropic_key)
 def search_web(query: str, session_id: str = "guest_user"):
     """Search the web using Tavily"""
     try:
-        print(f"🔍 Searching for: {query} (session: {session_id})")
+        print(f"  Searching for: {query} (session: {session_id})")
         response = tavily.search(
             query=query,
             search_depth="basic",

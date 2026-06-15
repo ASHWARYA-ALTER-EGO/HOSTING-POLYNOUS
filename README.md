@@ -40,7 +40,7 @@ POLYNOUS is not a chatbot. It is a **neural research operating system** — a pl
 ┌──────────────────────────────────────────────────────────────────────┐
 │                    RESEARCH PIPELINE                                  │
 │                                                                       │
-│   🔍 SEARCH      Retrieves from web (Tavily) + academic (arXiv)      │
+│     SEARCH      Retrieves from web (Tavily) + academic (arXiv)      │
 │        ↓                                                              │
 │   📝 SUMMARISER  Condenses each source to key findings               │
 │        ↓                                                              │
@@ -62,14 +62,14 @@ POLYNOUS is not a chatbot. It is a **neural research operating system** — a pl
 
 ## ◈ Feature Surface
 
-### 🔬 Research Mode
+###     Research Mode
 - **Multi-source search** — Web (Tavily) + Academic (arXiv) run simultaneously
 - **Real-time streaming** — Watch agents work token-by-token via SSE
 - **Confidence scoring** — Every claim rated 0–100% with visual indicators
 - **Structured output** — Summary · Key Findings · Limitations · Sources
 - **Neural thinking canvas** — 7 rotating agent nodes visualize activity in real-time
 
-### 🗣️ Debate Mode
+###     Debate Mode
 - **FOR vs AGAINST** — Two agents argue directly opposing positions
 - **AI Judge** — Evaluates evidence quality and declares a winner with reasoning
 - **Score visualization** — Animated bar comparing argument strength
@@ -81,7 +81,7 @@ POLYNOUS is not a chatbot. It is a **neural research operating system** — a pl
 - **Interactive nodes** — Click to continue researching, hover for context
 - **Search & filter** — Find nodes by name or entity type
 
-### 🔍 Semantic Search
+###   Semantic Search
 - **Neural constellation UI** — Results surface as a spatial star field
 - **Vector search** — Retrieves by meaning, not keyword matching
 - **Color-coded relevance** — Green (research sessions) · Red (debate sessions)

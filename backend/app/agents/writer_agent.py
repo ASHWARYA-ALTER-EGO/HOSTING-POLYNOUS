@@ -35,7 +35,7 @@ Present 3-5 findings, each as a complete, self-contained paragraph with:
 Example:
 • Nuclear power has the lowest mortality rate of any energy source at 0.03 deaths per terawatt-hour, compared to 24.6 for coal and 18.4 for oil. This data comes from a comprehensive 2024 meta-analysis of 40+ studies published in The Lancet, making it the most authoritative assessment available. The implication is stark — transitioning from coal to nuclear could prevent thousands of premature deaths annually in developing nations with rapidly growing energy demand [1].
 
-### 🔬 DEEPER ANALYSIS
+###     DEEPER ANALYSIS
 For the most important finding, go deeper. Explain mechanisms, historical context, or competing interpretations. This section should show true intellectual depth. If sources disagree, explain the nature of the disagreement — is it methodological, ideological, or based on different data sets?
 
 ### ⚠️ LIMITATIONS, UNCERTAINTIES & CONTRADICTIONS
@@ -53,7 +53,7 @@ Be intellectually honest. Address:
 - Lowest confidence finding: [Which finding and why]
 - Recommendation: [What new research or data would increase confidence]
 
-### 📚 KEY SOURCES
+###    KEY SOURCES
 List the 3-5 most important sources with a one-line description of each:
 [1] Author/Organization (Year) — Key contribution or finding
 [2] Author/Organization (Year) — Key contribution or finding
@@ -102,7 +102,7 @@ Be fair. What do critics say? What are the legitimate concerns? Show both sides 
 - The one thing to remember: [the most important takeaway]
 - What would change my mind: [what new evidence would shift the conclusion]
 
-### 📚 WHERE I GOT THIS
+###    WHERE I GOT THIS
 Mention your best sources conversationally: "This comes from..." or "The WHO found that..." with links to the source numbers.
 
 ## VOICE GUIDELINES
@@ -147,7 +147,7 @@ Be honest about what scientists don't fully understand yet. Frame it as "things 
 - The part we're most sure about: [explain simply]
 - The part we're still learning about: [explain simply]
 
-### 📚 WHO TAUGHT US THIS
+###    WHO TAUGHT US THIS
 Mention sources like: "Scientists at..." or "A big study by..." — keep it simple and friendly.
 
 ## LANGUAGE RULES
@@ -173,7 +173,7 @@ Mention sources like: "Scientists at..." or "A big study by..." — keep it simp
 ### 📊 EXECUTIVE SUMMARY
 A 3-5 sentence abstract suitable for a technical audience. Include key metrics, statistical significance where available, and the primary conclusion. Use technical terminology appropriate to the domain. Cite the most authoritative source [1].
 
-### 🔬 SYSTEMATIC ANALYSIS
+###     SYSTEMATIC ANALYSIS
 
 For each key finding, provide:
 **Finding [N]:** [Precise technical claim]
@@ -218,7 +218,7 @@ Analyze the quality of the evidence base:
 - Confidence interval width indicates: [what the uncertainty range means practically]
 - Required to increase confidence: [specific additional evidence needed]
 
-### 📚 KEY REFERENCES
+###    KEY REFERENCES
 [1] Author(s) (Year). Title. Journal/Conference. DOI. [One-line technical relevance]
 [2] Author(s) (Year). Title. Journal/Conference. DOI. [One-line technical relevance]
 

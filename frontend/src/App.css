@@ -1,6 +1,55 @@
 /* App.css - Complete Stylesheet for POLYNOUS */
 
+
+/* ========== CUSTOM FONT: LEMONS ========== */
+@font-face {
+  font-family: 'Lemons';
+  src: url('/fonts/Lemons.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Global header style using Lemons font */
+.polynous-header {
+  font-family: 'Lemons', 'Sora', sans-serif !important;
+  font-weight: normal !important;
+  font-size: clamp(2rem, 5vw, 3.5rem) !important;
+  text-align: left !important;
+  color: #00ff0f !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.2 !important;
+  margin: 0 0 8px 0 !important;
+  text-shadow: 0 0 20px rgba(0, 255, 15, 0.4), 0 0 40px rgba(0, 255, 15, 0.2) !important;
+}
+
+/* Sub-header style */
+.polynous-subheader {
+  font-family: 'Lemons', 'Sora', sans-serif !important;
+  font-weight: normal !important;
+  font-size: clamp(1.4rem, 3vw, 2.2rem) !important;
+  text-align: left !important;
+  color: #00ccff !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.3 !important;
+  margin: 0 0 6px 0 !important;
+  text-shadow: 0 0 15px rgba(0, 204, 255, 0.4), 0 0 30px rgba(0, 204, 255, 0.15) !important;
+}
+
+/* Page title style */
+.polynous-pagetitle {
+  font-family: 'Lemons', 'Sora', sans-serif !important;
+  font-weight: normal !important;
+  font-size: clamp(1.8rem, 4vw, 2.8rem) !important;
+  text-align: left !important;
+  color: #ffffff !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.2 !important;
+  margin: 0 0 8px 0 !important;
+}
 /* ========== RESET & BASE STYLES ========== */
+
+
 * {
   margin: 0;
   padding: 0;

@@ -343,7 +343,7 @@ export default function InteractiveKnowledgeGraph({ user, onNavigate, onStartRes
             <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Neural Latency</div>
             <div style={{ color: '#00ccff', fontSize: '20px', fontWeight: 700 }}>{metrics.neuralLatency}</div>
           </div>
-          <span style={{ fontSize: '24px', color: '#00ccff' }}>⚡</span>
+          <span style={{ fontSize: '24px', color: '#00ccff' }}>   </span>
         </div>
 
         {/* Refresh Button */}

@@ -9,7 +9,7 @@ api_key = os.getenv("ANTHROPIC_API_KEY")
 if not api_key:
     print("❌ Error: ANTHROPIC_API_KEY not found")
 else:
-    print("🔍 Testing Haiku 4.5...")
+    print("  Testing Haiku 4.5...")
     
     try:
         client = Anthropic(api_key=api_key)

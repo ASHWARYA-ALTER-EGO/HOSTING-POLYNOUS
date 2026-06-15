@@ -45,10 +45,10 @@ const SAMPLE_EDGES = [
 const ANIMATION_MODES = [
   { key:"orbit", label:"🪐 Orbiting Ring", desc:"Glowing particle orbits each node like an electron" },
   { key:"ripple", label:"💧 Ripple Waves", desc:"Expanding ripples emanate from nodes periodically" },
-  { key:"glowPulse", label:"✨ Glow Pulse", desc:"Nodes glow intensity pulses softly" },
+  { key:"glowPulse", label:"    Glow Pulse", desc:"Nodes glow intensity pulses softly" },
   { key:"breathing", label:"🫁 Breathing", desc:"Nodes gently grow and shrink (original)" },
   { key:"sparkle", label:"⭐ Sparkle Burst", desc:"Random sparkles appear around nodes" },
-  { key:"energyBeam", label:"⚡ Energy Beams", desc:"Energy beams connect related nodes" },
+  { key:"energyBeam", label:"    Energy Beams", desc:"Energy beams connect related nodes" },
   { key:"none", label:"🔘 Static", desc:"No animation — clean minimal look" },
 ];
 

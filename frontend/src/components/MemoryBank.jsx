@@ -1,379 +1,457 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+/* ─────────────────────────────────────────────
+   DESIGN TOKENS  (HTML file palette)
+───────────────────────────────────────────── */
 const C = {
-  green: "#00ff0f", cyan: "#00ccff", crimson: "#ff2040", purple: "#a855f7",
-  orange: "#ff8c00", gold: "#ffd700", amber: "#ffaa00",
-  void: "#0a0a1e", surface: "rgba(10,10,30,0.6)", surfaceHigh: "rgba(40,40,61,0.6)",
-  onSurface: "#e2e0fc", onSurfaceVariant: "#b9ccb0",
-  textSecondary: "#8899aa", white10: "rgba(255,255,255,0.1)", white5: "rgba(255,255,255,0.05)",
-  fontHead: "'Sora',sans-serif", fontBody: "'Hanken Grotesk',sans-serif", fontMono: "'JetBrains Mono',monospace",
-  glowOrange: "0 0 15px rgba(255,140,0,0.3)",
-  glowGold: "0 0 15px rgba(255,215,0,0.3)",
+  orange:        "#FF8C00",
+  orangeDark:    "#B36200",
+  orangeLight:   "#FFA94D",
+  orangeGlow:    "rgba(255,140,0,0.18)",
+  crimson:       "#ff2040",
+  gold:          "#ffd700",
+  void:          "#0A0A1E",
+  panel:         "#12122b",
+  border:        "#33334d",
+  surface:       "rgba(10,10,30,0.65)",
+  surfaceHigh:   "rgba(40,40,61,0.65)",
+  text:          "#E0E0E0",
+  textMuted:     "#8888a0",
+  white10:       "rgba(255,255,255,0.10)",
+  white5:        "rgba(255,255,255,0.05)",
+  fontDisplay:   "'Teko',sans-serif",
+  fontMono:      "'JetBrains Mono',monospace",
+  fontBody:      "'Inter',sans-serif",
 };
 
-function Icon({ name, style }) {
-  return (
-    <span style={{
-      fontFamily: "Material Symbols Outlined",
-      fontVariationSettings: "'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24",
-      lineHeight: 1,
-      ...(style || {})
-    }}>
-      {name}
-    </span>
-  );
-}
-
+/* ─────────────────────────────────────────────
+   GLOBAL STYLES + FONTS
+───────────────────────────────────────────── */
 function Styles() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Hanken+Grotesk:wght@400;500;600&family=Material+Symbols+Outlined&display=swap');
-      *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-      body{background:#0a0a1e;color:#e2e0fc;font-family:'Hanken Grotesk',sans-serif;overflow-x:hidden}
-      @keyframes spin{to{transform:rotate(360deg)}}
-      @keyframes pulseText{0%,100%{opacity:0.6}50%{opacity:1}}
-      @keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-      @keyframes pulseSyncBtn{0%,100%{box-shadow:0 0 5px rgba(255,140,0,0.4)}50%{box-shadow:0 0 20px rgba(255,140,0,0.8)}}
-      @keyframes twinkle{0%,100%{opacity:0.3}50%{opacity:0.8}}
-      ::-webkit-scrollbar{width:6px}
-      ::-webkit-scrollbar-track{background:transparent}
-      ::-webkit-scrollbar-thumb{background:rgba(255,140,0,0.15);border-radius:10px}
+      @import url('https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&family=Material+Symbols+Outlined&display=swap');
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html { scroll-behavior: smooth; }
+      body { background: #0A0A1E; color: #E0E0E0; font-family: 'JetBrains Mono', monospace; overflow-x: hidden; }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: #0A0A1E; }
+      ::-webkit-scrollbar-thumb { background: #33334d; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #FF8C00; }
+
+      /* Keyframes */
+      @keyframes spin       { to { transform: rotate(360deg); } }
+      @keyframes pulseGlow  { 0%,100%{box-shadow:0 0 6px rgba(255,140,0,0.4)}50%{box-shadow:0 0 22px rgba(255,140,0,0.9)} }
+      @keyframes fadeUp     { from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)} }
+      @keyframes fadeIn     { from{opacity:0}to{opacity:1} }
+      @keyframes ping       { 0%{transform:scale(1);opacity:0.6}100%{transform:scale(2.2);opacity:0} }
+      @keyframes pulseText  { 0%,100%{opacity:0.55}50%{opacity:1} }
+      @keyframes slideRight { from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:translateX(0)} }
+      @keyframes strandPulse{ 0%,100%{opacity:0.15}50%{opacity:0.55} }
+
+      /* Scroll-triggered reveals */
+      .reveal {
+        opacity: 0;
+        transform: translateY(32px);
+        transition: opacity 0.6s ease, transform 0.6s ease;
+      }
+      .reveal.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .reveal-left {
+        opacity: 0;
+        transform: translateX(-24px);
+        transition: opacity 0.5s ease, transform 0.5s ease;
+      }
+      .reveal-left.visible {
+        opacity: 1;
+        transform: translateX(0);
+      }
+
+      /* Clip path card */
+      .card-clip {
+        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+      }
+
+      /* Particle dot bg */
+      .particle-dots {
+        background-image: radial-gradient(rgba(255,140,0,0.28) 1px, transparent 1px);
+        background-size: 20px 20px;
+        opacity: 0.28;
+      }
+
+      /* Text glow */
+      .text-glow {
+        text-shadow: 0 0 30px rgba(255,140,0,0.65);
+      }
+
+      /* Border glow utility */
+      .border-glow {
+        border: 1px solid rgba(255,140,0,0.28);
+        box-shadow: inset 0 0 12px rgba(255,140,0,0.08), 0 0 12px rgba(255,140,0,0.08);
+      }
+
+      /* Hover lift */
+      .lift:hover { transform: translateY(-3px); transition: transform 0.25s ease; }
+
+      /* Nav active left bar */
+      .nav-active::before {
+        content: '';
+        position: absolute;
+        left: 0; top: 0; bottom: 0;
+        width: 3px;
+        background: #FF8C00;
+        border-radius: 0 2px 2px 0;
+      }
     `}</style>
   );
 }
 
-function NeuralCanvas() {
-  const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    const ctx = canvas.getContext("2d");
-    let particles = [];
-    let mouse = { x: null, y: null };
-    let animId;
-    const PARTICLE_COUNT = 150;
-
-    const colors = [
-      { r: 255, g: 140, b: 0 },
-      { r: 255, g: 215, b: 0 },
-      { r: 255, g: 170, b: 0 },
-      { r: 255, g: 165, b: 0 },
-      { r: 255, g: 200, b: 50 },
-      { r: 255, g: 120, b: 20 },
-    ];
-
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-
-    class Particle {
-      constructor() { this.reset(); }
-      reset() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.baseVx = (Math.random() - 0.5) * 0.5;
-        this.baseVy = (Math.random() - 0.5) * 0.5;
-        this.vx = this.baseVx;
-        this.vy = this.baseVy;
-        this.size = Math.random() * 2.5 + 1;
-        this.color = colors[Math.floor(Math.random() * colors.length)];
-        this.opacity = Math.random() * 0.4 + 0.15;
-        this.twinkleSpeed = Math.random() * 0.02 + 0.005;
-        this.twinkleOffset = Math.random() * Math.PI * 2;
-        this.wobbleAmp = Math.random() * 0.3;
-        this.wobbleSpeed = Math.random() * 0.02 + 0.01;
-        this.wobbleOffset = Math.random() * Math.PI * 2;
-      }
-      update(time) {
-        this.vx = this.baseVx + Math.sin(time * this.wobbleSpeed + this.wobbleOffset) * this.wobbleAmp;
-        this.vy = this.baseVy + Math.cos(time * this.wobbleSpeed + this.wobbleOffset) * this.wobbleAmp;
-        this.x += this.vx;
-        this.y += this.vy;
-        if (mouse.x !== null && mouse.y !== null) {
-          const dx = this.x - mouse.x;
-          const dy = this.y - mouse.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 180) {
-            const force = (180 - dist) / 180;
-            this.x += (dx / dist) * force * 3;
-            this.y += (dy / dist) * force * 3;
-          }
-        }
-        if (this.x < -10) this.x = canvas.width + 10;
-        if (this.x > canvas.width + 10) this.x = -10;
-        if (this.y < -10) this.y = canvas.height + 10;
-        if (this.y > canvas.height + 10) this.y = -10;
-      }
-      draw(time) {
-        const twinkle = Math.sin(time * this.twinkleSpeed + this.twinkleOffset) * 0.2 + 0.8;
-        const alpha = this.opacity * twinkle;
-        const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 4);
-        glow.addColorStop(0, `rgba(${this.color.r},${this.color.g},${this.color.b},${alpha * 0.6})`);
-        glow.addColorStop(1, `rgba(${this.color.r},${this.color.g},${this.color.b},0)`);
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size * 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = `rgba(${this.color.r},${this.color.g},${this.color.b},${alpha})`;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    const init = () => {
-      particles = Array.from({ length: PARTICLE_COUNT }, () => new Particle());
-    };
-
-    let startTime = performance.now();
-    const animate = (timestamp) => {
-      const time = timestamp - startTime;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 130) {
-            const opacity = (1 - dist / 130) * 0.06;
-            const avgColor = {
-              r: Math.floor((particles[i].color.r + particles[j].color.r) / 2),
-              g: Math.floor((particles[i].color.g + particles[j].color.g) / 2),
-              b: Math.floor((particles[i].color.b + particles[j].color.b) / 2),
-            };
-            ctx.strokeStyle = `rgba(${avgColor.r},${avgColor.g},${avgColor.b},${opacity})`;
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
-          }
-        }
-      }
-      particles.forEach(p => { p.update(time); p.draw(time); });
-      animId = requestAnimationFrame(animate);
-    };
-
-    const onMouseMove = (e) => { mouse.x = e.clientX; mouse.y = e.clientY; };
-    const onMouseLeave = () => { mouse.x = null; mouse.y = null; };
-    window.addEventListener("resize", () => { resize(); init(); });
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseleave", onMouseLeave);
-    resize();
-    init();
-    animId = requestAnimationFrame(animate);
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseleave", onMouseLeave);
-    };
-  }, []);
+/* ─────────────────────────────────────────────
+   MATERIAL SYMBOL ICON
+───────────────────────────────────────────── */
+function Icon({ name, style: s }) {
   return (
-    <canvas
-      ref={ref}
-      style={{
-        position: "fixed", top: 0, left: 0,
-        width: "100%", height: "100%",
-        zIndex: 0, pointerEvents: "none"
-      }}
-    />
+    <span style={{
+      fontFamily: "Material Symbols Outlined",
+      fontVariationSettings: "'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24",
+      lineHeight: 1, display: "inline-block",
+      ...(s || {})
+    }}>{name}</span>
   );
 }
 
+/* ─────────────────────────────────────────────
+   THREE.JS NEURAL STRAND CANVAS  (from HTML)
+───────────────────────────────────────────── */
+function NeuralStrandCanvas() {
+  const mountRef = useRef(null);
+
+  useEffect(() => {
+    let THREE;
+    let animId;
+    let renderer;
+
+    const load = async () => {
+      try {
+        THREE = (await import("three")).default || (await import("three"));
+      } catch (_) {
+        return;
+      }
+
+      const container = mountRef.current;
+      if (!container) return;
+      const width  = container.clientWidth  || window.innerWidth;
+      const height = 480;
+
+      const scene  = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+      camera.position.z = 100;
+
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      container.appendChild(renderer.domElement);
+
+      const primaryColor = 0xff8c00;
+      const strandCount  = 25;  // Reduced count but thicker
+      const pointsPer    = 100;
+      const strands      = [];
+
+      for (let i = 0; i < strandCount; i++) {
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(pointsPer * 3);
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        
+        // ⬇️ INCREASED OPACITY for thicker appearance
+        const mat = new THREE.LineBasicMaterial({
+          color: primaryColor,
+          transparent: true,
+          opacity: 0.35 + Math.random() * 0.55,  // Was 0.15-0.35, now 0.35-0.90
+          blending: THREE.AdditiveBlending,
+        });
+        
+        const line = new THREE.Line(geo, mat);
+        scene.add(line);
+        strands.push({
+          line,
+          offset:    Math.random() * Math.PI * 2,
+          speed:     0.0003 + Math.random() * 0.0006,
+          amplitude: 10 + Math.random() * 20,
+          frequency: 0.01 + Math.random() * 0.015,
+          yOffset:   (Math.random() - 0.5) * 60,
+          zOffset:   (Math.random() - 0.5) * 50,
+        });
+      }
+
+      // ⬇️ GLOW LAYER - duplicate strands with larger size for glow effect
+      const glowStrands = [];
+      for (let i = 0; i < Math.floor(strandCount / 2); i++) {
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(pointsPer * 3);
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        
+        const mat = new THREE.LineBasicMaterial({
+          color: primaryColor,
+          transparent: true,
+          opacity: 0.08 + Math.random() * 0.12,
+          blending: THREE.AdditiveBlending,
+        });
+        
+        const line = new THREE.Line(geo, mat);
+        scene.add(line);
+        glowStrands.push({
+          line,
+          offset:    Math.random() * Math.PI * 2,
+          speed:     0.0003 + Math.random() * 0.0006,
+          amplitude: 12 + Math.random() * 22,  // Slightly larger amplitude for glow
+          frequency: 0.01 + Math.random() * 0.015,
+          yOffset:   (Math.random() - 0.5) * 60,
+          zOffset:   (Math.random() - 0.5) * 50,
+        });
+      }
+
+      // Dust particles - increased size
+      const pCount = 400;
+      const pGeo   = new THREE.BufferGeometry();
+      const pPos   = new Float32Array(pCount * 3);
+      for (let i = 0; i < pCount; i++) {
+        pPos[i*3]   = (Math.random()-0.5)*500;
+        pPos[i*3+1] = (Math.random()-0.5)*300;
+        pPos[i*3+2] = (Math.random()-0.5)*200;
+      }
+      pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+      
+      // ⬇️ INCREASED particle size and opacity
+      const pMat  = new THREE.PointsMaterial({ 
+        color: primaryColor, 
+        size: 0.8,  // Was 0.4
+        transparent: true, 
+        opacity: 0.25,  // Was 0.14
+        blending: THREE.AdditiveBlending 
+      });
+      const dust  = new THREE.Points(pGeo, pMat);
+      scene.add(dust);
+
+      const animate = () => {
+        const time = Date.now() * 0.001;
+        
+        // Main strands
+        strands.forEach(s => {
+          const pos = s.line.geometry.attributes.position.array;
+          for (let j = 0; j < pointsPer; j++) {
+            const x = (j - pointsPer/2) * 5;
+            pos[j*3]   = x;
+            pos[j*3+1] = Math.sin(x*s.frequency + time + s.offset) * s.amplitude + s.yOffset;
+            pos[j*3+2] = Math.cos(x*s.frequency*0.5 + time + s.offset) * (s.amplitude*0.5) + s.zOffset;
+          }
+          s.line.geometry.attributes.position.needsUpdate = true;
+          s.line.rotation.y += s.speed;
+        });
+        
+        // Glow strands (slightly offset for thickness illusion)
+        glowStrands.forEach(s => {
+          const pos = s.line.geometry.attributes.position.array;
+          for (let j = 0; j < pointsPer; j++) {
+            const x = (j - pointsPer/2) * 5;
+            pos[j*3]   = x + 0.5;  // Slight offset
+            pos[j*3+1] = Math.sin(x*s.frequency + time + s.offset) * s.amplitude + s.yOffset + 0.3;
+            pos[j*3+2] = Math.cos(x*s.frequency*0.5 + time + s.offset) * (s.amplitude*0.5) + s.zOffset;
+          }
+          s.line.geometry.attributes.position.needsUpdate = true;
+          s.line.rotation.y += s.speed;
+        });
+        
+        dust.rotation.y += 0.00008;
+        renderer.render(scene, camera);
+        animId = requestAnimationFrame(animate);
+      };
+
+      const onResize = () => {
+        const w = container.clientWidth || window.innerWidth;
+        camera.aspect = w / 480;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, 480);
+      };
+      window.addEventListener("resize", onResize);
+      animate();
+    };
+
+    load();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      if (renderer && mountRef.current) {
+        try { mountRef.current.removeChild(renderer.domElement); } catch(_){}
+        renderer.dispose();
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      ref={mountRef}
+      style={{
+        position: "absolute", top: 0, left: 0, right: 0,
+        height: 480, zIndex: 0, pointerEvents: "none",
+        maskImage: "linear-gradient(to bottom,black 55%,transparent 100%)",
+        WebkitMaskImage: "linear-gradient(to bottom,black 55%,transparent 100%)",
+        overflow: "hidden",
+      }}
+    >
+      <div className="particle-dots" style={{ position: "absolute", inset: 0 }} />
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   SIDEBAR  (exact copy from JSX file)
+───────────────────────────────────────────── */
 function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
   const NAV = [
-    { icon: "travel_explore", label: "Research", path: "/research" },
-    { icon: "forum", label: "Debate Chamber", path: "/debate" },
-    { icon: "account_tree", label: "Knowledge Graph", path: "/graph" },
-    { icon: "search", label: "Semantic Search", path: "/search" },
-    { icon: "database", label: "Memory Bank", path: "/memory", active: true },
-    { icon: "picture_as_pdf", label: "PDF Lab", path: "/pdf-lab" },
-    { icon: "monitoring", label: "Analytics", path: "/analytics" },
-     { icon: "settings",       label: "Settings",        path: "/settings" },
+    { icon: "travel_explore",  label: "Research",        path: "/research" },
+    { icon: "forum",           label: "Debate Chamber",  path: "/debate"   },
+    { icon: "account_tree",    label: "Knowledge Graph", path: "/graph"    },
+    { icon: "search",          label: "Semantic Search", path: "/search"   },
+    { icon: "database",        label: "Memory Bank",     path: "/memory",  active: true },
+    { icon: "picture_as_pdf",  label: "PDF Lab",         path: "/pdf-lab"  },
+    { icon: "monitoring",      label: "Analytics",       path: "/analytics"},
+    { icon: "settings",        label: "Settings",        path: "/settings" },
   ];
 
-  const handleNav = (p) => onNavigate ? onNavigate(p) : (window.location.href = p);
-  const handleLogout = () => onLogout ? onLogout() : (localStorage.clear(), window.location.href = "/");
-  const w = collapsed ? 56 : 320;
+  const handleNav    = p => onNavigate ? onNavigate(p) : (window.location.href = p);
+  const handleLogout = () => onLogout  ? onLogout()    : (localStorage.clear(), window.location.href = "/");
+  const w = collapsed ? 56 : 280;
 
   return (
     <aside style={{
       position: "fixed", left: 0, top: 0, height: "100%", width: w,
-      background: C.surface, backdropFilter: "blur(24px)",
-      borderRight: "1px solid " + C.white10,
+      background: "rgba(10,10,30,0.92)", backdropFilter: "blur(24px)",
+      borderRight: `1px solid ${C.border}`,
       display: "flex", flexDirection: "column",
-      padding: collapsed ? "16px 8px" : 24,
+      padding: collapsed ? "16px 8px" : "24px 16px",
       zIndex: 20,
       transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), padding 0.35s cubic-bezier(0.4,0,0.2,1)",
-      overflow: "hidden"
+      overflow: "hidden",
     }}>
       {collapsed ? (
+        /* ── COLLAPSED ── */
         <>
           <button
             onClick={() => setCollapsed(false)}
-            style={{
-              background: "none", border: "none", color: C.orange,
-              cursor: "pointer", marginBottom: 32,
-              display: "flex", justifyContent: "center"
-            }}
+            style={{ background:"none", border:"none", color: C.orange, cursor:"pointer", marginBottom:32, display:"flex", justifyContent:"center" }}
           >
-            <Icon name="chevron_right" style={{ fontSize: 22 }} />
+            <Icon name="chevron_right" style={{ fontSize:22 }} />
           </button>
           {NAV.map(({ icon, label, path, active }) => (
-            <div
-              key={label}
-              onClick={() => handleNav(path)}
-              title={label}
-              style={{
-                padding: "12px 0", cursor: "pointer",
-                color: active ? C.orange : C.onSurfaceVariant,
-                width: "100%", display: "flex", justifyContent: "center"
-              }}
-            >
-              <Icon name={icon} style={{ fontSize: 20, color: "inherit" }} />
+            <div key={label} onClick={() => handleNav(path)} title={label}
+              style={{ padding:"12px 0", cursor:"pointer", color: active ? C.orange : C.textMuted,
+                       width:"100%", display:"flex", justifyContent:"center" }}>
+              <Icon name={icon} style={{ fontSize:20, color:"inherit" }} />
             </div>
           ))}
-          <div style={{
-            marginTop: "auto", display: "flex",
-            flexDirection: "column", alignItems: "center", gap: 14
-          }}>
-            <div
-              onClick={() => handleNav("/research")}
-              style={{
-                width: 34, height: 34, borderRadius: "50%",
-                background: C.orange, display: "flex",
-                alignItems: "center", justifyContent: "center", cursor: "pointer"
-              }}
-            >
-              <Icon name="add" style={{ fontSize: 16, color: C.void }} />
+          <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", alignItems:"center", gap:14 }}>
+            <div onClick={() => handleNav("/research")}
+              style={{ width:34, height:34, borderRadius:"50%", background: C.orange,
+                       display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+              <Icon name="add" style={{ fontSize:16, color: C.void }} />
             </div>
-            <div
-              title={user?.username || "Guest"}
-              style={{
-                width: 30, height: 30, borderRadius: "50%",
-                background: "#1e1e32", border: "1px solid rgba(255,140,0,0.3)",
-                display: "flex", alignItems: "center", justifyContent: "center"
-              }}
-            >
-              <Icon name="face" style={{ color: C.orange, fontSize: 14 }} />
+            <div style={{ width:30, height:30, borderRadius:"50%", background:"#1e1e32",
+                          border:"1px solid rgba(255,140,0,0.3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Icon name="face" style={{ color: C.orange, fontSize:14 }} />
             </div>
-            <div
-              onClick={handleLogout}
-              title="Disconnect"
-              style={{ cursor: "pointer", color: C.crimson }}
-            >
-              <Icon name="logout" style={{ fontSize: 14 }} />
+            <div onClick={handleLogout} title="Disconnect" style={{ cursor:"pointer", color: C.crimson }}>
+              <Icon name="logout" style={{ fontSize:14 }} />
             </div>
           </div>
         </>
       ) : (
+        /* ── EXPANDED ── */
         <>
-          <div style={{
-            display: "flex", alignItems: "flex-start",
-            justifyContent: "space-between", marginBottom: 40, minWidth: 0
-          }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h1 style={{
-                fontFamily: C.fontHead, fontSize: 28, fontWeight: 800,
-                color: C.orange, letterSpacing: "-0.03em", whiteSpace: "nowrap"
-              }}>
+          {/* Logo */}
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:32, minWidth:0 }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <h1 style={{ fontFamily: C.fontDisplay, fontSize:34, fontWeight:700, color: C.orange,
+                           letterSpacing:"0.05em", whiteSpace:"nowrap", lineHeight:1 }}>
                 POLYNOUS
               </h1>
-              <p style={{
-                fontFamily: C.fontMono, fontSize: 10, color: C.onSurfaceVariant,
-                textTransform: "uppercase", letterSpacing: "0.2em",
-                opacity: 0.7, whiteSpace: "nowrap"
-              }}>
+              <p style={{ fontFamily: C.fontMono, fontSize:9, color: C.textMuted,
+                          textTransform:"uppercase", letterSpacing:"0.2em", opacity:0.75, whiteSpace:"nowrap", marginTop:3 }}>
                 Cerebral Vitality Engine
               </p>
             </div>
-            <button
-              onClick={() => setCollapsed(true)}
-              style={{
-                background: "none", border: "none", color: C.textSecondary,
-                cursor: "pointer", padding: 4, flexShrink: 0, marginLeft: 8
-              }}
+            <button onClick={() => setCollapsed(true)}
+              style={{ background:"none", border:"none", color: C.textMuted, cursor:"pointer", padding:4, flexShrink:0, marginLeft:8 }}
               onMouseEnter={e => e.currentTarget.style.color = "#fff"}
-              onMouseLeave={e => e.currentTarget.style.color = C.textSecondary}
+              onMouseLeave={e => e.currentTarget.style.color = C.textMuted}
             >
-              <Icon name="chevron_left" style={{ fontSize: 20 }} />
+              <Icon name="chevron_left" style={{ fontSize:20 }} />
             </button>
           </div>
 
-          <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4, overflow: "hidden" }}>
+          {/* Nav items */}
+          <nav style={{ flex:1, display:"flex", flexDirection:"column", gap:2, overflow:"hidden" }}>
             {NAV.map(({ icon, label, path, active }) => (
-              <div
-                key={label}
-                onClick={() => handleNav(path)}
+              <div key={label} onClick={() => handleNav(path)}
+                className={active ? "nav-active" : ""}
                 style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "10px 16px", borderRadius: 9999, cursor: "pointer",
-                  color: active ? C.orange : C.onSurfaceVariant,
-                  background: active ? "rgba(255,140,0,0.08)" : "transparent",
-                  fontFamily: C.fontMono, fontSize: 13,
+                  display:"flex", alignItems:"center", gap:14,
+                  padding:"11px 16px", borderRadius: active ? 8 : 8,
+                  cursor:"pointer",
+                  color: active ? C.orange : C.textMuted,
+                  background: active ? C.orangeGlow : "transparent",
+                  border: active ? `1px solid rgba(255,140,0,0.28)` : "1px solid transparent",
+                  fontFamily: C.fontMono, fontSize:13,
                   fontWeight: active ? 700 : 400,
-                  transition: "all 0.2s", whiteSpace: "nowrap", overflow: "hidden"
+                  transition:"all 0.2s",
+                  whiteSpace:"nowrap", overflow:"hidden",
+                  position:"relative",
+                  boxShadow: active ? "inset 0 0 10px rgba(255,140,0,0.1)" : "none",
                 }}
-                onMouseEnter={e => {
-                  if (!active) {
-                    e.currentTarget.style.color = C.orange;
-                    e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!active) {
-                    e.currentTarget.style.color = C.onSurfaceVariant;
-                    e.currentTarget.style.background = "transparent";
-                  }
-                }}
+                onMouseEnter={e => { if (!active) { e.currentTarget.style.color = C.orange; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}}
+                onMouseLeave={e => { if (!active) { e.currentTarget.style.color = C.textMuted; e.currentTarget.style.background = "transparent"; }}}
               >
-                <Icon name={icon} style={{ fontSize: 20, color: "inherit", flexShrink: 0 }} />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+                <Icon name={icon} style={{ fontSize:18, color:"inherit", flexShrink:0 }} />
+                <span style={{ overflow:"hidden", textOverflow:"ellipsis" }}>{label}</span>
               </div>
             ))}
           </nav>
 
-          <div style={{ borderTop: "1px solid " + C.white5, paddingTop: 24, marginTop: 24 }}>
-            <button
-              onClick={() => handleNav("/research")}
-              style={{
-                width: "100%", padding: "12px", background: C.orange,
-                color: C.void, fontWeight: 700, borderRadius: 9999,
-                border: "none", cursor: "pointer", fontFamily: C.fontHead,
-                fontSize: 14, display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 8,
-                transition: "transform 0.2s", whiteSpace: "nowrap"
-              }}
-              onMouseEnter={e => e.currentTarget.style.transform = "scale(1.03)"}
-              onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+          {/* Bottom area */}
+          <div style={{ borderTop:`1px solid ${C.white5}`, paddingTop:20, marginTop:20 }}>
+            <button onClick={() => handleNav("/research")}
+              style={{ width:"100%", padding:"11px", background: C.orange, color: C.void,
+                       fontWeight:700, borderRadius:8, border:"none", cursor:"pointer",
+                       fontFamily: C.fontDisplay, fontSize:16, letterSpacing:"0.05em",
+                       display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                       transition:"transform 0.2s, box-shadow 0.2s",
+                       clipPath:"polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)" }}
+              onMouseEnter={e => { e.currentTarget.style.transform="scale(1.03)"; e.currentTarget.style.boxShadow="0 0 18px rgba(255,140,0,0.5)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform="scale(1)";   e.currentTarget.style.boxShadow="none"; }}
             >
-              <Icon name="add" style={{ fontSize: 18, color: C.void, flexShrink: 0 }} />
+              <Icon name="add" style={{ fontSize:18, color: C.void, flexShrink:0 }} />
               New Research
             </button>
-            <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: "50%",
-                background: "#1e1e32", border: "1px solid rgba(255,140,0,0.3)",
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
-              }}>
-                <Icon name="face" style={{ color: C.orange, fontSize: 22 }} />
+            <div style={{ marginTop:18, display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:40, height:40, borderRadius:"50%", background:"#1e1e32",
+                            border:"1px solid rgba(255,140,0,0.3)", display:"flex",
+                            alignItems:"center", justifyContent:"center", flexShrink:0, position:"relative" }}>
+                <Icon name="face" style={{ color: C.orange, fontSize:22 }} />
+                <div style={{ position:"absolute", width:10, height:10, borderRadius:"50%",
+                              background: C.orange, bottom:0, right:0,
+                              boxShadow:"0 0 8px rgba(255,140,0,0.8)", animation:"ping 2s infinite" }} />
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{
-                  fontFamily: C.fontMono, fontSize: 13, fontWeight: 700,
-                  color: "#fff", whiteSpace: "nowrap",
-                  overflow: "hidden", textOverflow: "ellipsis"
-                }}>
-                  {user?.username || "Guest"}
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontFamily: C.fontMono, fontSize:13, fontWeight:700, color:"#fff",
+                            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                  {user?.username || "test1"}
                 </p>
-                <button
-                  onClick={handleLogout}
-                  style={{
-                    fontSize: 10, color: C.crimson, background: "none",
-                    border: "none", cursor: "pointer", fontFamily: C.fontMono, padding: 0
-                  }}
-                >
+                <button onClick={handleLogout}
+                  style={{ fontSize:10, color: C.crimson, background:"none", border:"none",
+                           cursor:"pointer", fontFamily: C.fontMono, padding:0, marginTop:3 }}>
                   Disconnect
                 </button>
               </div>
@@ -385,193 +463,203 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
   );
 }
 
-const RESEARCH_PATHS = [
-  "Deep Learning Neural Architectures", "Quantum Machine Learning",
-  "CRISPR Gene Editing", "Blockchain Consensus",
-  "Fusion Energy Breakthroughs", "Autonomous Vehicle Safety",
-  "Synthetic Biology Ethics", "Neuromorphic Computing"
-];
-const NEW_DOMAINS = [
-  "Space Colonization Ethics", "Ocean Floor Mining",
-  "Quantum Biology Frontiers", "Atmospheric Carbon Capture",
-  "Brain-Computer Interfaces", "Lab-Grown Meat Production",
-  "Asteroid Mining Economics", "Digital Consciousness"
-];
-const DEBATE_CHALLENGES = [
-  "Should AI be regulated globally?", "Is nuclear energy the solution?",
-  "Should we colonize Mars?", "Are cryptocurrencies the future?",
-  "Should genetic engineering be allowed?", "Is UBI economically viable?"
-];
+/* ─────────────────────────────────────────────
+   METRIC CARD  (HTML design, clip-path style)
+───────────────────────────────────────────── */
+function MetricCard({ value, label, sub, icon, delay = 0 }) {
+  return (
+    <div className="reveal border-glow card-clip lift"
+      style={{
+        background:"linear-gradient(180deg,rgba(255,140,0,0.06) 0%,rgba(10,10,30,0.85) 100%)",
+        padding:"28px 20px", display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center", minHeight:140,
+        position:"relative", animationDelay:`${delay}ms`, cursor:"default",
+        transition:"box-shadow 0.25s",
+      }}
+      onMouseEnter={e => e.currentTarget.style.boxShadow="0 0 24px rgba(255,140,0,0.35)"}
+      onMouseLeave={e => e.currentTarget.style.boxShadow=""}
+    >
+      {icon && (
+        <Icon name={icon} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)",
+                                    fontSize:11, color: C.orange, opacity:0.45 }} />
+      )}
+      <div style={{ fontFamily: C.fontDisplay, fontSize:52, fontWeight:700, color:"#fff", lineHeight:1 }}>
+        {value}
+      </div>
+      <div style={{ fontFamily: C.fontMono, fontSize:10, color: C.textMuted,
+                    textTransform:"uppercase", letterSpacing:"0.15em", marginTop:6 }}>
+        {label}
+      </div>
+      {sub && (
+        <div style={{ fontFamily: C.fontMono, fontSize:10, color: C.orange, marginTop:6 }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
 
-const shuffleArray = (arr) => {
-  const s = [...arr];
-  for (let i = s.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [s[i], s[j]] = [s[j], s[i]];
-  }
-  return s;
-};
+/* ─────────────────────────────────────────────
+   SUGGESTION DATA  (from JSX file, verbatim)
+───────────────────────────────────────────── */
+const RESEARCH_PATHS    = ["Deep Learning Neural Architectures","Quantum Machine Learning","CRISPR Gene Editing","Blockchain Consensus","Fusion Energy Breakthroughs","Autonomous Vehicle Safety","Synthetic Biology Ethics","Neuromorphic Computing"];
+const NEW_DOMAINS       = ["Space Colonization Ethics","Ocean Floor Mining","Quantum Biology Frontiers","Atmospheric Carbon Capture","Brain-Computer Interfaces","Lab-Grown Meat Production","Asteroid Mining Economics","Digital Consciousness"];
+const DEBATE_CHALLENGES = ["Should AI be regulated globally?","Is nuclear energy the solution?","Should we colonize Mars?","Are cryptocurrencies the future?","Should genetic engineering be allowed?","Is UBI economically viable?"];
+
+const shuffle = arr => { const s=[...arr]; for(let i=s.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[s[i],s[j]]=[s[j],s[i]];} return s; };
 
 const getRandomSuggestions = () => {
-  const r = shuffleArray(RESEARCH_PATHS);
-  const d = shuffleArray(NEW_DOMAINS);
-  const db = shuffleArray(DEBATE_CHALLENGES);
+  const r = shuffle(RESEARCH_PATHS);
+  const d = shuffle(NEW_DOMAINS);
+  const db= shuffle(DEBATE_CHALLENGES);
   return [
-    { type: "Research Path", topic: r[0], color: C.orange, mode: "research", desc: "Based on your neural interest profile." },
-    { type: "New Domain", topic: d[0], color: C.gold, mode: "research", desc: "Your cognitive patterns suggest high affinity." },
-    { type: "Debate Challenge", topic: db[0], color: C.crimson, mode: "debate", desc: "High-entropy topic awaiting your perspective." },
+    { type:"Research Path",   topic:r[0],  color: C.orange,  mode:"research", desc:"Based on your neural interest profile." },
+    { type:"New Domain",      topic:d[0],  color: C.gold,    mode:"research", desc:"Your cognitive patterns suggest high affinity." },
+    { type:"Debate Challenge",topic:db[0], color: C.crimson, mode:"debate",   desc:"High-entropy topic awaiting your perspective." },
   ];
 };
 
-export default function MemoryBank({ user, onNavigate, onStartResearch, onLogout }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [interests, setInterests] = useState([]);
-  const [history, setHistory] = useState([]);
-  const [debates, setDebates] = useState([]);
-  const [suggestions, setSuggestions] = useState(getRandomSuggestions());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState("All Activity");
-  const userId = "guest_user";
-  const sidebarW = collapsed ? 56 : 320;
-
+/* ─────────────────────────────────────────────
+   SCROLL REVEAL HOOK
+───────────────────────────────────────────── */
+function useScrollReveal() {
   useEffect(() => {
-    const interval = setInterval(() => setSuggestions(getRandomSuggestions()), 5000);
-    return () => clearInterval(interval);
+    const els = document.querySelectorAll(".reveal, .reveal-left");
+    const io  = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("visible"); }),
+      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+    );
+    els.forEach(el => io.observe(el));
+    return () => io.disconnect();
+  });
+}
+
+/* ─────────────────────────────────────────────
+   MAIN COMPONENT
+───────────────────────────────────────────── */
+export default function MemoryBank({ user, onNavigate, onLogout }) {
+  const [collapsed,   setCollapsed]   = useState(false);
+  const [syncing,     setSyncing]     = useState(false);
+  const [syncMsg,     setSyncMsg]     = useState(null);
+  const [stats,       setStats]       = useState(null);
+  const [interests,   setInterests]   = useState([]);
+  const [history,     setHistory]     = useState([]);
+  const [debates,     setDebates]     = useState([]);
+  const [suggestions, setSuggestions] = useState(getRandomSuggestions());
+  const [loading,     setLoading]     = useState(true);
+  const [activeTab,   setActiveTab]   = useState("All Activity");
+
+  useScrollReveal();
+
+  /* rotate suggestions every 5 s */
+  useEffect(() => {
+    const t = setInterval(() => setSuggestions(getRandomSuggestions()), 5000);
+    return () => clearInterval(t);
   }, []);
 
   const handleTopicClick = (topic, mode) => {
-    window.location.href = mode === "debate"
+    const dest = mode === "debate"
       ? `/debate?topic=${encodeURIComponent(topic)}`
       : `/research?query=${encodeURIComponent(topic)}`;
+    onNavigate ? onNavigate(dest) : (window.location.href = dest);
   };
 
-  // ========== DEBUG VERSION: fetchAllData ==========
+  /* ── API calls (taken verbatim from JSX file) ── */
   const fetchAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const userId = "guest_user";
-      const base = "http://localhost:8000";
-      
-      console.log("🔄 Fetching memory data for:", userId);
-      
-      // Fetch each endpoint separately with error handling
-      const sRes = await fetch(base + "/memory/stats/" + userId);
-      const sText = await sRes.text();
-      console.log("Stats raw response:", sText);
+      const userId = user?.id || "guest_user";
+      const base   = "http://localhost:8000";
+
+      const sRes = await fetch(`${base}/memory/stats/${userId}`);
       let statsData = {};
-      try { statsData = JSON.parse(sText); } catch(e) { console.error("Stats parse error:", e); }
-      
-      const hRes = await fetch(base + "/memory/history/" + userId);
-      const hText = await hRes.text();
-      console.log("History raw response:", hText.substring(0, 200));
+      try { statsData = await sRes.json(); } catch(_) {}
+
+      const hRes = await fetch(`${base}/memory/history/${userId}`);
       let historyData = { history: [] };
-      try { historyData = JSON.parse(hText); } catch(e) { console.error("History parse error:", e); }
-      
-      const dRes = await fetch(base + "/memory/debates/" + userId);
-      const dText = await dRes.text();
-      console.log("Debates raw response:", dText.substring(0, 200));
+      try { historyData = await hRes.json(); } catch(_) {}
+
+      const dRes = await fetch(`${base}/memory/debates/${userId}`);
       let debatesData = { debates: [] };
-      try { debatesData = JSON.parse(dText); } catch(e) { console.error("Debates parse error:", e); }
-      
-      const iRes = await fetch(base + "/memory/interests/" + userId);
-      const iText = await iRes.text();
+      try { debatesData = await dRes.json(); } catch(_) {}
+
+      const iRes = await fetch(`${base}/memory/interests/${userId}`);
       let interestsData = { interests: [] };
-      try { interestsData = JSON.parse(iText); } catch(e) {}
-      
-      console.log("✅ Stats:", statsData);
-      console.log("✅ History count:", historyData.history?.length || 0);
-      console.log("✅ Debates count:", debatesData.debates?.length || 0);
-      
+      try { interestsData = await iRes.json(); } catch(_) {}
+
       setStats(statsData);
-      setInterests(interestsData.interests || []);
-      setHistory(historyData.history || []);
-      setDebates(debatesData.debates || []);
-      
-      console.log("✅ State updated! History length:", (historyData.history || []).length);
-      console.log("✅ State updated! Debates length:", (debatesData.debates || []).length);
-    } catch(e) { 
-      console.error("❌ Memory load error:", e); 
-    }
-    finally { 
-      setLoading(false); 
+      setInterests(interestsData.interests  || []);
+      setHistory(historyData.history        || []);
+      setDebates(debatesData.debates        || []);
+    } catch(e) {
+      console.error("Memory load error:", e);
+    } finally {
+      setLoading(false);
     }
   }, [user]);
 
-  useEffect(() => { 
-    fetchAllData(); 
-  }, [fetchAllData]);
+  useEffect(() => { fetchAllData(); }, [fetchAllData]);
 
   const handleSync = async () => {
     setSyncing(true);
     setSyncMsg(null);
-    setError(null);
-    
     try {
       await fetchAllData();
       setSyncMsg("Neural map synced successfully.");
-    } catch (error) {
+    } catch(_) {
       setSyncMsg("Sync failed. Please try again.");
-      console.error("Sync error:", error);
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncMsg(null), 4000);
     }
   };
 
-  const getConfColor = (v) => {
-    if (v >= 80) return C.orange;
-    if (v >= 60) return C.gold;
-    return C.crimson;
-  };
-
-  // ========== FIXED: groupedHistory function ==========
-  const groupedHistory = () => {
+  /* ── Grouped timeline (from JSX file) ── */
+  const groupedHistory = useCallback(() => {
     const g = {};
-    
-    // Add research history
     history.forEach(h => {
-      const d = h.timestamp ? new Date(h.timestamp).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'Unknown';
+      const d = h.timestamp
+        ? new Date(h.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
+        : "Unknown";
       if (!g[d]) g[d] = [];
-      g[d].push({ 
-        ...h, 
-        kind: 'research', 
-        query: h.query || 'Untitled', 
-        mode: h.mode || 'research', 
-        confidence: h.confidence || 0 
-      });
+      g[d].push({ ...h, kind:"research", query:h.query||"Untitled", mode:h.mode||"research", confidence:h.confidence||0 });
     });
-    
-    // Add debate history
     debates.forEach(d => {
-      const date = d.timestamp ? new Date(d.timestamp).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : 'Unknown';
+      const date = d.timestamp
+        ? new Date(d.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
+        : "Unknown";
       if (!g[date]) g[date] = [];
-      g[date].push({ 
-        query: d.topic || 'Untitled Debate', 
-        mode: 'debate', 
-        confidence: Math.max(d.for_score || 0, d.against_score || 0) * 10, 
-        kind: 'debate', 
-        debateData: d 
-      });
+      g[date].push({ query:d.topic||"Untitled Debate", mode:"debate",
+                     confidence:Math.max(d.for_score||0, d.against_score||0)*10,
+                     kind:"debate", debateData:d });
     });
-    
-    console.log("📊 Grouped history:", g);
     return g;
-  };
+  }, [history, debates]);
 
-  const grouped = groupedHistory();
-  const TABS = ["All Activity", "Research", "Debates"];
+  const getConfColor = v => v >= 80 ? C.orange : v >= 60 ? C.gold : C.crimson;
+
+  const sidebarW = collapsed ? 56 : 280;
+  const grouped  = groupedHistory();
+  const TABS     = ["All Activity","Research","Debates"];
+
+  /* filter grouped for Research tab */
+  const filteredGrouped = () => {
+    if (activeTab === "All Activity") return grouped;
+    if (activeTab === "Research") {
+      const g = {};
+      Object.entries(grouped).forEach(([d, items]) => {
+        const f = items.filter(i => i.kind === "research");
+        if (f.length) g[d] = f;
+      });
+      return g;
+    }
+    return {};
+  };
 
   return (
-    <div style={{
-      minHeight: "100vh", background: C.void,
-      color: "#e2e0fc", fontFamily: C.fontBody, overflowX: "hidden"
-    }}>
+    <div style={{ minHeight:"100vh", background: C.void, color: C.text, fontFamily: C.fontMono, overflowX:"hidden" }}>
       <Styles />
-      <NeuralCanvas />
+
       <Sidebar
         onNavigate={onNavigate}
         user={user}
@@ -581,561 +669,375 @@ export default function MemoryBank({ user, onNavigate, onStartResearch, onLogout
       />
 
       <main style={{
-        marginLeft: sidebarW, padding: 32, maxWidth: 1400,
-        transition: "margin-left 0.35s cubic-bezier(0.4,0,0.2,1)",
-        position: "relative", zIndex: 10
+        marginLeft: sidebarW,
+        transition:"margin-left 0.35s cubic-bezier(0.4,0,0.2,1)",
+        position:"relative", zIndex:10,
       }}>
 
-        {/* Header */}
-        <header style={{
-          display: "flex", justifyContent: "space-between",
-          alignItems: "center", padding: "16px 0", marginBottom: 32
-        }}>
-          <div>
-            <div style={{ textAlign: "center", marginBottom: 36, paddingTop: 10, animation: "fadeSlideUp 0.6s ease both" }}>
-  <h1 style={{
-    fontFamily: C.fontHead,
-    fontSize: "clamp(2rem,4.5vw,3rem)",
-    fontWeight: 800,
-    color: C.orange,
-    margin: "0 0 10px",
-    letterSpacing: "-0.03em",
-    textShadow: "0 0 40px rgba(255,140,0,0.3)",
-  }}>
-                   Neural Memory Bank
-  </h1>
-  <p style={{
-    fontFamily: "'JetBrains Mono',monospace",
-    fontSize: 14,
-    color: C.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: "3px",
-  }}>Your research journey, visualized as a living knowledge graph.</p>
-</div>
-            <p style={{
-              fontFamily: C.fontBody, fontSize: 15,
-              color: C.onSurfaceVariant, margin: "4px 0 0"
-            }}>
-              Your research journey, visualized as a living knowledge graph.
-            </p>
-          </div>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: "rgba(40,40,61,0.6)",
-              border: "1px solid rgba(255,140,0,0.3)",
-              padding: "8px 24px", borderRadius: 9999,
-              color: C.orange, fontFamily: C.fontMono, fontSize: 13,
-              cursor: syncing ? "not-allowed" : "pointer",
-              opacity: syncing ? 0.7 : 1,
-              boxShadow: syncing ? "0 0 20px rgba(255,140,0,0.8)" : "none",
-              animation: syncing ? "pulseSyncBtn 2s infinite ease-in-out" : "none",
-              transition: "all 0.3s ease"
-            }}
-          >
-            <Icon name="sync" style={{ 
-              animation: syncing ? "spin 1s linear infinite" : "none", 
-              fontSize: 18 
-            }} />
-            {syncing ? "Syncing..." : "Sync Nodes"}
-          </button>
-        </header>
+        {/* ══ HERO SECTION ══ */}
+        <section style={{ position:"relative", overflow:"hidden", minHeight:420,
+                          display:"flex", alignItems:"flex-end", paddingBottom:48 }}>
+          <NeuralStrandCanvas />
 
-        {/* Error Message */}
-        {error && (
-          <div style={{
-            background: "rgba(255,32,64,0.1)",
-            border: "1px solid rgba(255,32,64,0.3)",
-            borderRadius: 12,
-            padding: "16px 24px",
-            marginBottom: 24,
-            color: C.crimson,
-            fontFamily: C.fontMono,
-            fontSize: 13,
-            display: "flex",
-            alignItems: "center",
-            gap: 12
-          }}>
-            <Icon name="error" style={{ fontSize: 20 }} />
-            <span>Failed to load memory data: {error}</span>
+          {/* overlay gradient */}
+          <div style={{ position:"absolute", inset:0, zIndex:1,
+                        background:"linear-gradient(180deg,rgba(10,10,30,0.1) 0%,rgba(10,10,30,0.85) 100%)" }} />
+
+          <div style={{ position:"relative", zIndex:2, padding:"0 40px", width:"100%",
+                        display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+            <div style={{ animation:"fadeUp 0.7s ease both" }}>
+              <div style={{ fontFamily: C.fontDisplay, fontSize:"clamp(3.5rem,7vw,5rem)",
+                            fontWeight:700, color: C.text, letterSpacing:"0.04em",
+                            lineHeight:0.95, textTransform:"uppercase", marginBottom:-6 }}>
+                NEURAL
+              </div>
+              <div className="text-glow"
+                style={{ fontFamily: C.fontDisplay, fontSize:"clamp(5rem,10vw,8rem)",
+                         fontWeight:700, color: C.orange, letterSpacing:"0.03em",
+                         lineHeight:0.9, textTransform:"uppercase" }}>
+                MEMORY BANK
+              </div>
+              <p style={{ fontFamily: C.fontMono, fontSize:13, color: C.textMuted,
+                          textTransform:"uppercase", letterSpacing:"0.22em", marginTop:18,
+                          maxWidth:460, lineHeight:1.8 }}>
+                Your research history.,<br/>Stored, connected, never forgotten.
+              </p>
+            </div>
+
             <button
-              onClick={fetchAllData}
+              onClick={handleSync}
+              disabled={syncing}
               style={{
-                marginLeft: "auto",
-                background: "rgba(255,32,64,0.2)",
-                border: "none",
-                color: C.crimson,
-                padding: "6px 16px",
-                borderRadius: 9999,
-                cursor: "pointer",
-                fontFamily: C.fontMono,
-                fontSize: 12
+                display:"flex", alignItems:"center", gap:8,
+                background:"rgba(40,40,61,0.6)", backdropFilter:"blur(12px)",
+                border:`1px solid rgba(255,140,0,0.35)`,
+                padding:"10px 26px", borderRadius:4,
+                color: C.orange, fontFamily: C.fontMono, fontSize:12,
+                cursor: syncing ? "not-allowed" : "pointer",
+                opacity: syncing ? 0.75 : 1,
+                animation: syncing ? "pulseGlow 2s infinite" : "none",
+                transition:"all 0.3s",
+                clipPath:"polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)",
+                flexShrink:0, marginBottom:4,
               }}
+              onMouseEnter={e => { if(!syncing){ e.currentTarget.style.background = C.orange; e.currentTarget.style.color = C.void; }}}
+              onMouseLeave={e => { e.currentTarget.style.background="rgba(40,40,61,0.6)"; e.currentTarget.style.color = C.orange; }}
             >
-              Retry
+              <Icon name="sync" style={{ fontSize:18, animation: syncing ? "spin 1s linear infinite" : "none" }} />
+              {syncing ? "Syncing..." : "Sync Nodes"}
             </button>
           </div>
-        )}
+        </section>
 
-        {/* Loading State */}
-        {loading && !stats && (
-          <div style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            minHeight: "400px",
-            flexDirection: "column",
-            gap: 16
-          }}>
-            <div style={{
-              width: 48,
-              height: 48,
-              border: "3px solid rgba(255,140,0,0.2)",
-              borderTop: "3px solid #ff8c00",
-              borderRadius: "50%",
-              animation: "spin 1s linear infinite"
-            }} />
-            <p style={{ color: C.onSurfaceVariant, fontFamily: C.fontMono, fontSize: 14 }}>
-              Loading neural pathways...
-            </p>
-          </div>
-        )}
+        {/* ══ PAGE BODY ══ */}
+        <div style={{ maxWidth:1200, margin:"0 auto", padding:"0 40px 80px" }}>
 
-        {/* Sync Toast */}
-        {syncMsg && (
-          <div style={{
-            position: "fixed", bottom: 32, right: 32, zIndex: 100,
-            background: syncMsg.includes("failed") 
-              ? "rgba(255,32,64,0.15)" 
-              : "rgba(255,140,0,0.15)",
-            backdropFilter: "blur(20px)",
-            border: `1px solid ${syncMsg.includes("failed") ? "rgba(255,32,64,0.4)" : "rgba(255,140,0,0.4)"}`,
-            borderRadius: 12, padding: "16px 24px",
-            fontFamily: C.fontMono, fontSize: 13,
-            color: syncMsg.includes("failed") ? C.crimson : C.orange,
-            boxShadow: syncMsg.includes("failed") 
-              ? "0 0 15px rgba(255,32,64,0.3)" 
-              : C.glowOrange,
-            animation: "slideIn 0.4s ease"
-          }}>
-            {syncMsg.includes("failed") ? "⚠ " : "✓ "}{syncMsg}
-          </div>
-        )}
+          {/* Loading state */}
+          {loading && !stats && (
+            <div style={{ display:"flex", justifyContent:"center", alignItems:"center",
+                          minHeight:320, flexDirection:"column", gap:18 }}>
+              <div style={{ width:48, height:48, border:`3px solid rgba(255,140,0,0.2)`,
+                            borderTop:`3px solid ${C.orange}`, borderRadius:"50%",
+                            animation:"spin 1s linear infinite" }} />
+              <p style={{ color: C.textMuted, fontFamily: C.fontMono, fontSize:13 }}>
+                Loading neural pathways...
+              </p>
+            </div>
+          )}
 
-        {/* Stats Grid */}
-        {stats && (
-          <section style={{
-            display: "grid", gridTemplateColumns: "repeat(4,1fr)",
-            gap: 24, marginBottom: 40
-          }}>
-            <div style={{
-              gridColumn: "span 2", background: C.surface,
-              backdropFilter: "blur(20px)",
-              border: "1px solid rgba(255,140,0,0.3)",
-              borderRadius: 16, padding: 24, boxShadow: C.glowOrange,
-              display: "flex", flexDirection: "column",
-              justifyContent: "space-between",
-              position: "relative", overflow: "hidden"
-            }}>
-              <div style={{ position: "relative", zIndex: 1 }}>
-                <span style={{
-                  fontFamily: C.fontMono, fontSize: 11, color: C.orange,
-                  textTransform: "uppercase", letterSpacing: "1px"
-                }}>
-                  Research Overview
-                </span>
-                <h2 style={{
-                  fontFamily: C.fontHead, fontSize: 22,
-                  color: "#fff", margin: "8px 0 8px"
-                }}>
-                  {stats.total_research || 0} Total Research Sessions
-                </h2>
-                <p style={{ color: C.onSurfaceVariant, fontSize: 15, margin: 0 }}>
-                  {stats.unique_topics || 0} unique topics explored across {stats.total_debates || 0} debates.
-                </p>
+          {/* ── METRIC CARDS ── */}
+          {stats && (
+            <section style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:20, marginBottom:44 }}>
+              <MetricCard value={stats.total_research || 0} label="Total Sessions"  sub="+12% this week" icon="hexagon" delay={0}   />
+              <MetricCard value={stats.total_debates   || 0} label="Total Debates"  sub="+8% this week"  icon="hexagon" delay={80}  />
+              <MetricCard value={stats.unique_topics   || 0} label="Unique Topics"  sub="+15% this week" icon="hexagon" delay={160} />
+              <MetricCard value={`${stats.avg_confidence || 0}%`} label="Avg Confidence" sub="+11%"      icon="show_chart" delay={240} />
+            </section>
+          )}
+
+          {/* ── ACTIVE CLUSTERS ── */}
+          {interests.length > 0 && (
+            <section className="reveal" style={{ marginBottom:44 }}>
+              <h3 style={{ fontFamily: C.fontMono, fontSize:11, color: C.textMuted,
+                           textTransform:"uppercase", letterSpacing:"0.2em", marginBottom:16 }}>
+                Active Clusters
+              </h3>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
+                {interests.slice(0,12).map((int, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleTopicClick(int.topic, "research")}
+                    style={{
+                      padding:"8px 18px", borderRadius:9999,
+                      border:`1px solid ${C.orange}`,
+                      background:"transparent",
+                      color: C.text, fontFamily: C.fontMono, fontSize:11,
+                      cursor:"pointer", transition:"all 0.2s",
+                      display:"flex", alignItems:"center", gap:8,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = C.orangeGlow; e.currentTarget.style.color = C.orange; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.text; }}
+                  >
+                    {int.topic}
+                    <span style={{ color: C.orange, fontWeight:700 }}>+{int.strength}</span>
+                  </button>
+                ))}
               </div>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 16,
-                marginTop: 24, position: "relative", zIndex: 1
-              }}>
-                <div style={{
-                  height: 4, flex: 1,
-                  background: "rgba(255,255,255,0.1)",
-                  borderRadius: 9999, overflow: "hidden"
-                }}>
-                  <div style={{
-                    height: "100%",
-                    width: `${Math.min(stats.avg_confidence || 0, 100)}%`,
-                    background: C.orange,
-                    boxShadow: `0 0 10px ${C.orange}`,
-                    transition: "width 1s ease"
-                  }} />
-                </div>
-                <span style={{
-                  fontFamily: C.fontMono, fontSize: 11,
-                  color: C.orange, whiteSpace: "nowrap"
-                }}>
-                  {stats.avg_confidence || 0}% Avg Confidence
-                </span>
+            </section>
+          )}
+
+          {/* ── TABS ── */}
+          <div className="reveal card-clip"
+            style={{ display:"inline-flex", border:`1px solid #222244`,
+                     borderRadius:6, overflow:"hidden", marginBottom:28, padding:2 }}>
+            {TABS.map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                style={{
+                  padding:"8px 28px", border:"none", cursor:"pointer",
+                  fontFamily: C.fontMono, fontSize:11, textTransform:"uppercase", letterSpacing:"0.08em",
+                  background: activeTab === tab ? C.orangeDark : "transparent",
+                  color:      activeTab === tab ? "#fff"       : C.textMuted,
+                  boxShadow:  activeTab === tab ? "inset 0 0 10px rgba(255,140,0,0.15)" : "none",
+                  borderLeft: tab !== TABS[0] ? `1px solid #222244` : "none",
+                  transition:"all 0.2s",
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* ── ACTIVITY FEED / TIMELINE ── */}
+          {(activeTab === "All Activity" || activeTab === "Research") && (
+            <section style={{ marginBottom:44 }}>
+              <div style={{ border:`1px solid #222244`, borderRadius:8,
+                            background: C.void, overflow:"hidden" }}>
+                {Object.entries(filteredGrouped()).length > 0 ? (
+                  Object.entries(filteredGrouped()).map(([date, items], gi) => (
+                    <div key={date}>
+                      {/* date divider */}
+                      <div style={{ display:"flex", alignItems:"center", gap:14,
+                                    padding:"12px 20px", borderBottom:`1px solid #222244`,
+                                    background:"rgba(18,18,43,0.6)" }}>
+                        <div style={{ flex:1, borderTop:`1px solid #222244` }} />
+                        <span style={{ fontFamily: C.fontMono, fontSize:10,
+                                       color: C.textMuted, whiteSpace:"nowrap" }}>
+                          {date}
+                        </span>
+                        <div style={{ flex:1, borderTop:`1px solid #222244` }} />
+                      </div>
+                      {items.map((item, i) => {
+                        const isDebate    = item.kind === "debate";
+                        const dotColor    = isDebate ? C.crimson : getConfColor(item.confidence);
+                        const badgeText   = isDebate
+                          ? (item.debateData ? `${item.debateData.for_score}/${item.debateData.against_score}` : "DEBATE")
+                          : `${item.confidence}%`;
+                        const isLast = i === items.length - 1;
+                        return (
+                          <div
+                            key={i}
+                            className="reveal"
+                            onClick={() => handleTopicClick(item.query, item.mode || "research")}
+                            style={{
+                              padding:"20px 24px",
+                              borderBottom: isLast ? "none" : `1px solid #222244`,
+                              display:"flex", alignItems:"center", justifyContent:"space-between",
+                              cursor:"pointer", transition:"background 0.2s",
+                              animationDelay:`${i * 60}ms`,
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#12122b"}
+                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                          >
+                            <div style={{ display:"flex", alignItems:"flex-start", gap:16 }}>
+                              <div style={{ marginTop:4, width:12, height:12, borderRadius:"50%",
+                                            background: dotColor, flexShrink:0,
+                                            boxShadow:`0 0 10px ${dotColor}` }} />
+                              <div>
+                                <h4 style={{ fontFamily: C.fontBody, fontSize:14, fontWeight:600,
+                                             color:"#fff", marginBottom:10 }}>
+                                  {item.query}
+                                </h4>
+                                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                                  <span style={{ padding:"3px 10px", background:"#12122b",
+                                                 color: C.textMuted, fontSize:10,
+                                                 borderRadius:3, textTransform:"uppercase" }}>
+                                    {item.mode || "research"}
+                                  </span>
+                                  {item.topics?.filter(t=>t).slice(0,3).map((t,j)=>(
+                                    <span key={j}
+                                      onClick={e=>{e.stopPropagation(); handleTopicClick(t,"research");}}
+                                      style={{ padding:"3px 10px", background:"#12122b",
+                                               color: C.textMuted, fontSize:10,
+                                               borderRadius:3, textTransform:"uppercase", cursor:"pointer" }}>
+                                      {t}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ display:"flex", alignItems:"center", gap:24, flexShrink:0 }}>
+                              <span style={{ fontFamily: C.fontMono, fontSize:14,
+                                             fontWeight:700, color: C.orange }}>
+                                {badgeText}
+                              </span>
+                              {item.timestamp && (
+                                <span style={{ fontFamily: C.fontMono, fontSize:10, color: C.textMuted }}>
+                                  {new Date(item.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                ) : (
+                  !loading && (
+                    <div style={{ textAlign:"center", padding:"48px 20px", color: C.textMuted,
+                                  fontFamily: C.fontMono, fontSize:13 }}>
+                      No research yet — start asking questions.
+                    </div>
+                  )
+                )}
               </div>
-              <div style={{
-                position: "absolute", right: -40, bottom: -40,
-                width: 192, height: 192,
-                background: "rgba(255,140,0,0.1)",
-                borderRadius: "50%", filter: "blur(40px)"
-              }} />
-            </div>
+            </section>
+          )}
 
-            <div style={{
-              background: C.surface, backdropFilter: "blur(20px)",
-              border: `1px solid ${C.white10}`, borderRadius: 16, padding: 24,
-              display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", textAlign: "center"
-            }}>
-              <Icon name="gavel" style={{ fontSize: 40, color: C.crimson, marginBottom: 8 }} />
-              <span style={{ fontFamily: C.fontHead, fontSize: 32, fontWeight: 700, color: "#fff" }}>
-                {stats.total_debates || 0}
-              </span>
-              <span style={{
-                fontFamily: C.fontMono, fontSize: 11,
-                color: C.onSurfaceVariant, textTransform: "uppercase", marginTop: 4
-              }}>
-                Total Debates
-              </span>
-            </div>
+          {/* ── DEBATES TAB ── */}
+          {(activeTab === "All Activity" || activeTab === "Debates") && debates.length > 0 && (
+            <section style={{ marginBottom:44 }}>
+              {activeTab === "Debates" && (
+                <h3 style={{ fontFamily: C.fontMono, fontSize:11, color: C.textMuted,
+                             textTransform:"uppercase", letterSpacing:"0.2em", marginBottom:20 }}>
+                  Debate History
+                </h3>
+              )}
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                {debates.map((d, i) => (
+                  <div key={i} className="reveal"
+                    onClick={() => handleTopicClick(d.topic, "debate")}
+                    style={{
+                      background: C.surface, backdropFilter:"blur(20px)",
+                      border:"1px solid rgba(255,32,64,0.28)", borderRadius:8, padding:20,
+                      cursor:"pointer", transition:"background 0.2s",
+                      boxShadow:"0 0 14px rgba(255,32,64,0.1)",
+                      animationDelay:`${i*70}ms`,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
+                    onMouseLeave={e => e.currentTarget.style.background = C.surface}
+                  >
+                    <h4 style={{ fontFamily: C.fontBody, fontSize:15, fontWeight:600,
+                                 color:"#fff", marginBottom:14 }}>
+                      {d.topic}
+                    </h4>
+                    <div style={{ display:"flex", gap:16, marginBottom:10 }}>
+                      {/* FOR bar */}
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between",
+                                      fontFamily: C.fontMono, fontSize:10, marginBottom:5 }}>
+                          <span style={{ color: C.orange }}>FOR</span>
+                          <span style={{ color: C.orange }}>{d.for_score}/10</span>
+                        </div>
+                        <div style={{ height:4, borderRadius:2, background:"rgba(255,255,255,0.06)" }}>
+                          <div style={{ width:`${(d.for_score||0)*10}%`, height:"100%",
+                                        borderRadius:2, background: C.orange, transition:"width 1s ease" }} />
+                        </div>
+                      </div>
+                      {/* AGAINST bar */}
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between",
+                                      fontFamily: C.fontMono, fontSize:10, marginBottom:5 }}>
+                          <span style={{ color: C.crimson }}>AGAINST</span>
+                          <span style={{ color: C.crimson }}>{d.against_score}/10</span>
+                        </div>
+                        <div style={{ height:4, borderRadius:2, background:"rgba(255,255,255,0.06)" }}>
+                          <div style={{ width:`${(d.against_score||0)*10}%`, height:"100%",
+                                        borderRadius:2, background: C.crimson, transition:"width 1s ease" }} />
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: C.fontMono, fontSize:11, fontWeight:700,
+                                  color: d.winner==="FOR" ? C.orange : d.winner==="AGAINST" ? C.crimson : C.gold }}>
+                      🏆 Winner: {d.winner}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
-            <div style={{
-              background: C.surface, backdropFilter: "blur(20px)",
-              border: `1px solid ${C.white10}`, borderRadius: 16, padding: 24,
-              display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", textAlign: "center"
-            }}>
-              <Icon name="label" style={{ fontSize: 40, color: C.gold, marginBottom: 8 }} />
-              <span style={{ fontFamily: C.fontHead, fontSize: 32, fontWeight: 700, color: "#fff" }}>
-                {stats.unique_topics || 0}
-              </span>
-              <span style={{
-                fontFamily: C.fontMono, fontSize: 11,
-                color: C.onSurfaceVariant, textTransform: "uppercase", marginTop: 4
-              }}>
-                Unique Topics
-              </span>
+          {/* Debates empty state */}
+          {(activeTab === "All Activity" || activeTab === "Debates") && debates.length === 0 && !loading && (
+            <div style={{ textAlign:"center", padding:"40px 20px", color: C.textMuted,
+                          fontFamily: C.fontMono, fontSize:12, marginBottom:44 }}>
+              No debates yet — start a debate to see your history.
             </div>
-          </section>
-        )}
+          )}
 
-        {/* Active Clusters */}
-        {interests.length > 0 && (
-          <section style={{ marginBottom: 40 }}>
-            <h3 style={{ fontFamily: C.fontHead, fontSize: 20, color: "#fff", marginBottom: 16 }}>
-              . Active Clusters
-            </h3>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-              {interests.slice(0, 10).map((int, i) => (
-                <span
-                  key={i}
-                  onClick={() => handleTopicClick(int.topic, "research")}
+          {/* ── SUGGESTED SYNAPTIC PATHS ── */}
+          <section className="reveal" style={{ paddingBottom:40 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+              <h3 style={{ fontFamily: C.fontDisplay, fontSize:26, fontWeight:600,
+                           color:"#fff", textTransform:"uppercase", letterSpacing:"0.06em", margin:0 }}>
+                Suggested Synaptic Paths
+              </h3>
+              <Icon name="auto_awesome" style={{ color: C.gold, fontSize:20,
+                                                  animation:"pulseText 2s infinite" }} />
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+              {suggestions.map((s, i) => (
+                <div
+                  key={`${s.topic}-${i}`}
+                  onClick={() => handleTopicClick(s.topic, s.mode)}
+                  className="reveal-left"
                   style={{
-                    padding: "8px 16px", borderRadius: 9999,
-                    background: C.surface, backdropFilter: "blur(20px)",
-                    border: `1px solid hsl(${30 + i * 20},100%,50%)`,
-                    color: `hsl(${30 + i * 20},100%,50%)`,
-                    fontFamily: C.fontMono, fontSize: 12,
-                    cursor: "pointer", transition: "all 0.2s"
+                    background: C.surface, backdropFilter:"blur(20px)",
+                    border:`1px solid ${C.white10}`,
+                    borderLeft:`4px solid ${s.color}`,
+                    borderRadius:8, padding:"18px 22px", cursor:"pointer",
+                    transition:"transform 0.2s ease, background 0.2s ease",
+                    animationDelay:`${i * 120}ms`,
                   }}
+                  onMouseEnter={e => { e.currentTarget.style.transform="translateX(8px)"; e.currentTarget.style.background = C.surfaceHigh; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform="translateX(0)";   e.currentTarget.style.background = C.surface; }}
                 >
-                  {int.topic} <span style={{ opacity: 0.6 }}>×{int.strength}</span>
-                </span>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                    <span style={{ fontFamily: C.fontMono, fontSize:9, color: s.color,
+                                   textTransform:"uppercase", letterSpacing:"0.15em" }}>
+                      {s.type}
+                    </span>
+                  </div>
+                  <h4 style={{ fontFamily: C.fontBody, fontSize:14, fontWeight:600,
+                               color:"#fff", margin:"0 0 4px" }}>
+                    {s.topic}
+                  </h4>
+                  <p style={{ fontFamily: C.fontBody, fontSize:12, color: C.textMuted, margin:0 }}>
+                    {s.desc}
+                  </p>
+                </div>
               ))}
             </div>
           </section>
-        )}
 
-        {/* Tab Switcher */}
-        <div style={{
-          display: "inline-flex", gap: 4, padding: 4,
-          background: C.surface, backdropFilter: "blur(20px)",
-          border: `1px solid ${C.white10}`,
-          borderRadius: 9999, marginBottom: 32
-        }}>
-          {TABS.map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                padding: "8px 24px", borderRadius: 9999, border: "none",
-                cursor: "pointer", fontFamily: C.fontMono, fontSize: 13,
-                background: activeTab === tab ? C.orange : "transparent",
-                color: activeTab === tab ? C.void : C.onSurfaceVariant,
-                fontWeight: activeTab === tab ? 700 : 400,
-                transition: "all 0.2s"
-              }}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {/* Timeline */}
-        {(activeTab === "All Activity" || activeTab === "Research") && (
-          <section style={{ marginBottom: 40 }}>
-            {Object.keys(grouped).length > 0 ? (
-              Object.entries(grouped).map(([date, items]) => (
-                <div key={date} style={{ marginBottom: 24 }}>
-                  <div style={{
-                    display: "flex", alignItems: "center",
-                    gap: 16, marginBottom: 16
-                  }}>
-                    <div style={{ flex: 1, borderTop: `1px solid ${C.white10}` }} />
-                    <span style={{ fontFamily: C.fontMono, fontSize: 12, color: C.onSurfaceVariant }}>
-                      {date}
-                    </span>
-                    <div style={{ flex: 1, borderTop: `1px solid ${C.white10}` }} />
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    {items.map((item, i) => {
-                      const isDebate = item.kind === "debate";
-                      const cardBorder = isDebate
-                        ? "1px solid rgba(255,32,64,0.3)"
-                        : "1px solid rgba(255,140,0,0.3)";
-                      const cardGlow = isDebate
-                        ? "0 0 15px rgba(255,32,64,0.15)"
-                        : C.glowOrange;
-                      const dotColor = isDebate ? C.crimson : getConfColor(item.confidence);
-                      const badgeBg = isDebate
-                        ? "rgba(255,32,64,0.2)"
-                        : "rgba(255,140,0,0.2)";
-                      const badgeColor = isDebate ? C.crimson : getConfColor(item.confidence);
-                      const badgeText = isDebate
-                        ? (item.debateData
-                            ? `${item.debateData.for_score}/${item.debateData.against_score}`
-                            : "DEBATE")
-                        : `${item.confidence}%`;
-
-                      return (
-                        <div
-                          key={i}
-                          onClick={() => handleTopicClick(item.query, item.mode || "research")}
-                          style={{
-                            background: C.surface, backdropFilter: "blur(20px)",
-                            border: cardBorder, borderRadius: 16, padding: 20,
-                            cursor: "pointer", transition: "background 0.2s",
-                            boxShadow: cardGlow
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
-                          onMouseLeave={e => e.currentTarget.style.background = C.surface}
-                        >
-                          <div style={{
-                            display: "flex", justifyContent: "space-between",
-                            alignItems: "flex-start", marginBottom: 12
-                          }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <div style={{
-                                width: 12, height: 12, borderRadius: "50%",
-                                background: dotColor,
-                                boxShadow: `0 0 10px ${dotColor}`,
-                                flexShrink: 0
-                              }} />
-                              <h4 style={{
-                                fontFamily: C.fontHead, fontSize: 16,
-                                color: "#fff", margin: 0
-                              }}>
-                                {item.query}
-                              </h4>
-                            </div>
-                            <span style={{
-                              background: badgeBg,
-                              color: badgeColor,
-                              padding: "4px 12px",
-                              borderRadius: 9999,
-                              fontFamily: C.fontMono,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              whiteSpace: "nowrap"
-                            }}>
-                              {badgeText}
-                            </span>
-                          </div>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            <span style={{
-                              padding: "4px 12px", borderRadius: 9999,
-                              background: "rgba(40,40,61,0.8)",
-                              fontFamily: C.fontMono, fontSize: 10, color: "#e2e0fc"
-                            }}>
-                              {item.mode || "research"}
-                            </span>
-                            {item.topics?.filter(t => t).slice(0, 3).map((t, j) => (
-                              <span
-                                key={j}
-                                onClick={(e) => { e.stopPropagation(); handleTopicClick(t, "research"); }}
-                                style={{
-                                  padding: "4px 12px", borderRadius: 9999,
-                                  background: "rgba(40,40,61,0.8)",
-                                  fontFamily: C.fontMono, fontSize: 10,
-                                  color: "#e2e0fc", cursor: "pointer"
-                                }}
-                              >
-                                {t}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={{ textAlign: "center", padding: 40, color: C.textSecondary }}>
-                No research yet. Start asking questions!
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Debate History */}
-        {(activeTab === "All Activity" || activeTab === "Debates") && (
-          <section style={{ marginBottom: 40 }}>
-            {debates.length > 0 ? (
-              debates.map((d, i) => (
-                <div
-                  key={i}
-                  onClick={() => handleTopicClick(d.topic, "debate")}
-                  style={{
-                    background: C.surface, backdropFilter: "blur(20px)",
-                    border: "1px solid rgba(255,32,64,0.3)",
-                    borderRadius: 16, padding: 20, marginBottom: 12,
-                    cursor: "pointer",
-                    boxShadow: "0 0 15px rgba(255,32,64,0.15)",
-                    transition: "background 0.2s"
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = C.surfaceHigh}
-                  onMouseLeave={e => e.currentTarget.style.background = C.surface}
-                >
-                  <h4 style={{
-                    fontFamily: C.fontHead, fontSize: 16,
-                    color: "#fff", margin: "0 0 10px"
-                  }}>
-                    {d.topic}
-                  </h4>
-                  <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        display: "flex", justifyContent: "space-between",
-                        fontSize: 10, marginBottom: 4
-                      }}>
-                        <span style={{ color: C.orange }}>FOR</span>
-                        <span style={{ color: C.orange }}>{d.for_score}/10</span>
-                      </div>
-                      <div style={{
-                        height: 4, borderRadius: 2,
-                        background: "rgba(255,255,255,0.06)"
-                      }}>
-                        <div style={{
-                          width: `${(d.for_score || 0) * 10}%`,
-                          height: "100%", borderRadius: 2, background: C.orange,
-                          transition: "width 1s ease"
-                        }} />
-                      </div>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        display: "flex", justifyContent: "space-between",
-                        fontSize: 10, marginBottom: 4
-                      }}>
-                        <span style={{ color: C.crimson }}>AGAINST</span>
-                        <span style={{ color: C.crimson }}>{d.against_score}/10</span>
-                      </div>
-                      <div style={{
-                        height: 4, borderRadius: 2,
-                        background: "rgba(255,255,255,0.06)"
-                      }}>
-                        <div style={{
-                          width: `${(d.against_score || 0) * 10}%`,
-                          height: "100%", borderRadius: 2, background: C.crimson,
-                          transition: "width 1s ease"
-                        }} />
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{
-                    fontFamily: C.fontMono, fontSize: 11, fontWeight: 600,
-                    color: d.winner === "FOR" ? C.orange : d.winner === "AGAINST" ? C.crimson : C.gold
-                  }}>
-                    🏆 Winner: {d.winner}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={{ textAlign: "center", padding: 40, color: C.textSecondary }}>
-                No debates yet. Start a debate to see your history!
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ========== FIXED: Combined empty state ========== */}
-        {history.length === 0 && debates.length === 0 && !loading && (
-          <div style={{ textAlign: "center", padding: 40, color: C.textSecondary }}>
-            No research yet. Start asking questions!<br/>
-            <span style={{fontSize: 12}}>No debates yet. Start a debate to see your history!</span>
-          </div>
-        )}
-
-        {/* Suggestions */}
-        <section style={{ paddingBottom: 60 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-            <h3 style={{ fontFamily: C.fontHead, fontSize: 20, color: "#fff", margin: 0 }}>
-              💡 Suggested Synaptic Paths
-            </h3>
-            <Icon name="auto_awesome" style={{ color: C.gold, animation: "pulseText 2s infinite" }} />
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {suggestions.map((s, i) => (
-              <div
-                key={i}
-                onClick={() => handleTopicClick(s.topic, s.mode)}
-                style={{
-                  background: C.surface, backdropFilter: "blur(20px)",
-                  border: `1px solid ${C.white10}`,
-                  borderLeft: `4px solid ${s.color}`,
-                  borderRadius: 16, padding: 20, cursor: "pointer",
-                  transition: "transform 0.2s, background 0.2s",
-                  animation: `slideIn 0.5s ${i * 150}ms both`
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = "translateX(8px)";
-                  e.currentTarget.style.background = C.surfaceHigh;
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = "translateX(0)";
-                  e.currentTarget.style.background = C.surface;
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{
-                    fontFamily: C.fontMono, fontSize: 10,
-                    color: s.color, textTransform: "uppercase", letterSpacing: "1px"
-                  }}>
-                    {s.type}
-                  </span>
-                </div>
-                <h4 style={{ fontFamily: C.fontHead, fontSize: 14, color: "#fff", margin: 0 }}>
-                  {s.topic}
-                </h4>
-                <p style={{
-                  fontFamily: C.fontBody, fontSize: 12,
-                  color: C.onSurfaceVariant, margin: "4px 0 0"
-                }}>
-                  {s.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
+        </div>{/* end body */}
       </main>
+
+      {/* ── SYNC TOAST ── */}
+      {syncMsg && (
+        <div style={{
+          position:"fixed", bottom:32, right:32, zIndex:100,
+          background: syncMsg.includes("failed") ? "rgba(255,32,64,0.12)" : "rgba(255,140,0,0.12)",
+          backdropFilter:"blur(20px)",
+          border:`1px solid ${syncMsg.includes("failed") ? "rgba(255,32,64,0.4)" : "rgba(255,140,0,0.4)"}`,
+          borderRadius:8, padding:"14px 24px",
+          fontFamily: C.fontMono, fontSize:12,
+          color: syncMsg.includes("failed") ? C.crimson : C.orange,
+          animation:"fadeUp 0.4s ease",
+          clipPath:"polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)",
+        }}>
+          {syncMsg.includes("failed") ? "⚠ " : "✓ "}{syncMsg}
+        </div>
+      )}
     </div>
   );
 }

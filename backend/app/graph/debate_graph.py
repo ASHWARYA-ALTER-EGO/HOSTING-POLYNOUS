@@ -11,7 +11,7 @@ from app.services.embedding_pipeline import pipeline
 def debate_search_node(state: AgentState) -> AgentState:
     """Search for debate sources"""
     print("\n" + "="*60)
-    print("🔍 DEBATE: Searching for sources...")
+    print("  DEBATE: Searching for sources...")
     print("="*60)
     
     results = search_web(state['query'])
@@ -126,7 +126,7 @@ def judge_node(state: AgentState) -> AgentState:
     ]
     
     # ========== Store debate in user memory ==========
-    print(f"📌 Storing debate for user_id: guest_user")
+    print(f"    Storing debate for user_id: guest_user")
     try:
         user_memory.record_debate(
             user_id=state.get('session_id', 'guest_user'),
@@ -148,7 +148,7 @@ def judge_node(state: AgentState) -> AgentState:
             confidence=for_score * 10,
             sources=state.get('citations', [])
         )
-        print("  🔍 Indexed debate for Semantic Search")
+        print("    Indexed debate for Semantic Search")
     except Exception as e:
         print(f"  ⚠️ Search indexing error: {e}")
     

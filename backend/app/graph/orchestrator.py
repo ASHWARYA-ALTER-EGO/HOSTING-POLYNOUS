@@ -16,7 +16,7 @@ import json
 def search_node(state: AgentState) -> AgentState:
     """Search Agent - Find relevant documents + graph context"""
     print("\n" + "="*60)
-    print("🔍 STEP 1: SEARCH AGENT (Hybrid)")
+    print("  STEP 1: SEARCH AGENT (Hybrid)")
     print("="*60)
     
     state['current_agent'] = 'search'
@@ -31,7 +31,7 @@ def search_node(state: AgentState) -> AgentState:
         hybrid_results = hybrid.hybrid_search(state['query'])
         entities = hybrid._extract_entities(state['query'])
         if entities:
-            print(f"📌 Detected entities: {entities}")
+            print(f"    Detected entities: {entities}")
             kg.extract_and_link_entities(state['query'])
         state['graph_context'] = hybrid_results.get('enhanced_context', '')
         state['graph_results'] = hybrid_results.get('graph_results', [])
@@ -198,7 +198,7 @@ def writer_node(state: AgentState) -> AgentState:
             confidence=conf,
             sources=state.get('citations', [])
         )
-        print("🔍 Indexed for Semantic Search")
+        print("  Indexed for Semantic Search")
     except Exception as e:
         print(f"⚠️ Search indexing: {e}")
     

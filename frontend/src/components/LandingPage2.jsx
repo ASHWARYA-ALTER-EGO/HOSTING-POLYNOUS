@@ -157,21 +157,21 @@ const EXAMPLES = [
 ];
 
 const RESEARCH_NODES = [
-  {id:"search",    name:"SEARCH",    emoji:"🔍",color:C.cyan,  tag:"AG-01"},
+  {id:"search",    name:"SEARCH",    emoji:" ",color:C.cyan,  tag:"AG-01"},
   {id:"summarise", name:"SUMMARISE", emoji:"📄",color:C.indigo,tag:"AG-02"},
   {id:"critic",    name:"CRITIC",    emoji:"⚖️",color:C.amber, tag:"AG-03"},
   {id:"writer",    name:"WRITER",    emoji:"✍️",color:C.purple,tag:"AG-04"},
 ];
 
 const DIALECTIC_NODES = [
-  {id:"d-search",name:"SEARCH", emoji:"🔍",color:C.cyan,   tag:"DX-01",x:75, y:240},
+  {id:"d-search",name:"SEARCH", emoji:" ",color:C.cyan,   tag:"DX-01",x:75, y:240},
   {id:"for",     name:"FOR",    emoji:"✅",color:C.green,  tag:"DX-02",x:270,y:100},
   {id:"against", name:"AGAINST",emoji:"❌",color:C.crimson,tag:"DX-03",x:270,y:380},
   {id:"judge",   name:"JUDGE",  emoji:"👨‍⚖️",color:C.gold,   tag:"DX-04",x:460,y:240,isJudge:true},
 ];
 
 const PLAYGROUND_AGENTS = [
-  {id:"search",   name:"SEARCH",   emoji:"🔍",color:"#00ccff",desc:"I scan knowledge bases and the web to pull raw, unfiltered data on any topic."},
+  {id:"search",   name:"SEARCH",   emoji:" ",color:"#00ccff",desc:"I scan knowledge bases and the web to pull raw, unfiltered data on any topic."},
   {id:"summarise",name:"SUMMARISE",emoji:"📄",color:"#5878d4",desc:"I distill walls of text into crisp, structured summaries without losing nuance."},
   {id:"for",      name:"FOR",      emoji:"✅",color:"#00ff0f",desc:"My job is to build the strongest possible case in favour of the proposition."},
   {id:"against",  name:"AGAINST",  emoji:"❌",color:"#ff2040",desc:"I stress-test every argument and poke holes in assumptions. Nothing slips past me."},
@@ -283,7 +283,7 @@ function NeuralPipeline(){
     <div style={{width:"100%",minHeight:"620px",display:"flex",alignItems:"stretch",position:"relative"}}>
       <div style={{flex:1,padding:"44px 28px",display:"flex",flexDirection:"column",alignItems:"center"}}>
         <div style={{marginBottom:"32px",textAlign:"center"}}>
-          <p style={{fontFamily:"Sora,sans-serif",fontWeight:700,fontSize:"12px",color:C.green,letterSpacing:"0.16em",margin:0}}>🔬 RESEARCH PIPELINE</p>
+          <p style={{fontFamily:"Sora,sans-serif",fontWeight:700,fontSize:"12px",color:C.green,letterSpacing:"0.16em",margin:0}}>    RESEARCH PIPELINE</p>
           <p style={{fontFamily:"JetBrains Mono,monospace",fontSize:"9px",color:"#fff",opacity:0.28,margin:"5px 0 0",letterSpacing:"0.1em"}}>SEQUENTIAL SYNTHESIS ARCHITECTURE</p>
         </div>
         <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",position:"relative",width:"100%"}}>

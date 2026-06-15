@@ -31,3 +31,13 @@ async def get_suggestions(
     """Get search suggestions"""
     suggestions = semantic_search.get_suggestions(query, limit)
     return {"query": query, "suggestions": suggestions}
+
+@router.get("/stats/vector-count")
+async def get_vector_count():
+    """Get total vectors in semantic search index"""
+    try:
+        from app.semantic_search import semantic_search
+        total = len(semantic_search.fallback_memory) if hasattr(semantic_search, 'fallback_memory') else 0
+        return {"count": total, "status": "ok"}
+    except Exception as e:
+        return {"count": 0, "status": "error", "message": str(e)}

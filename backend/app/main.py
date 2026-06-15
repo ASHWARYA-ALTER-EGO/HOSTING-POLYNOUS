@@ -1,4 +1,5 @@
 from app.routes.api_keys import router as api_keys_router
+from app.routes.settings_extended import router as settings_extended_router
 from app.routes.user_stats import router as user_stats_router
 from app.routes.preferences import router as preferences_router
 from app.routes.pdfs import router as pdfs_router
@@ -53,6 +54,7 @@ async def startup():
 
 # ========== INCLUDE ROUTERS ==========
 app.include_router(api_keys_router)
+app.include_router(settings_extended_router)
 app.include_router(auth_router)
 app.include_router(conversations_router)
 app.include_router(user_stats_router)
@@ -144,7 +146,7 @@ async def ask_question(request: QueryRequest):
         except Exception as e:
             print(f"⚠️ Failed to save debate history: {e}")
     else:
-        print("\n🔬 RESEARCH MODE ACTIVATED")
+        print("\n    RESEARCH MODE ACTIVATED")
         result = orchestrator.invoke(state)
         
         # Save research to chat history
@@ -252,6 +254,31 @@ async def ask_stream(request: QueryRequest):
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
     
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.get("/stats/vector-count")
+async def vector_count():
+    """Return actual vector count from semantic search"""
+    try:
+        from app.semantic_search import semantic_search
+        
+        # Count from fallback memory
+        memory_count = len(semantic_search.fallback_memory) if hasattr(semantic_search, 'fallback_memory') else 0
+        
+        # Try Pinecone count
+        pinecone_count = 0
+        try:
+            if hasattr(semantic_search, 'index') and semantic_search.index:
+                stats = semantic_search.index.describe_index_stats()
+                pinecone_count = stats.get('total_vector_count', 0)
+        except:
+            pass
+        
+        total = max(memory_count, pinecone_count)
+        return {"count": total, "memory_count": memory_count, "pinecone_count": pinecone_count}
+    except Exception as e:
+        return {"count": 0, "error": str(e)}
+
 
 if __name__ == "__main__":
     import uvicorn

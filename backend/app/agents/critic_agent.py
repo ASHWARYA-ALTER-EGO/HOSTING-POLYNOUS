@@ -8,7 +8,7 @@ anthropic = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 def critic_agent(summaries, query=""):
     """Analyze summaries for contradictions and confidence"""
-    print("🔍 Critic: Analyzing...")
+    print("  Critic: Analyzing...")
     
     try:
         combined = "\n\n".join(summaries)[:4000]

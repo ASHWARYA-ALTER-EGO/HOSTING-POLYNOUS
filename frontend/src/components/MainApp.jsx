@@ -214,7 +214,7 @@ try {
             <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '14px', padding: '14px 20px', marginBottom: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ color: '#aaa', fontSize: '11px', fontWeight: 600, marginBottom: '10px', letterSpacing: '1px' }}>AGENTS WORKING</div>
               {agentProgress.map((step, i) => (<div key={i} style={{ color: '#00ff0f', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}><span>✓</span> {step.message}</div>))}
-              <div style={{ color: '#f093fb', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}><span>⚡</span> {agentStatus}</div>
+              <div style={{ color: '#f093fb', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}><span>   </span> {agentStatus}</div>
             </div>
           )}
 

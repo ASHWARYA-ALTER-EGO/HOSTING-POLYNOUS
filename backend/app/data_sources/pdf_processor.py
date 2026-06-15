@@ -232,7 +232,7 @@ def search_pdf(query: str, pdf_name: str = None, top_k: int = 5) -> List[Dict]:
             print("❌ Failed to create query embedding")
             return []
         
-        print(f"🔍 Searching for: '{query}'")
+        print(f"  Searching for: '{query}'")
         print(f"   Embedding dim: {len(query_embedding)}")
         
         filter_dict = {}

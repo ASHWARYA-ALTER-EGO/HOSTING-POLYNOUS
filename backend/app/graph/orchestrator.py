@@ -112,11 +112,13 @@ def writer_node(state: AgentState) -> AgentState:
     if graph_context:
         enhanced_summaries.append(f"KNOWLEDGE GRAPH INSIGHTS:\n{graph_context}")
     
+    # ✅ Pass response_style from state to writer agent
     answer = writer_agent(
         state['query'],
         enhanced_summaries,
         state['critique'],
-        state['citations']
+        state['citations'],
+        response_style=state.get('response_style', 'academic')
     )
     state['final_answer'] = answer
     
@@ -167,7 +169,8 @@ def writer_node(state: AgentState) -> AgentState:
             answer=answer,
             mode="research",
             confidence=state.get('critique', {}).get('overall_confidence', 0),
-            sources=state['citations']
+            sources=state['citations'],
+            user_id=user_id  # ✅ Added user_id
         )
         print(f"  ✅ Indexed in Semantic Search")
     except Exception as e:

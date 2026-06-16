@@ -304,18 +304,13 @@ function LoginCard({ onLogin }) {
   const [success, setSuccess]   = useState("");
   const [isLogin, setIsLogin]   = useState(true);
 
-  // ✅ Profile setup states
-  const [showProfileSetup, setShowProfileSetup] = useState(false)
-  const [registeredEmail, setRegisteredEmail] = useState('')
-  const [tempLoginData, setTempLoginData] = useState(null)
-
   const handleSubmit = async () => {
     setError(""); setSuccess("");
     if (!email || !password) { setError("All fields are required."); return; }
     setLoading(true);
     try {
       const endpoint = isLogin ? '/auth/login' : '/auth/register'
-      // ✅ Send 'new_user' as placeholder username for registration
+      // Registration uses 'new_user' as placeholder username; the user will set it later
       const body = isLogin 
         ? { email, password } 
         : { email, username: 'new_user', password }
@@ -344,43 +339,32 @@ function LoginCard({ onLogin }) {
         throw new Error(errorMsg);
       }
       
-      // ✅ After successful REGISTRATION, show success message then profile setup
-      if (!isLogin) {
-        setTempLoginData(data)
-        setRegisteredEmail(email)
-        setSuccess('Account created! Redirecting…')
-        // Short delay to show the success message before moving to profile setup
-        setTimeout(() => {
-          setShowProfileSetup(true)
-        }, 1500)
-        return
-      }
+      // Store tokens in both memory (secure) and localStorage (compatibility)
+      const token = data.access_token || data.token;
+      window.__POLYNOUS_ACCESS_TOKEN__ = token;
+      localStorage.setItem('polynous_token', token);
       
-      // ✅ Store in BOTH memory and localStorage for compatibility
-      const token = data.access_token || data.token
-      window.__POLYNOUS_ACCESS_TOKEN__ = token
-      localStorage.setItem('polynous_token', token)
-      
-      // Store refresh token only if using token rotation
       if (data.refresh_token) {
-        window.__POLYNOUS_REFRESH_TOKEN__ = data.refresh_token
+        window.__POLYNOUS_REFRESH_TOKEN__ = data.refresh_token;
       }
       
-      // Store user info with user_id for SettingsPage compatibility
+      // Store user info
       localStorage.setItem('polynous_user', JSON.stringify({ 
           username: data.username || email.split('@')[0], 
           email: email,
           user_id: data.user_id
-      }))
-      localStorage.setItem('polynous_user_id', data.user_id)
-      localStorage.setItem('polynous_username', data.username || email.split('@')[0])
+      }));
+      localStorage.setItem('polynous_user_id', data.user_id);
+      localStorage.setItem('polynous_username', data.username || email.split('@')[0]);
       
-      setSuccess('Synapse active. Welcome, Researcher.')
-      
-      if (onLogin) {
-        onLogin(data)
+      // ✅ NEW: For registration, pass a flag so the parent shows ProfileSetup
+      if (!isLogin && onLogin) {
+        // Pass the registration data plus the flag
+        onLogin({ ...data, email, needs_profile_setup: true });
+      } else if (onLogin) {
+        onLogin(data);
       } else {
-        window.location.href = '/dashboard'
+        window.location.href = '/dashboard';
       }
     } catch (err) {
       setError(err.message || "Authentication failed.");
@@ -405,25 +389,6 @@ function LoginCard({ onLogin }) {
     if (onLogin) onLogin(guest)
     else window.location.href = '/dashboard'
   };
-
-  // ✅ Show profile setup after registration success delay
-  if (showProfileSetup) {
-    return (
-      <ProfileSetup 
-        email={registeredEmail}
-        onComplete={async (username) => {
-          // Save username to localStorage
-          const stored = JSON.parse(localStorage.getItem('polynous_user') || '{}')
-          localStorage.setItem('polynous_user', JSON.stringify({ ...stored, username }))
-          
-          // Now complete login
-          if (onLogin && tempLoginData) {
-            onLogin({ ...tempLoginData, username })
-          }
-        }}
-      />
-    )
-  }
 
   return (
     <div
@@ -546,6 +511,33 @@ function Footer() {
 
 // ─── Root App ─────────────────────────────────────────────────
 export default function PolynousLoginV2({ onLogin }) {
+  const [profileSetupUser, setProfileSetupUser] = useState(null);
+
+  const handleLogin = (data) => {
+    if (data.needs_profile_setup) {
+      // User just registered – show ProfileSetup
+      setProfileSetupUser(data);
+    } else if (onLogin) {
+      onLogin(data);
+    } else {
+      window.location.href = '/dashboard';
+    }
+  };
+
+  // When ProfileSetup completes, finalise login
+  const handleProfileComplete = (username) => {
+    // Update localStorage with the chosen username
+    const stored = JSON.parse(localStorage.getItem('polynous_user') || '{}');
+    localStorage.setItem('polynous_user', JSON.stringify({ ...stored, username }));
+    // Call the original onLogin with the updated data
+    if (onLogin) {
+      onLogin({ ...profileSetupUser, username });
+    } else {
+      window.location.href = '/dashboard';
+    }
+    setProfileSetupUser(null);
+  };
+
   return (
     <>
       <GlobalStyles />
@@ -557,7 +549,14 @@ export default function PolynousLoginV2({ onLogin }) {
         padding: "0 16px",
         display: "flex", flexDirection: "column",
       }}>
-        <LoginCard onLogin={onLogin} />
+        {profileSetupUser ? (
+          <ProfileSetup
+            email={profileSetupUser.email}
+            onComplete={handleProfileComplete}
+          />
+        ) : (
+          <LoginCard onLogin={handleLogin} />
+        )}
         <Footer />
       </main>
     </>

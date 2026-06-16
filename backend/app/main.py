@@ -5,7 +5,7 @@ from app.middleware.input_sanitizer import input_sanitizer_middleware
 from app.middleware.security_headers import security_headers_middleware
 from app.utils.sanitizer import sanitize_query, is_safe_input
 from app.routes.api_keys import router as api_keys_router
-from app.routes.settings_extended import router as settings_extended_router
+from app.routes.settings_extended import router as settings_ext_router
 from app.routes.user_stats import router as user_stats_router
 from app.routes.pdfs import router as pdfs_router
 from app.routes.memory import router as memory_router
@@ -130,7 +130,7 @@ async def startup():
 
 # ========== INCLUDE ROUTERS ==========
 app.include_router(api_keys_router)
-app.include_router(settings_extended_router)
+app.include_router(settings_ext_router)
 app.include_router(auth_router)
 app.include_router(conversations_router)
 app.include_router(user_stats_router)
@@ -145,6 +145,7 @@ class QueryRequest(BaseModel):
     query: str
     debate_mode: bool = False
     session_id: Optional[str] = None
+    response_style: Optional[str] = "academic"   # ← ADDED
 
 class QueryResponse(BaseModel):
     answer: str
@@ -211,7 +212,8 @@ async def ask_question(request: QueryRequest, req: Request):
         judge_verdict={},
         errors=[],
         warnings=[],
-        current_agent="start"
+        current_agent="start",
+        response_style=request.response_style,   # ← ADDED
     )
     
     if request.debate_mode:
@@ -289,7 +291,8 @@ async def ask_stream(request: QueryRequest, req: Request):
             session_id=session_id,
             retrieved_docs=[], summaries=[], critique={}, final_answer="", citations=[],
             debate_mode=request.debate_mode, debate_history=[], judge_verdict={},
-            errors=[], warnings=[], current_agent=""
+            errors=[], warnings=[], current_agent="",
+            response_style=request.response_style,   # ← ADDED
         )
         
         mode_name = "debate" if request.debate_mode else "research"

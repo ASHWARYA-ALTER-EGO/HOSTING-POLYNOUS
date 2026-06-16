@@ -815,7 +815,14 @@ function VectorNodeBadge({ sidebarWidth }) {
     const fetchCount = async () => {
       setLoading(true); setError(false)
       try {
-        const res = await fetch('http://localhost:8000/stats/vector-count')
+        const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
+              localStorage.getItem('polynous_token') || '';
+
+const res = await fetch('http://localhost:8000/stats/vector-count', {
+    headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+    }
+})
         if (!mounted) return
         if (res.ok) {
           const data = await res.json()
@@ -1882,7 +1889,14 @@ export default function SemanticSearchPage({ user, onStartResearch, onNavigate, 
     const q = (searchQuery || query).trim(); if (!q) return
     setLoading(true); setSearched(true); setSelectedResult(null); setShowSuggestions(false)
     try {
-      const res = await fetch(`http://localhost:8000/search?query=${encodeURIComponent(q)}&top_k=12`)
+      const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
+              localStorage.getItem('polynous_token') || '';
+
+const res = await fetch(`http://localhost:8000/search?query=${encodeURIComponent(q)}&top_k=12`, {
+    headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+    }
+})
       if (res.ok) { const data = await res.json(); setResults(data.results || []) }
       else setResults([])
     } catch (err) {
@@ -1897,7 +1911,14 @@ export default function SemanticSearchPage({ user, onStartResearch, onNavigate, 
     if (value.length > 2) {
       setShowSuggestions(true)
       try {
-        const res = await fetch(`http://localhost:8000/search/suggestions?query=${encodeURIComponent(value)}&limit=5`)
+        const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
+              localStorage.getItem('polynous_token') || '';
+
+const res = await fetch(`http://localhost:8000/search/suggestions?query=${encodeURIComponent(value)}&limit=5`, {
+    headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+    }
+})
         if (res.ok) { const d = await res.json(); setSuggestions(d.suggestions || []) }
       } catch { /* ignore */ }
     } else {

@@ -1,4 +1,5 @@
 import SettingsPage from './components/SettingsPage'
+import ProfileSetup from './components/ProfileSetup'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState } from 'react';
 
@@ -80,6 +81,9 @@ export default function App() {
   const [user, setUser] = useState(initialAuth.user)
   const initialCheckDone = true
 
+  // --- NEW: state to show ProfileSetup after registration ---
+  const [showProfileSetup, setShowProfileSetup] = useState(false)
+
   // ========== AUTH HANDLERS ==========
   const handleLogin = (data) => {
     if (data?.skip) {
@@ -90,6 +94,15 @@ export default function App() {
       setUser(guestUser)
       // Load preferences for guest
       loadUserPreferences('guest_user');
+    } else if (data?.needs_profile_setup) {
+      // Brand new registration – store token, set basic user, then show ProfileSetup
+      localStorage.setItem('polynous_token', data.token)
+      const userData = { email: data.email, username: data.username || '' }
+      localStorage.setItem('polynous_user', JSON.stringify(userData))
+      setIsLoggedIn(true)
+      setUser(userData)
+      setShowProfileSetup(true)
+      // Preferences will be loaded after profile setup completes (or later)
     } else if (data?.token) {
       const userData = { username: data.username || 'User', email: data.email || '', isGuest: false }
       localStorage.setItem('polynous_token', data.token)
@@ -142,6 +155,39 @@ export default function App() {
         </div>
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       </div>
+    )
+  }
+
+  // --- NEW: Show ProfileSetup if user just registered ---
+  if (isLoggedIn && showProfileSetup) {
+    return (
+      <ProfileSetup 
+        email={user?.email}
+        onComplete={async (username) => {
+          // Update username in backend
+          const token = localStorage.getItem('polynous_token')
+          try {
+            await fetch('http://localhost:8000/auth/me', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ username })
+            })
+          } catch (e) {
+            console.error('Failed to update username on backend', e)
+          }
+          
+          // Update local state and localStorage
+          setUser(prev => ({ ...prev, username }))
+          localStorage.setItem('polynous_user', JSON.stringify({ ...user, username }))
+          setShowProfileSetup(false)
+          
+          // Optionally load preferences now
+          if (user?.email) loadUserPreferences(user.email);
+        }}
+      />
     )
   }
 

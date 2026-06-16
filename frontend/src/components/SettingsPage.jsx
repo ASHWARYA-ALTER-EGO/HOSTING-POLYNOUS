@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS — silver / deep-void palette
+// DESIGN TOKENS
 // ─────────────────────────────────────────────────────────────────────────────
 const C = {
   silver:           "#c8cdd6",
@@ -15,9 +15,11 @@ const C = {
   crimson:          "#e05068",
   crimsonFaint:     "rgba(224,80,104,0.09)",
   cyan:             "#7ec8d8",
+  cyanFaint:        "rgba(126,200,216,0.09)",
   gold:             "#c8aa6e",
   purple:           "#9b84cc",
   green:            "#5ec97e",
+  greenFaint:       "rgba(94,201,126,0.09)",
 
   void:             "#0b0c10",
   surface:          "rgba(18,20,26,0.80)",
@@ -31,44 +33,44 @@ const C = {
   white10:          "rgba(255,255,255,0.08)",
   white5:           "rgba(255,255,255,0.04)",
 
-  fontHead: "'Sora',sans-serif",
-  fontBody: "'Hanken Grotesk',sans-serif",
-  fontMono: "'JetBrains Mono',monospace",
+  fontHead:    "'Sora',sans-serif",
+  fontBody:    "'Hanken Grotesk',sans-serif",
+  fontMono:    "'JetBrains Mono',monospace",
   fontDisplay: "'Anton',sans-serif",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ✅ FIXED API LAYER — JWT-based auth, no user_id in URLs
+// API LAYER
 // ─────────────────────────────────────────────────────────────────────────────
 const BASE = "http://localhost:8000";
 
 function getToken() {
-  return localStorage.getItem('polynous_token') || window.__POLYNOUS_ACCESS_TOKEN__ || '';
+  return localStorage.getItem("polynous_token") || window.__POLYNOUS_ACCESS_TOKEN__ || "";
 }
 
 function authHeaders() {
   const token = getToken();
-  return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+  return token
+    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+    : { "Content-Type": "application/json" };
 }
 
 async function safeFetch(url, opts = {}) {
-  // Always include auth headers
   opts.headers = { ...(opts.headers || {}), ...authHeaders() };
-
   let res;
   try {
     res = await fetch(url, opts);
   } catch (networkErr) {
     throw new Error(`Network error: ${networkErr.message}`);
   }
-
   const text = await res.text();
   let data;
-  try { data = JSON.parse(text); } catch {
+  try {
+    data = JSON.parse(text);
+  } catch {
     if (!res.ok) throw new Error(`Server error ${res.status}`);
     throw new Error("Invalid JSON response");
   }
-
   if (!res.ok) {
     const msg = data?.detail || data?.message || `Error ${res.status}`;
     const err = new Error(msg);
@@ -79,51 +81,37 @@ async function safeFetch(url, opts = {}) {
 }
 
 const api = {
-  // ✅ FIXED: No user_id in URL — JWT handles it
-  getApiKeys: () =>
-    safeFetch(`${BASE}/settings/api-keys`),
+  // ── API Keys ──────────────────────────────────────────────────────────────
+  getApiKeys:   ()               => safeFetch(`${BASE}/settings/api-keys`),
+  saveApiKey:   (provider, key)  => safeFetch(`${BASE}/settings/api-keys`, { method: "PUT",    body: JSON.stringify({ provider, api_key: key }) }),
+  deleteApiKey: (provider)       => safeFetch(`${BASE}/settings/api-keys/${provider}`, { method: "DELETE" }),
+  testApiKey:   (provider, key)  => safeFetch(`${BASE}/settings/api-keys/test`, { method: "POST", body: JSON.stringify({ provider, api_key: key }) }),
 
-  // ✅ FIXED: Correct PUT format matching backend
-  saveApiKey: (provider, key) =>
-    safeFetch(`${BASE}/settings/api-keys`, {
-      method: "PUT",
-      body: JSON.stringify({ [`${provider}_api_key`]: key }),
-    }),
+  // ── Preferences ───────────────────────────────────────────────────────────
+  getPreferences:  ()      => safeFetch(`${BASE}/settings/preferences`),
+  savePreferences: (prefs) => safeFetch(`${BASE}/settings/preferences`, { method: "PUT", body: JSON.stringify(prefs) }),
 
-  // ✅ FIXED: Correct DELETE format
-  deleteApiKey: (provider) =>
-    safeFetch(`${BASE}/settings/api-keys`, {
-      method: "DELETE",
-      body: JSON.stringify({ provider: provider }),
-    }),
+  // ── Profile ───────────────────────────────────────────────────────────────
+  getProfile:    ()     => safeFetch(`${BASE}/auth/me`),
+  updateProfile: (data) => safeFetch(`${BASE}/auth/me`, { method: "PUT", body: JSON.stringify(data) }),
+  changePassword: (data) => safeFetch(`${BASE}/auth/change-password`, { method: "POST", body: JSON.stringify(data) }),
+  revokeAllSessions: () => safeFetch(`${BASE}/auth/revoke-sessions`, { method: "POST" }),
+  deleteAccount: ()     => safeFetch(`${BASE}/auth/me`, { method: "DELETE" }),
 
-  // ✅ FIXED: Correct test format with POST + body
-  testApiKey: (provider) =>
-    safeFetch(`${BASE}/settings/api-keys/test?provider=${provider}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    }),
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  getStats:   ()           => safeFetch(`${BASE}/memory/stats`),
+  exportData: ()           => safeFetch(`${BASE}/settings/export`),
+  clearHistory: ()         => safeFetch(`${BASE}/memory/clear`, { method: "DELETE" }),
+  clearAllData: ()         => safeFetch(`${BASE}/settings/reset`, { method: "POST" }),
 
-  // ✅ FIXED: No user_id in URL
-  getStats: () =>
-    safeFetch(`${BASE}/memory/stats`),
+  // ── Notifications ─────────────────────────────────────────────────────────
+  getNotifications:  ()      => safeFetch(`${BASE}/settings/notifications`),
+  saveNotifications: (prefs) => safeFetch(`${BASE}/settings/notifications`, { method: "PUT", body: JSON.stringify(prefs) }),
 
-  // ✅ FIXED: Preferences endpoints
-  getPreferences: () =>
-    safeFetch(`${BASE}/settings/preferences`).catch(() => ({ default_mode: "research", response_style: "academic" })),
-
-  savePreferences: (prefs) =>
-    safeFetch(`${BASE}/settings/preferences`, {
-      method: "PUT",
-      body: JSON.stringify(prefs),
-    }),
-
-  updateProfile: (data) =>
-    safeFetch(`${BASE}/auth/me`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }).catch(() => ({ message: "Profile updated locally" })),
+  // ── Integrations ──────────────────────────────────────────────────────────
+  getIntegrations:      ()       => safeFetch(`${BASE}/settings/integrations`),
+  connectIntegration:   (name)   => safeFetch(`${BASE}/settings/integrations/${name}/connect`, { method: "POST" }),
+  disconnectIntegration:(name)   => safeFetch(`${BASE}/settings/integrations/${name}/disconnect`, { method: "DELETE" }),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -167,21 +155,22 @@ function Styles() {
         50%     { box-shadow: 0 0 10px rgba(200,205,214,0.55); }
       }
       @keyframes toastIn  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+      @keyframes toastOut { from { opacity:1; transform:translateY(0);    } to { opacity:0; transform:translateY(10px); } }
       @keyframes wordmarkPulse {
-        0%,100% {
-          text-shadow: 0 0 8px rgba(200,205,214,0.25), 0 0 20px rgba(200,205,214,0.12), 0 0 40px rgba(200,205,214,0.06);
-        }
-        50% {
-          text-shadow: 0 0 12px rgba(232,236,242,0.55), 0 0 28px rgba(200,205,214,0.28), 0 0 56px rgba(200,205,214,0.14);
-        }
+        0%,100% { text-shadow: 0 0 8px rgba(200,205,214,0.25), 0 0 20px rgba(200,205,214,0.12), 0 0 40px rgba(200,205,214,0.06); }
+        50%     { text-shadow: 0 0 12px rgba(232,236,242,0.55), 0 0 28px rgba(200,205,214,0.28), 0 0 56px rgba(200,205,214,0.14); }
       }
       @keyframes settingsGlow {
-        0%,100% {
-          text-shadow: 0 0 18px rgba(232,236,242,0.22), 0 0 46px rgba(200,205,214,0.10);
-        }
-        50% {
-          text-shadow: 0 0 26px rgba(232,236,242,0.40), 0 0 64px rgba(200,205,214,0.20);
-        }
+        0%,100% { text-shadow: 0 0 18px rgba(232,236,242,0.22), 0 0 46px rgba(200,205,214,0.10); }
+        50%     { text-shadow: 0 0 26px rgba(232,236,242,0.40), 0 0 64px rgba(200,205,214,0.20); }
+      }
+      @keyframes slideIn {
+        from { opacity:0; transform: translateY(-6px); }
+        to   { opacity:1; transform: translateY(0); }
+      }
+      @keyframes modalIn {
+        from { opacity:0; transform: scale(0.96); }
+        to   { opacity:1; transform: scale(1); }
       }
 
       ::-webkit-scrollbar { width: 4px; }
@@ -208,12 +197,20 @@ function Styles() {
         cursor: pointer;
       }
       select option { background: #0b0c10; color: #dde1e9; }
+
+      .poly-btn-base {
+        transition: background 0.18s, border-color 0.18s, color 0.18s, opacity 0.18s;
+      }
+      .poly-btn-base:disabled {
+        opacity: 0.45;
+        cursor: not-allowed !important;
+      }
     `}</style>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NEURAL CANVAS  — silver floating particles + mouse repulsion
+// NEURAL CANVAS
 // ─────────────────────────────────────────────────────────────────────────────
 function NeuralCanvas() {
   const ref = useRef(null);
@@ -222,27 +219,21 @@ function NeuralCanvas() {
     const ctx    = canvas.getContext("2d");
     let particles = [], mouse = { x: null, y: null }, animId;
     const N = 130;
-
     const COLS = [
-      { r: 200, g: 205, b: 214 },
-      { r: 180, g: 190, b: 205 },
-      { r: 220, g: 225, b: 232 },
-      { r: 142, g: 152, b: 168 },
-      { r: 160, g: 175, b: 195 },
-      { r: 230, g: 235, b: 240 },
+      { r: 200, g: 205, b: 214 }, { r: 180, g: 190, b: 205 },
+      { r: 220, g: 225, b: 232 }, { r: 142, g: 152, b: 168 },
+      { r: 160, g: 175, b: 195 }, { r: 230, g: 235, b: 240 },
     ];
-
     const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
 
     class Particle {
       constructor() { this.reset(); }
       reset() {
-        this.x  = Math.random() * canvas.width;
-        this.y  = Math.random() * canvas.height;
+        this.x   = Math.random() * canvas.width;
+        this.y   = Math.random() * canvas.height;
         this.bvx = (Math.random() - 0.5) * 0.4;
         this.bvy = (Math.random() - 0.5) * 0.4;
-        this.vx  = this.bvx;
-        this.vy  = this.bvy;
+        this.vx  = this.bvx; this.vy = this.bvy;
         this.r   = Math.random() * 2.2 + 0.8;
         this.col = COLS[Math.floor(Math.random() * COLS.length)];
         this.op  = Math.random() * 0.35 + 0.12;
@@ -255,93 +246,71 @@ function NeuralCanvas() {
       update(t) {
         this.vx = this.bvx + Math.sin(t * this.ws + this.wo) * this.wa;
         this.vy = this.bvy + Math.cos(t * this.ws + this.wo) * this.wa;
-        this.x += this.vx;
-        this.y += this.vy;
+        this.x += this.vx; this.y += this.vy;
         if (mouse.x !== null) {
           const dx = this.x - mouse.x, dy = this.y - mouse.y;
           const d  = Math.sqrt(dx * dx + dy * dy);
-          if (d < 160) {
-            const f = (160 - d) / 160;
-            this.x += (dx / d) * f * 2.5;
-            this.y += (dy / d) * f * 2.5;
-          }
+          if (d < 160) { const f = (160 - d) / 160; this.x += (dx / d) * f * 2.5; this.y += (dy / d) * f * 2.5; }
         }
-        if (this.x < -10) this.x = canvas.width  + 10;
-        if (this.x > canvas.width  + 10) this.x  = -10;
+        if (this.x < -10) this.x = canvas.width + 10;
+        if (this.x > canvas.width + 10) this.x = -10;
         if (this.y < -10) this.y = canvas.height + 10;
-        if (this.y > canvas.height + 10) this.y  = -10;
+        if (this.y > canvas.height + 10) this.y = -10;
       }
       draw(t) {
-        const tw  = Math.sin(t * this.ts + this.to) * 0.18 + 0.82;
-        const al  = this.op * tw;
+        const tw = Math.sin(t * this.ts + this.to) * 0.18 + 0.82;
+        const al = this.op * tw;
         const { r: cr, g, b } = this.col;
         const grd = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * 5);
         grd.addColorStop(0, `rgba(${cr},${g},${b},${al * 0.45})`);
         grd.addColorStop(1, `rgba(${cr},${g},${b},0)`);
         ctx.fillStyle = grd;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r * 5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.r * 5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = `rgba(${cr},${g},${b},${al})`;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill();
       }
     }
 
     const init = () => { particles = Array.from({ length: N }, () => new Particle()); };
-
     let t0 = performance.now();
     const frame = (ts) => {
       const t = ts - t0;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
+          const dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y;
           const d  = Math.sqrt(dx * dx + dy * dy);
           if (d < 120) {
-            const al   = (1 - d / 120) * 0.055;
-            const cr   = Math.floor((particles[i].col.r + particles[j].col.r) / 2);
-            const cg   = Math.floor((particles[i].col.g + particles[j].col.g) / 2);
-            const cb   = Math.floor((particles[i].col.b + particles[j].col.b) / 2);
+            const al = (1 - d / 120) * 0.055;
+            const cr = Math.floor((particles[i].col.r + particles[j].col.r) / 2);
+            const cg = Math.floor((particles[i].col.g + particles[j].col.g) / 2);
+            const cb = Math.floor((particles[i].col.b + particles[j].col.b) / 2);
             ctx.strokeStyle = `rgba(${cr},${cg},${cb},${al})`;
-            ctx.lineWidth   = 0.4;
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
+            ctx.lineWidth = 0.4;
+            ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke();
           }
         }
       }
       particles.forEach(p => { p.update(t); p.draw(t); });
       animId = requestAnimationFrame(frame);
     };
-
     const onMM = e => { mouse.x = e.clientX; mouse.y = e.clientY; };
     const onML = () => { mouse.x = null; mouse.y = null; };
     const onRz = () => { resize(); init(); };
-
-    window.addEventListener("resize",    onRz);
+    window.addEventListener("resize", onRz);
     window.addEventListener("mousemove", onMM);
-    window.addEventListener("mouseleave",onML);
+    window.addEventListener("mouseleave", onML);
     resize(); init();
     animId = requestAnimationFrame(frame);
-
     return () => {
       cancelAnimationFrame(animId);
-      window.removeEventListener("resize",    onRz);
+      window.removeEventListener("resize", onRz);
       window.removeEventListener("mousemove", onMM);
-      window.removeEventListener("mouseleave",onML);
+      window.removeEventListener("mouseleave", onML);
     };
   }, []);
-
   return (
-    <canvas ref={ref} style={{
-      position: "fixed", inset: 0,
-      width: "100%", height: "100%",
-      zIndex: 0, pointerEvents: "none",
-    }} />
+    <canvas ref={ref} style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 0, pointerEvents: "none" }} />
   );
 }
 
@@ -367,22 +336,16 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
   return (
     <aside style={{
       position: "fixed", left: 0, top: 0, height: "100%", width: W,
-      background: "rgba(11,12,16,0.92)",
-      backdropFilter: "blur(28px)",
+      background: "rgba(11,12,16,0.92)", backdropFilter: "blur(28px)",
       borderRight: `1px solid ${C.white10}`,
       display: "flex", flexDirection: "column",
       padding: collapsed ? "18px 8px" : "24px 20px",
-      zIndex: 30,
+      zIndex: 30, overflow: "hidden",
       transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), padding 0.35s cubic-bezier(0.4,0,0.2,1)",
-      overflow: "hidden",
     }}>
       {collapsed ? (
         <>
-          <button onClick={() => setCollapsed(false)} style={{
-            background: "none", border: "none", color: C.silver,
-            cursor: "pointer", marginBottom: 30,
-            display: "flex", justifyContent: "center",
-          }}>
+          <button onClick={() => setCollapsed(false)} style={{ background: "none", border: "none", color: C.silver, cursor: "pointer", marginBottom: 30, display: "flex", justifyContent: "center" }}>
             <Icon name="chevron_right" style={{ fontSize: 22 }} />
           </button>
           {NAV_ITEMS.map(({ icon, label, path, active }) => (
@@ -396,18 +359,10 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
             </div>
           ))}
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-            <div onClick={() => go("/research")} style={{
-              width: 36, height: 36, borderRadius: "50%",
-              background: C.silverFaint, border: `1px solid ${C.silverBorder}`,
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-            }}>
+            <div onClick={() => go("/research")} title="New Research" style={{ width: 36, height: 36, borderRadius: "50%", background: C.silverFaint, border: `1px solid ${C.silverBorder}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <Icon name="add" style={{ fontSize: 18, color: C.silver }} />
             </div>
-            <div title={user?.username || "Guest"} style={{
-              width: 32, height: 32, borderRadius: "50%",
-              background: "#14161c", border: `1px solid ${C.silverBorder}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
+            <div title={user?.username || "Guest"} style={{ width: 32, height: 32, borderRadius: "50%", background: "#14161c", border: `1px solid ${C.silverBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Icon name="face" style={{ color: C.silver, fontSize: 16 }} />
             </div>
             <div onClick={bye} title="Disconnect" style={{ cursor: "pointer", color: C.crimson }}>
@@ -419,33 +374,15 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
         <>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 42, minWidth: 0 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h1 style={{
-                fontFamily: C.fontHead, fontSize: 26, fontWeight: 800,
-                color: C.silverBright, letterSpacing: "-0.04em", whiteSpace: "nowrap",
-                animation: "wordmarkPulse 3.5s ease-in-out infinite",
-              }}>
-                POLYNOUS
-              </h1>
-              <p style={{
-                fontFamily: C.fontMono, fontSize: 10, color: C.textSecondary,
-                textTransform: "uppercase", letterSpacing: "0.22em",
-                marginTop: 5, whiteSpace: "nowrap",
-              }}>
-                Cerebral Vitality Engine
-              </p>
+              <h1 style={{ fontFamily: C.fontHead, fontSize: 26, fontWeight: 800, color: C.silverBright, letterSpacing: "-0.04em", whiteSpace: "nowrap", animation: "wordmarkPulse 3.5s ease-in-out infinite" }}>POLYNOUS</h1>
+              <p style={{ fontFamily: C.fontMono, fontSize: 10, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "0.22em", marginTop: 5, whiteSpace: "nowrap" }}>Cerebral Vitality Engine</p>
             </div>
-            <button onClick={() => setCollapsed(true)} style={{
-              background: "none", border: "none", color: C.textSecondary,
-              cursor: "pointer", padding: 4, flexShrink: 0, marginLeft: 8,
-              transition: "color 0.18s",
-            }}
+            <button onClick={() => setCollapsed(true)} style={{ background: "none", border: "none", color: C.textSecondary, cursor: "pointer", padding: 4, flexShrink: 0, marginLeft: 8, transition: "color 0.18s" }}
               onMouseEnter={e => e.currentTarget.style.color = C.silverBright}
-              onMouseLeave={e => e.currentTarget.style.color = C.textSecondary}
-            >
+              onMouseLeave={e => e.currentTarget.style.color = C.textSecondary}>
               <Icon name="chevron_left" style={{ fontSize: 20 }} />
             </button>
           </div>
-
           <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, overflow: "hidden" }}>
             {NAV_ITEMS.map(({ icon, label, path, active }) => (
               <div key={label} onClick={() => go(path)} style={{
@@ -465,7 +402,6 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
               </div>
             ))}
           </nav>
-
           <div style={{ borderTop: `1px solid ${C.white5}`, paddingTop: 22, marginTop: 22 }}>
             <button onClick={() => go("/research")} style={{
               width: "100%", padding: "12px",
@@ -476,34 +412,17 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
               transition: "background 0.18s",
             }}
               onMouseEnter={e => e.currentTarget.style.background = "rgba(200,205,214,0.13)"}
-              onMouseLeave={e => e.currentTarget.style.background = C.silverFaint}
-            >
+              onMouseLeave={e => e.currentTarget.style.background = C.silverFaint}>
               <Icon name="add" style={{ fontSize: 18, color: "inherit", flexShrink: 0 }} />
               New Research
             </button>
             <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: "50%",
-                background: "#14161c", border: `1px solid ${C.silverBorder}`,
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
+              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#14161c", border: `1px solid ${C.silverBorder}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name="face" style={{ color: C.silver, fontSize: 22 }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{
-                  fontFamily: C.fontMono, fontSize: 13.5, fontWeight: 600,
-                  color: C.onSurface, whiteSpace: "nowrap",
-                  overflow: "hidden", textOverflow: "ellipsis",
-                }}>
-                  {user?.username || "Guest"}
-                </p>
-                <button onClick={bye} style={{
-                  fontSize: 10.5, color: C.crimson, background: "none",
-                  border: "none", cursor: "pointer", fontFamily: C.fontMono,
-                  textTransform: "uppercase", letterSpacing: "0.06em", padding: 0,
-                }}>
-                  Disconnect
-                </button>
+                <p style={{ fontFamily: C.fontMono, fontSize: 13.5, fontWeight: 600, color: C.onSurface, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.username || "Guest"}</p>
+                <button onClick={bye} style={{ fontSize: 10.5, color: C.crimson, background: "none", border: "none", cursor: "pointer", fontFamily: C.fontMono, textTransform: "uppercase", letterSpacing: "0.06em", padding: 0 }}>Disconnect</button>
               </div>
             </div>
           </div>
@@ -535,17 +454,84 @@ function ToastBox({ toasts }) {
           padding: "14px 20px", borderRadius: 12,
           fontFamily: C.fontMono, fontSize: 13.5,
           backdropFilter: "blur(24px)",
-          background: t.type === "err" ? C.crimsonFaint : C.silverFaint,
-          border: `1px solid ${t.type === "err" ? "rgba(224,80,104,0.38)" : C.silverBorder}`,
-          color: t.type === "err" ? C.crimson : C.silverBright,
+          background: t.type === "err" ? C.crimsonFaint : t.type === "warn" ? "rgba(200,170,110,0.09)" : C.silverFaint,
+          border: `1px solid ${t.type === "err" ? "rgba(224,80,104,0.38)" : t.type === "warn" ? "rgba(200,170,110,0.35)" : C.silverBorder}`,
+          color: t.type === "err" ? C.crimson : t.type === "warn" ? C.gold : C.silverBright,
           boxShadow: t.type === "err" ? "0 0 14px rgba(224,80,104,0.2)" : C.silverGlow,
           animation: "toastIn 0.28s ease",
           display: "flex", alignItems: "center", gap: 10,
+          maxWidth: 360,
         }}>
-          {t.type === "err" ? "⚠" : "✓"}&nbsp;{t.msg}
+          {t.type === "err" ? "⚠" : t.type === "warn" ? "!" : "✓"}&nbsp;{t.msg}
         </div>
       ))}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function Modal({ open, onClose, title, children, width = 440 }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 1000,
+      background: "rgba(11,12,16,0.72)", backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "100%", maxWidth: width,
+        background: "rgba(18,20,26,0.97)",
+        border: `1px solid ${C.silverBorder}`,
+        borderRadius: 18, padding: 28,
+        boxShadow: "0 0 60px rgba(0,0,0,0.7), 0 0 24px rgba(200,205,214,0.08)",
+        animation: "modalIn 0.22s cubic-bezier(0.34,1.2,0.64,1)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+          <span style={{ fontFamily: C.fontHead, fontWeight: 700, fontSize: 17, color: C.onSurface }}>{title}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSecondary, padding: 4, transition: "color 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.color = C.silverBright}
+            onMouseLeave={e => e.currentTarget.style.color = C.textSecondary}>
+            <Icon name="close" style={{ fontSize: 20 }} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIRM DIALOG
+// ─────────────────────────────────────────────────────────────────────────────
+function ConfirmModal({ open, onClose, onConfirm, title, body, confirmLabel = "Confirm", danger = false, loading = false }) {
+  return (
+    <Modal open={open} onClose={onClose} title={title}>
+      <p style={{ fontFamily: C.fontBody, fontSize: 14.5, color: C.onSurfaceVariant, lineHeight: 1.7, marginBottom: 24 }}>{body}</p>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <button onClick={onClose} disabled={loading} style={{ padding: "9px 20px", borderRadius: 9999, border: `1px solid ${C.white10}`, background: "transparent", color: C.onSurfaceVariant, cursor: "pointer", fontFamily: C.fontHead, fontSize: 14, fontWeight: 500 }}>
+          Cancel
+        </button>
+        <button onClick={onConfirm} disabled={loading} style={{
+          padding: "9px 22px", borderRadius: 9999, border: "none",
+          background: danger ? C.crimson : C.silver,
+          color: danger ? "#fff" : C.void,
+          cursor: loading ? "wait" : "pointer",
+          fontFamily: C.fontHead, fontSize: 14, fontWeight: 700,
+          opacity: loading ? 0.65 : 1, transition: "opacity 0.18s",
+        }}>
+          {loading ? "Working…" : confirmLabel}
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -556,25 +542,13 @@ function SectionHead({ icon, title, subtitle }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: 8,
-          background: C.silverFaint, border: `1px solid ${C.silverBorder}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: C.silverFaint, border: `1px solid ${C.silverBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon name={icon} style={{ fontSize: 16, color: C.silverDim }} />
         </div>
-        <span style={{ fontFamily: C.fontHead, fontSize: 17, fontWeight: 700, color: C.onSurface, letterSpacing: "-0.025em" }}>
-          {title}
-        </span>
+        <span style={{ fontFamily: C.fontHead, fontSize: 17, fontWeight: 700, color: C.onSurface, letterSpacing: "-0.025em" }}>{title}</span>
       </div>
       {subtitle && (
-        <p style={{
-          fontFamily: C.fontMono, fontSize: 11, color: C.textSecondary,
-          textTransform: "uppercase", letterSpacing: "0.16em",
-          paddingLeft: 44, marginTop: 4, lineHeight: 1,
-        }}>
-          {subtitle}
-        </p>
+        <p style={{ fontFamily: C.fontMono, fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "0.16em", paddingLeft: 44, marginTop: 4, lineHeight: 1 }}>{subtitle}</p>
       )}
       <div style={{ height: 1, background: `linear-gradient(90deg, ${C.silverBorder}, transparent)`, marginTop: 12 }} />
     </div>
@@ -584,8 +558,7 @@ function SectionHead({ icon, title, subtitle }) {
 function Card({ children, danger }) {
   return (
     <div style={{
-      background: C.surface,
-      backdropFilter: "blur(22px)",
+      background: C.surface, backdropFilter: "blur(22px)",
       border: `1px solid ${danger ? "rgba(224,80,104,0.22)" : C.white10}`,
       borderRadius: 18, padding: 28, marginBottom: 16,
       boxShadow: danger ? "0 0 16px rgba(224,80,104,0.08)" : C.silverGlow,
@@ -598,11 +571,7 @@ function Card({ children, danger }) {
 
 function Label({ children }) {
   return (
-    <div style={{
-      fontFamily: C.fontMono, fontSize: 11,
-      textTransform: "uppercase", letterSpacing: "0.18em",
-      color: C.textSecondary, marginBottom: 10,
-    }}>
+    <div style={{ fontFamily: C.fontMono, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: C.textSecondary, marginBottom: 10 }}>
       {children}
     </div>
   );
@@ -622,37 +591,26 @@ const onFO = e => { e.target.style.border = `1px solid ${C.white10}`; e.target.s
 
 function StatusDot({ active }) {
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 7,
-      fontFamily: C.fontMono, fontSize: 11, letterSpacing: "0.12em",
-      textTransform: "uppercase",
-      color: active ? C.silver : C.textSecondary,
-    }}>
-      <span style={{
-        width: 7, height: 7, borderRadius: "50%",
-        background: active ? C.silver : C.textSecondary,
-        boxShadow: active ? "0 0 7px rgba(200,205,214,0.55)" : "none",
-        animation: active ? "pulseDot 2.4s ease infinite" : "none",
-      }} />
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: C.fontMono, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: active ? C.silver : C.textSecondary }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: active ? C.silver : C.textSecondary, boxShadow: active ? "0 0 7px rgba(200,205,214,0.55)" : "none", animation: active ? "pulseDot 2.4s ease infinite" : "none" }} />
       {active ? "Active" : "Not set"}
     </span>
   );
 }
 
-function Toggle({ on, onToggle }) {
+function Toggle({ on, onToggle, disabled }) {
   return (
-    <div role="switch" aria-checked={on} tabIndex={0}
-      onClick={onToggle}
-      onKeyDown={e => (e.key === " " || e.key === "Enter") && onToggle()}
+    <div role="switch" aria-checked={on} tabIndex={disabled ? -1 : 0}
+      onClick={disabled ? undefined : onToggle}
+      onKeyDown={e => !disabled && (e.key === " " || e.key === "Enter") && onToggle()}
       style={{
         width: 42, height: 24, borderRadius: 999,
         background: on ? C.silver : "rgba(255,255,255,0.09)",
         border: `1px solid ${on ? "rgba(200,205,214,0.55)" : C.white10}`,
-        position: "relative", cursor: "pointer",
-        transition: "background 0.2s, border 0.2s",
-        flexShrink: 0, outline: "none",
-      }}
-    >
+        position: "relative", cursor: disabled ? "not-allowed" : "pointer",
+        transition: "background 0.2s, border 0.2s", flexShrink: 0, outline: "none",
+        opacity: disabled ? 0.45 : 1,
+      }}>
       <div style={{
         position: "absolute", top: 3, left: on ? 21 : 3,
         width: 16, height: 16, borderRadius: "50%",
@@ -664,18 +622,29 @@ function Toggle({ on, onToggle }) {
   );
 }
 
-function Spinner() {
+function Spinner({ size = 32 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "32px 0" }}>
-      <div style={{
-        width: 32, height: 32,
-        border: "2px solid rgba(200,205,214,0.15)",
-        borderTop: "2px solid #c8cdd6",
-        borderRadius: "50%", animation: "spin 0.9s linear infinite",
-      }} />
-      <span style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, letterSpacing: "0.08em" }}>
-        Loading…
-      </span>
+      <div style={{ width: size, height: size, border: "2px solid rgba(200,205,214,0.15)", borderTop: "2px solid #c8cdd6", borderRadius: "50%", animation: "spin 0.9s linear infinite" }} />
+      <span style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, letterSpacing: "0.08em" }}>Loading…</span>
+    </div>
+  );
+}
+
+function InlineSpinner() {
+  return <span style={{ display: "inline-block", width: 14, height: 14, border: "1.5px solid rgba(200,205,214,0.25)", borderTop: "1.5px solid #c8cdd6", borderRadius: "50%", animation: "spin 0.8s linear infinite", verticalAlign: "middle", marginRight: 6 }} />;
+}
+
+function ErrorBanner({ msg, onRetry }) {
+  return (
+    <div style={{ padding: "16px", display: "flex", alignItems: "center", gap: 12, color: C.crimson, fontFamily: C.fontMono, fontSize: 13, background: C.crimsonFaint, borderRadius: 10, border: "1px solid rgba(224,80,104,0.2)" }}>
+      <Icon name="error_outline" style={{ fontSize: 20, color: C.crimson, flexShrink: 0 }} />
+      <span style={{ flex: 1 }}>{msg}</span>
+      {onRetry && (
+        <button onClick={onRetry} style={{ padding: "6px 14px", borderRadius: 9999, border: "1px solid rgba(224,80,104,0.35)", background: "transparent", color: C.crimson, cursor: "pointer", fontFamily: C.fontMono, fontSize: 11.5, flexShrink: 0 }}>
+          Retry
+        </button>
+      )}
     </div>
   );
 }
@@ -684,27 +653,38 @@ function Spinner() {
 // PROVIDERS CONFIG
 // ─────────────────────────────────────────────────────────────────────────────
 const PROVIDERS = {
-  anthropic: { label: "Anthropic Claude", icon: "psychology",      color: C.silver,  placeholder: "sk-ant-api03-…" },
-  openai:    { label: "OpenAI GPT",        icon: "smart_toy",      color: C.cyan,    placeholder: "sk-…"           },
-  tavily:    { label: "Tavily Search",     icon: "travel_explore", color: C.gold,    placeholder: "tvly-…"         },
+  anthropic: { label: "Anthropic Claude", icon: "psychology",      color: C.silver, placeholder: "sk-ant-api03-…" },
+  openai:    { label: "OpenAI GPT",        icon: "smart_toy",      color: C.cyan,   placeholder: "sk-…"           },
+  tavily:    { label: "Tavily Search",     icon: "travel_explore", color: C.gold,   placeholder: "tvly-…"         },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ✅ FIXED PROFILE SECTION — email removed from editing, immutable
+// PROFILE SECTION
 // ─────────────────────────────────────────────────────────────────────────────
-function ProfileSection({ user, push }) {
-  const [editing, setEditing] = useState(false);
-  const [username, setUsername] = useState(user?.username || "");
-  const [email, setEmail]       = useState(user?.email    || ""); // still kept for display
-  const [saving, setSaving]     = useState(false);
+function ProfileSection({ user: initialUser, push }) {
+  const [user,     setUser]     = useState(initialUser || {});
+  const [editing,  setEditing]  = useState(false);
+  const [username, setUsername] = useState(initialUser?.username || "");
+  const [saving,   setSaving]   = useState(false);
+  const [loading,  setLoading]  = useState(false);
+
+  // Fetch fresh profile on mount
+  useEffect(() => {
+    setLoading(true);
+    api.getProfile()
+      .then(data => { setUser(data); setUsername(data.username || ""); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
   const initials = (username || "PL").split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 
   const save = async () => {
     if (!username.trim()) { push("Username cannot be empty", "err"); return; }
     setSaving(true);
     try {
-      // ✅ Only send username — email is immutable
-      await api.updateProfile({ username: username.trim() });
+      const updated = await api.updateProfile({ username: username.trim() });
+      setUser(prev => ({ ...prev, ...updated, username: username.trim() }));
       const stored = JSON.parse(localStorage.getItem("polynous_user") || "{}");
       localStorage.setItem("polynous_user", JSON.stringify({ ...stored, username: username.trim() }));
       push("Profile updated");
@@ -716,79 +696,55 @@ function ProfileSection({ user, push }) {
     }
   };
 
-  const cancel = () => {
-    setUsername(user?.username || "");
-    setEmail(user?.email || "");
-    setEditing(false);
-  };
+  const cancel = () => { setUsername(user.username || ""); setEditing(false); };
 
   return (
     <Card>
       <SectionHead icon="account_circle" title="Profile" subtitle="Identity & account tier" />
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: "50%",
-            background: `conic-gradient(from 200deg, #5a6272, #8e98a8, #c8cdd6, #e2e6ed, #c8cdd6, #8e98a8)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontFamily: C.fontHead, fontWeight: 800, fontSize: 20, color: C.void,
-            boxShadow: "0 0 28px rgba(200,205,214,0.18), 0 0 0 2px rgba(200,205,214,0.14)",
-            flexShrink: 0,
-          }}>
-            {initials}
+      {loading ? <Spinner size={24} /> : (
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: "50%",
+              background: "conic-gradient(from 200deg, #5a6272, #8e98a8, #c8cdd6, #e2e6ed, #c8cdd6, #8e98a8)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: C.fontHead, fontWeight: 800, fontSize: 20, color: C.void,
+              boxShadow: "0 0 28px rgba(200,205,214,0.18), 0 0 0 2px rgba(200,205,214,0.14)",
+              flexShrink: 0,
+            }}>{initials}</div>
+            <div>
+              {editing ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <input value={username} onChange={e => setUsername(e.target.value)}
+                    placeholder="Username" autoFocus
+                    onKeyDown={e => e.key === "Enter" && save()}
+                    style={{ ...inputStyle, width: 220, fontFamily: C.fontHead, fontWeight: 600 }}
+                    onFocus={onFI} onBlur={onFO} />
+                  <div style={{ fontFamily: C.fontMono, fontSize: 11.5, color: C.textSecondary }}>{user.email}</div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontFamily: C.fontHead, fontSize: 18, fontWeight: 700, color: C.onSurface, letterSpacing: "-0.025em" }}>{user.username || "Guest User"}</div>
+                  <div style={{ fontFamily: C.fontMono, fontSize: 13, color: C.textSecondary, marginTop: 5 }}>{user.email || "guest@polynous.ai"}</div>
+                  <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
+                    {[
+                      { label: user.plan || "Free Tier", color: C.silver,        bg: C.silverFaint, border: C.silverBorder },
+                      { label: `Since ${user.created_year || "2025"}`, color: C.textSecondary, bg: "transparent", border: C.white10 },
+                    ].map(b => (
+                      <span key={b.label} style={{ fontFamily: C.fontMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", background: b.bg, padding: "4px 12px", borderRadius: 9999, color: b.color, border: `1px solid ${b.border}` }}>{b.label}</span>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-          <div>
-            {editing ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <input value={username} onChange={e => setUsername(e.target.value)}
-                  placeholder="Username"
-                  style={{ ...inputStyle, width: 220, fontFamily: C.fontHead, fontWeight: 600 }}
-                  onFocus={onFI} onBlur={onFO} />
-                {/* ❌ REMOVED email input — can't change email */}
-              </div>
-            ) : (
-              <>
-                <div style={{ fontFamily: C.fontHead, fontSize: 18, fontWeight: 700, color: C.onSurface, letterSpacing: "-0.025em" }}>
-                  {username || "Guest User"}
-                </div>
-                <div style={{ fontFamily: C.fontMono, fontSize: 13, color: C.textSecondary, marginTop: 5 }}>
-                  {email || "guest@polynous.ai"}
-                </div>
-                <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
-                  {[
-                    { label: "Free Tier",   color: C.silver,        bg: C.silverFaint,  border: C.silverBorder },
-                    { label: "Since 2025",  color: C.textSecondary, bg: "transparent",  border: C.white10      },
-                  ].map(b => (
-                    <span key={b.label} style={{
-                      fontFamily: C.fontMono, fontSize: 10, letterSpacing: "0.12em",
-                      textTransform: "uppercase", background: b.bg,
-                      padding: "4px 12px", borderRadius: 9999,
-                      color: b.color, border: `1px solid ${b.border}`,
-                    }}>
-                      {b.label}
-                    </span>
-                  ))}
-                </div>
-              </>
+          <div style={{ display: "flex", gap: 8 }}>
+            {editing && (
+              <button onClick={cancel} disabled={saving} style={{ padding: "9px 20px", borderRadius: 9999, border: `1px solid ${C.white10}`, background: "transparent", color: C.onSurfaceVariant, cursor: "pointer", fontFamily: C.fontHead, fontWeight: 600, fontSize: 14 }}>
+                Cancel
+              </button>
             )}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {editing && (
-            <button onClick={cancel} style={{
-              padding: "9px 20px", borderRadius: 9999,
-              border: `1px solid ${C.white10}`, background: "transparent",
-              color: C.onSurfaceVariant, cursor: "pointer",
-              fontFamily: C.fontHead, fontWeight: 600, fontSize: 14,
-              transition: "all 0.18s",
-            }}>
-              Cancel
-            </button>
-          )}
-          <button
-            onClick={() => editing ? save() : setEditing(true)}
-            disabled={saving}
-            style={{
+            <button onClick={() => editing ? save() : setEditing(true)} disabled={saving} style={{
               padding: "9px 22px", borderRadius: 9999,
               border: editing ? "none" : `1px solid ${C.silverBorder}`,
               background: editing ? C.silver : "transparent",
@@ -796,30 +752,36 @@ function ProfileSection({ user, push }) {
               cursor: saving ? "wait" : "pointer",
               fontFamily: C.fontHead, fontWeight: 700, fontSize: 14,
               transition: "all 0.18s", opacity: saving ? 0.6 : 1,
+              display: "flex", alignItems: "center", gap: 6,
             }}
-            onMouseEnter={e => { if (!editing) e.currentTarget.style.background = C.silverFaint; }}
-            onMouseLeave={e => { if (!editing) e.currentTarget.style.background = "transparent"; }}
-          >
-            {saving ? "Saving…" : editing ? "Save Changes" : "Edit Profile"}
-          </button>
+              onMouseEnter={e => { if (!editing && !saving) e.currentTarget.style.background = C.silverFaint; }}
+              onMouseLeave={e => { if (!editing) e.currentTarget.style.background = "transparent"; }}
+            >
+              {saving && <InlineSpinner />}
+              {saving ? "Saving…" : editing ? "Save Changes" : "Edit Profile"}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </Card>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ✅ FIXED KEY CARD — test passes actual key value
+// KEY CARD
 // ─────────────────────────────────────────────────────────────────────────────
 function KeyCard({ providerId, connected, preview, onSave, onRemove, push }) {
-  const [val, setVal]               = useState("");
-  const [visible, setVisible]       = useState(false);
-  const [testing, setTesting]       = useState(false);
+  const [val,        setVal]        = useState("");
+  const [visible,    setVisible]    = useState(false);
+  const [saving,     setSaving]     = useState(false);
+  const [removing,   setRemoving]   = useState(false);
+  const [testing,    setTesting]    = useState(false);
   const [testResult, setTestResult] = useState(null); // null | "ok" | "fail"
   const p = PROVIDERS[providerId];
 
   const doSave = async () => {
     if (!val.trim()) { push("Paste a key first", "err"); return; }
+    setSaving(true);
     try {
       await api.saveApiKey(providerId, val.trim());
       push(`${p.label} key saved`);
@@ -827,24 +789,28 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push }) {
       if (onSave) onSave(providerId);
     } catch (err) {
       push(err.message || "Save failed", "err");
+    } finally {
+      setSaving(false);
     }
   };
 
   const doRemove = async () => {
+    setRemoving(true);
     try {
       await api.deleteApiKey(providerId);
       push(`${p.label} key removed`);
       if (onRemove) onRemove(providerId);
     } catch (err) {
       push(err.message || "Remove failed", "err");
+    } finally {
+      setRemoving(false);
     }
   };
 
-  // ✅ FIXED: Test passes the actual key value
   const doTest = async () => {
     setTesting(true); setTestResult(null);
     try {
-      const r = await api.testApiKey(providerId, val || "");
+      const r = await api.testApiKey(providerId, val.trim() || "");
       setTestResult(r?.valid ? "ok" : "fail");
     } catch {
       setTestResult("fail");
@@ -869,21 +835,13 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push }) {
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 9,
-            background: `${p.color}12`, border: `1px solid ${p.color}30`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: `${p.color}12`, border: `1px solid ${p.color}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name={p.icon} style={{ fontSize: 18, color: p.color }} />
           </div>
           <div>
-            <div style={{ fontFamily: C.fontHead, fontWeight: 600, color: C.onSurface, fontSize: 15 }}>
-              {p.label}
-            </div>
+            <div style={{ fontFamily: C.fontHead, fontWeight: 600, color: C.onSurface, fontSize: 15 }}>{p.label}</div>
             {connected && preview && (
-              <div style={{ fontSize: 11.5, color: C.textSecondary, fontFamily: C.fontMono, marginTop: 2 }}>
-                ••••{preview}
-              </div>
+              <div style={{ fontSize: 11.5, color: C.textSecondary, fontFamily: C.fontMono, marginTop: 2 }}>••••{preview}</div>
             )}
           </div>
         </div>
@@ -892,55 +850,33 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push }) {
 
       <div style={{ display: "flex", gap: 8 }}>
         <input
-          type={visible ? "text" : "password"}
-          value={val}
+          type={visible ? "text" : "password"} value={val}
           onChange={e => setVal(e.target.value)}
           onKeyDown={e => e.key === "Enter" && doSave()}
           placeholder={connected ? "Paste to replace key…" : p.placeholder}
           style={{ ...inputStyle, flexGrow: 1, width: "auto" }}
           onFocus={onFI} onBlur={onFO}
         />
-        <button onClick={() => setVisible(v => !v)} style={{
-          padding: "0 12px",
-          background: "rgba(255,255,255,0.03)", border: `1px solid ${C.white10}`,
-          borderRadius: 9, cursor: "pointer",
-          color: C.textSecondary, flexShrink: 0, transition: "color 0.15s",
-        }}
+        <button onClick={() => setVisible(v => !v)} title={visible ? "Hide" : "Show"} style={{ padding: "0 12px", background: "rgba(255,255,255,0.03)", border: `1px solid ${C.white10}`, borderRadius: 9, cursor: "pointer", color: C.textSecondary, flexShrink: 0, transition: "color 0.15s" }}
           onMouseEnter={e => e.currentTarget.style.color = C.onSurface}
-          onMouseLeave={e => e.currentTarget.style.color = C.textSecondary}
-        >
+          onMouseLeave={e => e.currentTarget.style.color = C.textSecondary}>
           <Icon name={visible ? "visibility_off" : "visibility"} style={{ fontSize: 18 }} />
         </button>
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 18, alignItems: "center" }}>
-        <button onClick={doTest} disabled={testing} style={{
-          fontFamily: C.fontMono, fontSize: 11.5, letterSpacing: "0.08em",
-          color: testColor, background: "none", border: "none",
-          cursor: testing ? "wait" : "pointer", textTransform: "uppercase",
-          transition: "color 0.2s",
-        }}>
-          {testLabel}
+        <button onClick={doTest} disabled={testing} style={{ fontFamily: C.fontMono, fontSize: 11.5, letterSpacing: "0.08em", color: testColor, background: "none", border: "none", cursor: testing ? "wait" : "pointer", textTransform: "uppercase", transition: "color 0.2s", display: "flex", alignItems: "center", gap: 4 }}>
+          {testing && <InlineSpinner />}{testLabel}
         </button>
         <span style={{ width: 1, height: 14, background: C.white10 }} />
-        <button onClick={doSave} disabled={!val.trim()} style={{
-          fontFamily: C.fontMono, fontSize: 11.5, letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color: val.trim() ? C.cyan : C.textSecondary,
-          background: "none", border: "none",
-          cursor: val.trim() ? "pointer" : "default",
-        }}>
-          Save
+        <button onClick={doSave} disabled={!val.trim() || saving} style={{ fontFamily: C.fontMono, fontSize: 11.5, letterSpacing: "0.08em", textTransform: "uppercase", color: val.trim() && !saving ? C.cyan : C.textSecondary, background: "none", border: "none", cursor: val.trim() && !saving ? "pointer" : "default", display: "flex", alignItems: "center", gap: 4 }}>
+          {saving && <InlineSpinner />}{saving ? "Saving…" : "Save"}
         </button>
         {connected && (
           <>
             <span style={{ width: 1, height: 14, background: C.white10 }} />
-            <button onClick={doRemove} style={{
-              fontFamily: C.fontMono, fontSize: 11.5, letterSpacing: "0.08em",
-              textTransform: "uppercase", color: C.crimson,
-              background: "none", border: "none", cursor: "pointer",
-            }}>
-              Remove
+            <button onClick={doRemove} disabled={removing} style={{ fontFamily: C.fontMono, fontSize: 11.5, letterSpacing: "0.08em", textTransform: "uppercase", color: C.crimson, background: "none", border: "none", cursor: removing ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+              {removing && <InlineSpinner />}{removing ? "Removing…" : "Remove"}
             </button>
           </>
         )}
@@ -953,19 +889,20 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push }) {
 // API KEYS SECTION
 // ─────────────────────────────────────────────────────────────────────────────
 function ApiKeysSection({ push }) {
-  const [connected, setConnected] = useState({ anthropic: false, openai: false, tavily: false });
-  const [previews, setPreviews]   = useState({ anthropic: null, openai: null, tavily: null });
-  const [preferred, setPreferred] = useState("anthropic");
-  const [loading, setLoading]     = useState(true);
-  const [loadErr, setLoadErr]     = useState(null);
+  const [connected,  setConnected]  = useState({ anthropic: false, openai: false, tavily: false });
+  const [previews,   setPreviews]   = useState({ anthropic: null,  openai: null,  tavily: null  });
+  const [preferred,  setPreferred]  = useState("anthropic");
+  const [loading,    setLoading]    = useState(true);
+  const [loadErr,    setLoadErr]    = useState(null);
+  const [savingPref, setSavingPref] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setLoadErr(null);
     try {
       const data = await api.getApiKeys();
-      setConnected({ anthropic: !!data.has_anthropic, openai: !!data.has_openai, tavily: !!data.has_tavily });
-      setPreviews({ anthropic: data.anthropic_preview || null, openai: data.openai_preview || null, tavily: data.tavily_preview || null });
-      setPreferred(data.preferred_provider || "anthropic");
+      setConnected({ anthropic: data?.anthropic?.has_key || false, openai: data?.openai?.has_key || false, tavily: data?.tavily?.has_key || false });
+      setPreviews({ anthropic: data?.anthropic?.preview || null, openai: data?.openai?.preview || null, tavily: data?.tavily?.preview || null });
+      setPreferred(data?.preferred_provider || "anthropic");
     } catch (err) {
       setLoadErr(err.message);
     } finally {
@@ -975,25 +912,38 @@ function ApiKeysSection({ push }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const setPreferredAndSave = async (id) => {
+    setPreferred(id);
+    setSavingPref(true);
+    try {
+      await api.savePreferences({ preferred_provider: id });
+      push(`${PROVIDERS[id].label} set as preferred`);
+    } catch (err) {
+      push(err.message || "Could not save preference", "err");
+    } finally {
+      setSavingPref(false);
+    }
+  };
+
   return (
     <Card>
       <SectionHead icon="key" title="API Keys" subtitle="Bring your own keys · system services managed automatically" />
-
       <div style={{ marginBottom: 20 }}>
         <Label>Preferred AI Provider</Label>
         <div style={{ display: "flex", gap: 8 }}>
           {["anthropic", "openai"].map(id => {
-            const col    = PROVIDERS[id].color;
-            const active = preferred === id;
+            const col = PROVIDERS[id].color, active = preferred === id;
             return (
-              <button key={id} onClick={() => setPreferred(id)} style={{
+              <button key={id} onClick={() => setPreferredAndSave(id)} disabled={savingPref} style={{
                 padding: "8px 18px", borderRadius: 9999,
                 border: `1px solid ${active ? col + "55" : C.white10}`,
                 background: active ? `${col}10` : "transparent",
                 color: active ? col : C.onSurfaceVariant,
-                cursor: "pointer", fontFamily: C.fontHead, fontWeight: 600, fontSize: 13.5,
-                transition: "all 0.18s",
+                cursor: savingPref ? "wait" : "pointer",
+                fontFamily: C.fontHead, fontWeight: 600, fontSize: 13.5,
+                transition: "all 0.18s", display: "flex", alignItems: "center", gap: 6,
               }}>
+                {savingPref && active && <InlineSpinner />}
                 {PROVIDERS[id].label.split(" ")[0]}
               </button>
             );
@@ -1002,21 +952,11 @@ function ApiKeysSection({ push }) {
       </div>
 
       {loading ? <Spinner /> : loadErr ? (
-        <div style={{ padding: "16px 0", display: "flex", alignItems: "center", gap: 12, color: C.crimson, fontFamily: C.fontMono, fontSize: 13 }}>
-          <Icon name="error_outline" style={{ fontSize: 20, color: C.crimson }} />
-          <span>{loadErr}</span>
-          <button onClick={load} style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 9999, border: `1px solid rgba(224,80,104,0.35)`, background: "transparent", color: C.crimson, cursor: "pointer", fontFamily: C.fontMono, fontSize: 11.5 }}>
-            Retry
-          </button>
-        </div>
+        <ErrorBanner msg={loadErr} onRetry={load} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {Object.keys(PROVIDERS).map(id => (
-            <KeyCard
-              key={id}
-              providerId={id}
-              connected={connected[id]}
-              preview={previews[id]}
+            <KeyCard key={id} providerId={id} connected={connected[id]} preview={previews[id]}
               onSave={savedId => { setConnected(prev => ({ ...prev, [savedId]: true })); load(); }}
               onRemove={rid => { setConnected(prev => ({ ...prev, [rid]: false })); setPreviews(prev => ({ ...prev, [rid]: null })); }}
               push={push}
@@ -1029,30 +969,37 @@ function ApiKeysSection({ push }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// APPEARANCE SECTION
+// APPEARANCE SECTION  (fully local — no backend endpoint)
 // ─────────────────────────────────────────────────────────────────────────────
-function AppearanceSection() {
+function AppearanceSection({ push }) {
   const [theme,      setTheme]      = useState(() => localStorage.getItem("polynous_theme")      || "dark");
   const [animations, setAnimations] = useState(() => localStorage.getItem("polynous_animations") !== "false");
   const [fontSize,   setFontSize]   = useState(() => localStorage.getItem("polynous_font_size")  || "Medium");
+  const [density,    setDensity]    = useState(() => localStorage.getItem("polynous_density")    || "Comfortable");
 
   const handleFontSize = s => {
-    setFontSize(s);
-    localStorage.setItem("polynous_font_size", s);
+    setFontSize(s); localStorage.setItem("polynous_font_size", s);
     const map = { Small: "15px", Medium: "16px", Large: "18px" };
     document.documentElement.style.fontSize = map[s] || "16px";
+    push(`Font size set to ${s}`);
   };
 
   const handleAnimations = () => {
     const next = !animations;
     setAnimations(next);
     localStorage.setItem("polynous_animations", String(next));
-    window.location.reload();
+    push(next ? "Particle field enabled — reloading" : "Particle field disabled — reloading", "warn");
+    setTimeout(() => window.location.reload(), 900);
   };
 
   const handleTheme = t => {
-    setTheme(t);
-    localStorage.setItem("polynous_theme", t);
+    setTheme(t); localStorage.setItem("polynous_theme", t);
+    push(`Theme set to ${t} — apply on next reload`, "warn");
+  };
+
+  const handleDensity = d => {
+    setDensity(d); localStorage.setItem("polynous_density", d);
+    push(`Density set to ${d}`);
   };
 
   return (
@@ -1063,30 +1010,26 @@ function AppearanceSection() {
           <Label>Theme</Label>
           <select value={theme} onChange={e => handleTheme(e.target.value)} style={inputStyle}>
             <option value="dark">Dark</option>
-            <option value="light">Light</option>
+            <option value="light">Light (coming soon)</option>
           </select>
         </div>
         <div>
           <Label>Text Size</Label>
           <select value={fontSize} onChange={e => handleFontSize(e.target.value)} style={inputStyle}>
-            <option>Small</option>
-            <option>Medium</option>
-            <option>Large</option>
+            <option>Small</option><option>Medium</option><option>Large</option>
+          </select>
+        </div>
+        <div>
+          <Label>Density</Label>
+          <select value={density} onChange={e => handleDensity(e.target.value)} style={inputStyle}>
+            <option>Compact</option><option>Comfortable</option><option>Spacious</option>
           </select>
         </div>
       </div>
-
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        paddingTop: 18, borderTop: `1px solid ${C.white10}`,
-      }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 18, borderTop: `1px solid ${C.white10}` }}>
         <div>
-          <div style={{ fontFamily: C.fontHead, fontSize: 15, fontWeight: 600, color: C.onSurface }}>
-            Neural Particle Field
-          </div>
-          <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>
-            Silver floating-particle background animation
-          </div>
+          <div style={{ fontFamily: C.fontHead, fontSize: 15, fontWeight: 600, color: C.onSurface }}>Neural Particle Field</div>
+          <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>Silver floating-particle background animation</div>
         </div>
         <Toggle on={animations} onToggle={handleAnimations} />
       </div>
@@ -1095,30 +1038,34 @@ function AppearanceSection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PREFERENCES SECTION  — debounced saves prevent race conditions
+// PREFERENCES SECTION
 // ─────────────────────────────────────────────────────────────────────────────
 function PreferencesSection({ push }) {
-  const [mode,       setMode]       = useState("research");
-  const [style,      setStyle]      = useState("academic");
-  const [streaming,  setStreaming]  = useState(true);
-  const [autoSave,   setAutoSave]   = useState(true);
-  const [conf,       setConf]       = useState(70);
-  const [loading,    setLoading]    = useState(true);
-  const [saving,     setSaving]     = useState(false);
+  const [mode,      setMode]      = useState("research");
+  const [style,     setStyle]     = useState("academic");
+  const [streaming, setStreaming] = useState(true);
+  const [autoSave,  setAutoSave]  = useState(true);
+  const [conf,      setConf]      = useState(70);
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState(false);
+  const [loadErr,   setLoadErr]   = useState(null);
   const saveTimer = useRef(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true); setLoadErr(null);
     api.getPreferences()
       .then(data => {
-        if (data.default_mode)                   setMode(data.default_mode);
-        if (data.response_style)                 setStyle(data.response_style);
-        if (data.streaming_enabled !== undefined) setStreaming(data.streaming_enabled);
-        if (data.auto_save !== undefined)         setAutoSave(data.auto_save);
+        if (data.default_mode)                      setMode(data.default_mode);
+        if (data.response_style)                    setStyle(data.response_style);
+        if (data.streaming_enabled !== undefined)   setStreaming(data.streaming_enabled);
+        if (data.auto_save !== undefined)           setAutoSave(data.auto_save);
         if (data.confidence_threshold !== undefined) setConf(data.confidence_threshold);
       })
-      .catch(() => {/* use defaults */})
+      .catch(err => setLoadErr(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const scheduleSave = useCallback((prefs) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -1127,25 +1074,23 @@ function PreferencesSection({ push }) {
       try { await api.savePreferences(prefs); push("Preferences saved"); }
       catch (err) { push(err.message || "Save failed", "err"); }
       finally { setSaving(false); }
-    }, 400);
+    }, 600);
   }, [push]);
 
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
   const ToggleRow = ({ label, sub, on, onFlip }) => (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "14px 0", borderBottom: `1px solid ${C.white5}`,
-    }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: `1px solid ${C.white5}` }}>
       <div>
         <div style={{ fontFamily: C.fontHead, fontSize: 15, fontWeight: 500, color: C.onSurface }}>{label}</div>
         {sub && <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>{sub}</div>}
       </div>
-      <Toggle on={on} onToggle={onFlip} />
+      <Toggle on={on} onToggle={onFlip} disabled={saving} />
     </div>
   );
 
   if (loading) return <Card><SectionHead icon="tune" title="Research Preferences" subtitle="Default behaviour & response style" /><Spinner /></Card>;
+  if (loadErr) return <Card><SectionHead icon="tune" title="Research Preferences" subtitle="Default behaviour & response style" /><ErrorBanner msg={loadErr} onRetry={load} /></Card>;
 
   return (
     <Card>
@@ -1155,19 +1100,15 @@ function PreferencesSection({ push }) {
           <Label>Default Mode</Label>
           <div style={{ display: "flex", gap: 8 }}>
             {[{ id: "research", label: "Research" }, { id: "debate", label: "Debate" }].map(m => {
-              const active = mode === m.id;
-              const col    = m.id === "debate" ? C.crimson : C.silver;
+              const active = mode === m.id, col = m.id === "debate" ? C.crimson : C.silver;
               return (
                 <button key={m.id} onClick={() => { setMode(m.id); scheduleSave({ default_mode: m.id }); }} style={{
                   padding: "8px 18px", borderRadius: 9999,
                   border: `1px solid ${active ? col + "55" : C.white10}`,
                   background: active ? `${col}12` : "transparent",
                   color: active ? col : C.onSurfaceVariant,
-                  cursor: "pointer", fontFamily: C.fontHead, fontWeight: 600, fontSize: 13.5,
-                  transition: "all 0.18s",
-                }}>
-                  {m.label}
-                </button>
+                  cursor: "pointer", fontFamily: C.fontHead, fontWeight: 600, fontSize: 13.5, transition: "all 0.18s",
+                }}>{m.label}</button>
               );
             })}
           </div>
@@ -1189,16 +1130,8 @@ function PreferencesSection({ push }) {
 
       <div style={{ paddingTop: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontFamily: C.fontHead, fontSize: 15, fontWeight: 500, color: C.onSurface }}>
-            Confidence Threshold
-          </div>
-          <span style={{
-            fontFamily: C.fontMono, fontSize: 12, color: C.silver,
-            background: C.silverFaint, padding: "3px 10px",
-            borderRadius: 9999, border: `1px solid ${C.silverBorder}`,
-          }}>
-            {conf}%
-          </span>
+          <div style={{ fontFamily: C.fontHead, fontSize: 15, fontWeight: 500, color: C.onSurface }}>Confidence Threshold</div>
+          <span style={{ fontFamily: C.fontMono, fontSize: 12, color: C.silver, background: C.silverFaint, padding: "3px 10px", borderRadius: 9999, border: `1px solid ${C.silverBorder}` }}>{conf}%</span>
         </div>
         <input type="range" min={0} max={100} value={conf}
           onChange={e => setConf(Number(e.target.value))}
@@ -1209,8 +1142,7 @@ function PreferencesSection({ push }) {
           <span>0%</span><span>50%</span><span>100%</span>
         </div>
       </div>
-
-      {saving && <div style={{ marginTop: 8, textAlign: "right", fontFamily: C.fontMono, fontSize: 11, color: C.cyan }}>Saving…</div>}
+      {saving && <div style={{ marginTop: 8, textAlign: "right", fontFamily: C.fontMono, fontSize: 11, color: C.cyan, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}><InlineSpinner />Saving…</div>}
     </Card>
   );
 }
@@ -1219,40 +1151,64 @@ function PreferencesSection({ push }) {
 // NOTIFICATIONS SECTION
 // ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_NOTIF = [
-  { label: "Email Notifications",  sub: "Receive updates to your inbox",       on: false },
-  { label: "Research Alerts",      sub: "New citations and related papers",     on: true  },
-  { label: "Weekly Summary",       sub: "Activity digest every Monday",         on: false },
-  { label: "Rate Limit Warnings",  sub: "Alert before API quota exhaustion",    on: true  },
+  { key: "email",       label: "Email Notifications", sub: "Receive updates to your inbox",    on: false },
+  { key: "research",    label: "Research Alerts",     sub: "New citations and related papers",  on: true  },
+  { key: "weekly",      label: "Weekly Summary",      sub: "Activity digest every Monday",      on: false },
+  { key: "rate_limit",  label: "Rate Limit Warnings", sub: "Alert before API quota exhaustion", on: true  },
 ];
 
-function NotificationsSection() {
-  const [items, setItems] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("polynous_notifications")) || DEFAULT_NOTIF; }
-    catch { return DEFAULT_NOTIF; }
-  });
+function NotificationsSection({ push }) {
+  const [items,   setItems]   = useState(DEFAULT_NOTIF);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState(null);
+  const saveTimer = useRef(null);
 
-  const toggle = i => {
+  const load = useCallback(() => {
+    setLoading(true); setLoadErr(null);
+    api.getNotifications()
+      .then(data => {
+        if (data && typeof data === "object") {
+          setItems(prev => prev.map(it => ({ ...it, on: data[it.key] !== undefined ? data[it.key] : it.on })));
+        }
+      })
+      .catch(err => setLoadErr(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = (i) => {
     const next = items.map((it, idx) => idx === i ? { ...it, on: !it.on } : it);
     setItems(next);
-    localStorage.setItem("polynous_notifications", JSON.stringify(next));
+    // Debounced save
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const payload = Object.fromEntries(next.map(it => [it.key, it.on]));
+        await api.saveNotifications(payload);
+        push("Notification preferences saved");
+      } catch (err) {
+        push(err.message || "Save failed", "err");
+      }
+    }, 800);
   };
+
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
   return (
     <Card>
       <SectionHead icon="notifications" title="Notifications" subtitle="Delivery preferences" />
-      {items.map((item, i) => (
-        <div key={i} style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          padding: "14px 0",
-          borderBottom: i < items.length - 1 ? `1px solid ${C.white5}` : "none",
-        }}>
-          <div>
-            <div style={{ fontFamily: C.fontHead, fontSize: 15, fontWeight: 500, color: C.onSurface }}>{item.label}</div>
-            <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>{item.sub}</div>
+      {loading ? <Spinner /> : loadErr ? <ErrorBanner msg={loadErr} onRetry={load} /> : (
+        items.map((item, i) => (
+          <div key={item.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: i < items.length - 1 ? `1px solid ${C.white5}` : "none" }}>
+            <div>
+              <div style={{ fontFamily: C.fontHead, fontSize: 15, fontWeight: 500, color: C.onSurface }}>{item.label}</div>
+              <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>{item.sub}</div>
+            </div>
+            <Toggle on={item.on} onToggle={() => toggle(i)} />
           </div>
-          <Toggle on={item.on} onToggle={() => toggle(i)} />
-        </div>
-      ))}
+        ))
+      )}
     </Card>
   );
 }
@@ -1260,88 +1216,189 @@ function NotificationsSection() {
 // ─────────────────────────────────────────────────────────────────────────────
 // INTEGRATIONS SECTION
 // ─────────────────────────────────────────────────────────────────────────────
-const INTEGRATION_ROWS = [
-  { monogram: "G",  monogramColor: "#4285F4", label: "Google OAuth",  sub: "Drive, Docs, Calendar",  connected: true,  detail: "ash@gmail.com" },
-  { monogram: "GH", monogramColor: "#8e98a8", label: "GitHub",        sub: "Repos, Issues, Actions", connected: false, detail: null            },
-  { monogram: "N",  monogramColor: "#e05068", label: "Notion",        sub: "Pages, Databases",       connected: false, detail: null            },
+const INTEGRATION_DEFS = [
+  { id: "google", monogram: "G",  monogramColor: "#4285F4", label: "Google OAuth",  sub: "Drive, Docs, Calendar"   },
+  { id: "github", monogram: "GH", monogramColor: "#8e98a8", label: "GitHub",        sub: "Repos, Issues, Actions"  },
+  { id: "notion", monogram: "N",  monogramColor: "#e05068", label: "Notion",        sub: "Pages, Databases"        },
 ];
 
-function IntegrationsSection() {
+function IntegrationsSection({ push }) {
+  const [statuses,  setStatuses]  = useState({});
+  const [loading,   setLoading]   = useState(true);
+  const [loadErr,   setLoadErr]   = useState(null);
+  const [busyId,    setBusyId]    = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true); setLoadErr(null);
+    api.getIntegrations()
+      .then(data => setStatuses(data || {}))
+      .catch(err => setLoadErr(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (row) => {
+    const connected = statuses[row.id]?.connected;
+    setBusyId(row.id);
+    try {
+      if (connected) {
+        await api.disconnectIntegration(row.id);
+        setStatuses(prev => ({ ...prev, [row.id]: { ...prev[row.id], connected: false, detail: null } }));
+        push(`${row.label} disconnected`);
+      } else {
+        // For OAuth flows, open a popup / redirect
+        const result = await api.connectIntegration(row.id);
+        if (result?.redirect_url) {
+          window.open(result.redirect_url, "_blank", "width=600,height=700");
+          push(`Opening ${row.label} auth — complete in the new window`, "warn");
+        } else {
+          setStatuses(prev => ({ ...prev, [row.id]: { ...prev[row.id], connected: true, detail: result?.detail || null } }));
+          push(`${row.label} connected`);
+        }
+      }
+    } catch (err) {
+      push(err.message || `${row.label} action failed`, "err");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <Card>
       <SectionHead icon="hub" title="Integrations" subtitle="Third-party service connections" />
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {INTEGRATION_ROWS.map(row => (
-          <div key={row.label} style={{
-            background: "rgba(9,10,14,0.55)", border: `1px solid ${C.white10}`,
-            borderRadius: 12, padding: "14px 18px",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            cursor: row.connected ? "default" : "pointer",
-            transition: "border-color 0.18s, background 0.18s",
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = C.silverBorder; e.currentTarget.style.background = C.surfaceHigh; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.white10; e.currentTarget.style.background = "rgba(9,10,14,0.55)"; }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 9,
-                background: `${row.monogramColor}14`, border: `1px solid ${row.monogramColor}30`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: C.fontHead, fontWeight: 700, fontSize: 12,
-                color: row.monogramColor, flexShrink: 0,
-              }}>
-                {row.monogram}
-              </div>
-              <div>
-                <div style={{ fontFamily: C.fontHead, fontWeight: 600, color: C.onSurface, fontSize: 15 }}>{row.label}</div>
-                <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>
-                  {row.connected ? row.detail : row.sub}
+      {loading ? <Spinner /> : loadErr ? <ErrorBanner msg={loadErr} onRetry={load} /> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {INTEGRATION_DEFS.map(row => {
+            const connected = statuses[row.id]?.connected || false;
+            const detail    = statuses[row.id]?.detail    || null;
+            const busy      = busyId === row.id;
+            return (
+              <div key={row.id} style={{
+                background: "rgba(9,10,14,0.55)", border: `1px solid ${C.white10}`,
+                borderRadius: 12, padding: "14px 18px",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                transition: "border-color 0.18s, background 0.18s",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = C.silverBorder; e.currentTarget.style.background = C.surfaceHigh; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = C.white10; e.currentTarget.style.background = "rgba(9,10,14,0.55)"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: `${row.monogramColor}14`, border: `1px solid ${row.monogramColor}30`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: C.fontHead, fontWeight: 700, fontSize: 12, color: row.monogramColor, flexShrink: 0 }}>
+                    {row.monogram}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: C.fontHead, fontWeight: 600, color: C.onSurface, fontSize: 15 }}>{row.label}</div>
+                    <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>{connected ? (detail || row.sub) : row.sub}</div>
+                  </div>
                 </div>
+                <button onClick={() => !busy && toggle(row)} disabled={busy} style={{
+                  fontFamily: C.fontMono, fontSize: 10, letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: connected ? C.crimson : C.silver,
+                  background: connected ? C.crimsonFaint : C.silverFaint,
+                  padding: "5px 12px", borderRadius: 9999,
+                  border: `1px solid ${connected ? "rgba(224,80,104,0.3)" : C.silverBorder}`,
+                  cursor: busy ? "wait" : "pointer",
+                  display: "flex", alignItems: "center", gap: 6, transition: "all 0.18s",
+                }}>
+                  {busy && <InlineSpinner />}
+                  {busy ? "Working…" : connected ? "Disconnect" : "Connect"}
+                </button>
               </div>
-            </div>
-            <span style={{
-              fontFamily: C.fontMono, fontSize: 10, letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              color: row.connected ? C.silver : C.textSecondary,
-              background: row.connected ? C.silverFaint : "rgba(255,255,255,0.03)",
-              padding: "5px 12px", borderRadius: 9999,
-              border: `1px solid ${row.connected ? C.silverBorder : C.white10}`,
-            }}>
-              {row.connected ? "Connected" : "Connect"}
-            </span>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECURITY SECTION
+// SECURITY SECTION  — Change Password + Revoke Sessions are real
 // ─────────────────────────────────────────────────────────────────────────────
 const SECURITY_ROWS = [
-  { icon: "lock",    color: C.purple, title: "Fernet AES-128",    sub: "All keys encrypted at rest",      status: "Active"   },
-  { icon: "shield",  color: C.cyan,   title: "Session Isolation",  sub: "Keys scoped to your session",    status: "Enforced" },
-  { icon: "vpn_key", color: C.gold,   title: "BYOK Architecture",  sub: "Keys never leave your device",   status: "Verified" },
+  { icon: "lock",    color: C.purple, title: "Fernet AES-128",   sub: "All keys encrypted at rest",   status: "Active"   },
+  { icon: "shield",  color: C.cyan,   title: "Session Isolation", sub: "Keys scoped to your session",  status: "Enforced" },
+  { icon: "vpn_key", color: C.gold,   title: "BYOK Architecture", sub: "Keys never leave your device", status: "Verified" },
 ];
 
-function SecuritySection() {
+function ChangePasswordModal({ open, onClose, push }) {
+  const [current, setCurrent] = useState("");
+  const [next,    setNext]    = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy,    setBusy]    = useState(false);
+
+  const reset = () => { setCurrent(""); setNext(""); setConfirm(""); };
+
+  const submit = async () => {
+    if (!current || !next) { push("Fill in all fields", "err"); return; }
+    if (next.length < 8)   { push("New password must be at least 8 characters", "err"); return; }
+    if (next !== confirm)  { push("Passwords don't match", "err"); return; }
+    setBusy(true);
+    try {
+      await api.changePassword({ current_password: current, new_password: next });
+      push("Password changed — please log in again");
+      reset(); onClose();
+      setTimeout(() => { localStorage.clear(); window.location.href = "/auth"; }, 1200);
+    } catch (err) {
+      push(err.message || "Change failed", "err");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={() => { if (!busy) { reset(); onClose(); } }} title="Change Password">
+      {[
+        { label: "Current password", val: current, set: setCurrent, placeholder: "••••••••" },
+        { label: "New password",     val: next,    set: setNext,    placeholder: "Min. 8 characters" },
+        { label: "Confirm new",      val: confirm, set: setConfirm, placeholder: "Repeat new password" },
+      ].map(f => (
+        <div key={f.label} style={{ marginBottom: 14 }}>
+          <Label>{f.label}</Label>
+          <input type="password" value={f.val} onChange={e => f.set(e.target.value)}
+            placeholder={f.placeholder} onKeyDown={e => e.key === "Enter" && submit()}
+            style={{ ...inputStyle }} onFocus={onFI} onBlur={onFO} />
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+        <button onClick={() => { reset(); onClose(); }} disabled={busy} style={{ padding: "9px 20px", borderRadius: 9999, border: `1px solid ${C.white10}`, background: "transparent", color: C.onSurfaceVariant, cursor: "pointer", fontFamily: C.fontHead, fontSize: 14 }}>
+          Cancel
+        </button>
+        <button onClick={submit} disabled={busy} style={{ padding: "9px 22px", borderRadius: 9999, border: "none", background: C.silver, color: C.void, cursor: busy ? "wait" : "pointer", fontFamily: C.fontHead, fontSize: 14, fontWeight: 700, opacity: busy ? 0.65 : 1, display: "flex", alignItems: "center", gap: 6 }}>
+          {busy && <InlineSpinner />}{busy ? "Changing…" : "Change Password"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function SecuritySection({ push }) {
+  const [showPwModal, setShowPwModal]   = useState(false);
+  const [revoking,    setRevoking]      = useState(false);
+
+  const revokeAll = async () => {
+    setRevoking(true);
+    try {
+      await api.revokeAllSessions();
+      push("All sessions revoked — logging out");
+      setTimeout(() => { localStorage.clear(); window.location.href = "/auth"; }, 1400);
+    } catch (err) {
+      push(err.message || "Revoke failed", "err");
+    } finally {
+      setRevoking(false);
+    }
+  };
+
   return (
     <Card>
       <SectionHead icon="security" title="Security" subtitle="Encryption & access controls" />
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
         {SECURITY_ROWS.map(row => (
-          <div key={row.title} style={{
-            background: "rgba(9,10,14,0.55)", border: `1px solid ${C.white10}`,
-            borderRadius: 12, padding: "14px 18px",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-          }}>
+          <div key={row.title} style={{ background: "rgba(9,10,14,0.55)", border: `1px solid ${C.white10}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 9,
-                background: `${row.color}12`, border: `1px solid ${row.color}28`,
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: `${row.color}12`, border: `1px solid ${row.color}28`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Icon name={row.icon} style={{ fontSize: 18, color: row.color }} />
               </div>
               <div>
@@ -1349,100 +1406,121 @@ function SecuritySection() {
                 <div style={{ fontFamily: C.fontMono, fontSize: 12, color: C.textSecondary, marginTop: 3 }}>{row.sub}</div>
               </div>
             </div>
-            <span style={{
-              fontFamily: C.fontMono, fontSize: 10, letterSpacing: "0.12em",
-              textTransform: "uppercase", color: C.silver,
-              background: C.silverFaint, padding: "5px 12px",
-              borderRadius: 9999, border: `1px solid ${C.silverBorder}`,
-            }}>
-              {row.status}
-            </span>
+            <span style={{ fontFamily: C.fontMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: C.silver, background: C.silverFaint, padding: "5px 12px", borderRadius: 9999, border: `1px solid ${C.silverBorder}` }}>{row.status}</span>
           </div>
         ))}
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {["Change Password", "Revoke All Sessions"].map(label => (
-          <button key={label} style={{
-            padding: "9px 20px", borderRadius: 9999,
-            border: `1px solid ${C.white10}`, background: "transparent",
-            color: C.onSurface, cursor: "pointer",
-            fontFamily: C.fontHead, fontSize: 14, fontWeight: 500,
-            transition: "background 0.18s, border-color 0.18s",
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = C.silverFaint; e.currentTarget.style.borderColor = C.silverBorder; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.white10; }}
-          >
-            {label}
-          </button>
-        ))}
+        <button onClick={() => setShowPwModal(true)} style={{ padding: "9px 20px", borderRadius: 9999, border: `1px solid ${C.white10}`, background: "transparent", color: C.onSurface, cursor: "pointer", fontFamily: C.fontHead, fontSize: 14, fontWeight: 500, transition: "all 0.18s" }}
+          onMouseEnter={e => { e.currentTarget.style.background = C.silverFaint; e.currentTarget.style.borderColor = C.silverBorder; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.white10; }}>
+          Change Password
+        </button>
+        <button onClick={revokeAll} disabled={revoking} style={{ padding: "9px 20px", borderRadius: 9999, border: "1px solid rgba(224,80,104,0.25)", background: "transparent", color: C.crimson, cursor: revoking ? "wait" : "pointer", fontFamily: C.fontHead, fontSize: 14, fontWeight: 500, transition: "all 0.18s", display: "flex", alignItems: "center", gap: 6, opacity: revoking ? 0.65 : 1 }}
+          onMouseEnter={e => { if (!revoking) e.currentTarget.style.background = C.crimsonFaint; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+          {revoking && <InlineSpinner />}{revoking ? "Revoking…" : "Revoke All Sessions"}
+        </button>
       </div>
+      <ChangePasswordModal open={showPwModal} onClose={() => setShowPwModal(false)} push={push} />
     </Card>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ✅ FIXED DATA & STORAGE SECTION — stats fetch without user_id in URL
+// DATA & STORAGE SECTION
 // ─────────────────────────────────────────────────────────────────────────────
 function DataStorageSection({ push }) {
-  const [s,       setS]       = useState({ total_research: 0, unique_topics: 0 });
-  const [loading, setLoading] = useState(true);
+  const [s,           setS]           = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [loadErr,     setLoadErr]     = useState(null);
+  const [exporting,   setExporting]   = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing,    setClearing]    = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true); setLoadErr(null);
     api.getStats()
       .then(d => setS(d || {}))
-      .catch(() => setS({ total_research: 0, unique_topics: 0 }))
+      .catch(err => setLoadErr(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const ITEMS = [
-    { label: "Research Stored",  val: s.total_research || 0 },
-    { label: "Topics Tracked",   val: s.unique_topics  || 0 },
-    { label: "KG Nodes",         val: s.unique_topics  || 0 },
-    { label: "Pinecone Vectors", val: Math.floor((s.total_research || 0) * 3) },
-  ];
+  useEffect(() => { load(); }, [load]);
+
+  const doExport = async () => {
+    setExporting(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${BASE}/settings/export`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = `polynous-export-${Date.now()}.json`;
+      a.click(); URL.revokeObjectURL(url);
+      push("Export downloaded");
+    } catch (err) {
+      push(err.message || "Export failed", "err");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const doClearHistory = async () => {
+    setClearing(true);
+    try {
+      await api.clearHistory();
+      push("Research history cleared");
+      load();
+    } catch (err) {
+      push(err.message || "Clear failed", "err");
+    } finally {
+      setClearing(false);
+      setConfirmClear(false);
+    }
+  };
+
+  const ITEMS = s ? [
+    { label: "Research Stored",  val: s.total_research  || 0 },
+    { label: "Topics Tracked",   val: s.unique_topics   || 0 },
+    { label: "KG Nodes",         val: s.kg_nodes        || s.unique_topics || 0 },
+    { label: "Pinecone Vectors", val: s.vector_count    || Math.floor((s.total_research || 0) * 3) },
+  ] : [];
 
   return (
     <Card>
       <SectionHead icon="database" title="Data & Storage" subtitle="Vectors, graph nodes & persisted research" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 20 }}>
-        {ITEMS.map(({ label, val }) => (
-          <div key={label} style={{
-            background: "rgba(9,10,14,0.55)", border: `1px solid ${C.white10}`,
-            borderRadius: 13, padding: "14px 12px", textAlign: "center",
-          }}>
-            <div style={{ fontFamily: C.fontMono, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: C.textSecondary, marginBottom: 8 }}>
-              {label}
+      {loading ? <Spinner /> : loadErr ? <ErrorBanner msg={loadErr} onRetry={load} /> : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10, marginBottom: 20 }}>
+          {ITEMS.map(({ label, val }) => (
+            <div key={label} style={{ background: "rgba(9,10,14,0.55)", border: `1px solid ${C.white10}`, borderRadius: 13, padding: "14px 12px", textAlign: "center" }}>
+              <div style={{ fontFamily: C.fontMono, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: C.textSecondary, marginBottom: 8 }}>{label}</div>
+              <div style={{ fontFamily: C.fontHead, fontSize: 24, fontWeight: 700, color: C.onSurface }}>{val}</div>
             </div>
-            <div style={{ fontFamily: C.fontHead, fontSize: 24, fontWeight: 700, color: C.onSurface }}>
-              {loading ? "—" : val}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button onClick={() => push("Export started")} style={{
-          padding: "9px 20px", borderRadius: 9999,
-          border: `1px solid ${C.silverBorder}`, background: "transparent",
-          color: C.silver, cursor: "pointer",
-          fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s",
-        }}
-          onMouseEnter={e => e.currentTarget.style.background = C.silverFaint}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-        >
-          Export All Data
+        <button onClick={doExport} disabled={exporting} style={{ padding: "9px 20px", borderRadius: 9999, border: `1px solid ${C.silverBorder}`, background: "transparent", color: C.silver, cursor: exporting ? "wait" : "pointer", fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s", display: "flex", alignItems: "center", gap: 6, opacity: exporting ? 0.65 : 1 }}
+          onMouseEnter={e => { if (!exporting) e.currentTarget.style.background = C.silverFaint; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+          {exporting && <InlineSpinner />}{exporting ? "Exporting…" : "Export All Data"}
         </button>
-        <button onClick={() => push("Research history cleared")} style={{
-          padding: "9px 20px", borderRadius: 9999,
-          border: "1px solid rgba(126,200,216,0.3)", background: "transparent",
-          color: C.cyan, cursor: "pointer",
-          fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s",
-        }}
-          onMouseEnter={e => e.currentTarget.style.background = "rgba(126,200,216,0.06)"}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-        >
+        <button onClick={() => setConfirmClear(true)} style={{ padding: "9px 20px", borderRadius: 9999, border: "1px solid rgba(126,200,216,0.3)", background: "transparent", color: C.cyan, cursor: "pointer", fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s" }}
+          onMouseEnter={e => e.currentTarget.style.background = C.cyanFaint}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
           Clear History
         </button>
       </div>
+
+      <ConfirmModal
+        open={confirmClear} onClose={() => setConfirmClear(false)}
+        onConfirm={doClearHistory} loading={clearing}
+        title="Clear Research History"
+        body="This will permanently delete all research sessions, saved queries, and chat history. Your API keys and preferences are not affected."
+        confirmLabel="Clear History" danger
+      />
     </Card>
   );
 }
@@ -1450,51 +1528,73 @@ function DataStorageSection({ push }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // DANGER ZONE
 // ─────────────────────────────────────────────────────────────────────────────
-function DangerZone() {
-  const [confirm, setConfirm] = useState(false);
-  const reset = () => { if (confirm) { localStorage.clear(); window.location.href = "/auth"; } else setConfirm(true); };
-  useEffect(() => {
-    if (!confirm) return;
-    const t = setTimeout(() => setConfirm(false), 4000);
-    return () => clearTimeout(t);
-  }, [confirm]);
+function DangerZone({ push }) {
+  const [showDelete,     setShowDelete]     = useState(false);
+  const [showReset,      setShowReset]      = useState(false);
+  const [deletingAcct,   setDeletingAcct]   = useState(false);
+  const [resettingData,  setResettingData]  = useState(false);
+
+  const doDeleteAccount = async () => {
+    setDeletingAcct(true);
+    try {
+      await api.deleteAccount();
+      push("Account deleted — goodbye");
+      setTimeout(() => { localStorage.clear(); window.location.href = "/auth"; }, 1200);
+    } catch (err) {
+      push(err.message || "Delete failed", "err");
+    } finally {
+      setDeletingAcct(false);
+      setShowDelete(false);
+    }
+  };
+
+  const doResetAllData = async () => {
+    setResettingData(true);
+    try {
+      await api.clearAllData();
+      push("All data reset");
+      setTimeout(() => { localStorage.clear(); window.location.href = "/auth"; }, 1200);
+    } catch (err) {
+      push(err.message || "Reset failed", "err");
+    } finally {
+      setResettingData(false);
+      setShowReset(false);
+    }
+  };
 
   return (
     <Card danger>
       <SectionHead icon="warning" title="Danger Zone" subtitle="Irreversible — proceed with caution" />
-      <p style={{
-        fontFamily: C.fontMono, fontSize: 13, color: C.textSecondary,
-        letterSpacing: "0.03em", marginBottom: 20, lineHeight: 1.75,
-      }}>
+      <p style={{ fontFamily: C.fontMono, fontSize: 13, color: C.textSecondary, letterSpacing: "0.03em", marginBottom: 20, lineHeight: 1.75 }}>
         These actions cannot be undone. All stored data, memory, and API keys will be permanently removed.
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button
-          onClick={() => { localStorage.clear(); window.location.href = "/auth"; }}
-          style={{
-            padding: "9px 22px", borderRadius: 9999,
-            border: "1px solid rgba(224,80,104,0.4)", background: "transparent",
-            color: C.crimson, cursor: "pointer",
-            fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s",
-          }}
+        <button onClick={() => setShowDelete(true)} style={{ padding: "9px 22px", borderRadius: 9999, border: "1px solid rgba(224,80,104,0.4)", background: "transparent", color: C.crimson, cursor: "pointer", fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s" }}
           onMouseEnter={e => e.currentTarget.style.background = C.crimsonFaint}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-        >
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
           Delete Account
         </button>
-        <button
-          onClick={reset}
-          style={{
-            padding: "9px 22px", borderRadius: 9999,
-            border: "1px solid rgba(224,80,104,0.4)",
-            background: confirm ? C.crimsonFaint : "transparent",
-            color: C.crimson, cursor: "pointer",
-            fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s",
-          }}
-        >
-          {confirm ? "Click again to confirm" : "Reset All Data"}
+        <button onClick={() => setShowReset(true)} style={{ padding: "9px 22px", borderRadius: 9999, border: "1px solid rgba(224,80,104,0.4)", background: "transparent", color: C.crimson, cursor: "pointer", fontFamily: C.fontHead, fontSize: 14, fontWeight: 600, transition: "background 0.18s" }}
+          onMouseEnter={e => e.currentTarget.style.background = C.crimsonFaint}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+          Reset All Data
         </button>
       </div>
+
+      <ConfirmModal
+        open={showDelete} onClose={() => !deletingAcct && setShowDelete(false)}
+        onConfirm={doDeleteAccount} loading={deletingAcct}
+        title="Delete Account"
+        body="Your account, all research, API keys, and settings will be permanently deleted. This cannot be undone."
+        confirmLabel="Delete My Account" danger
+      />
+      <ConfirmModal
+        open={showReset} onClose={() => !resettingData && setShowReset(false)}
+        onConfirm={doResetAllData} loading={resettingData}
+        title="Reset All Data"
+        body="All stored research, memory nodes, knowledge graph, and session history will be wiped. Your account itself and login credentials remain intact."
+        confirmLabel="Reset Everything" danger
+      />
     </Card>
   );
 }
@@ -1508,16 +1608,10 @@ export default function SettingsPage({ user, onNavigate, onLogout }) {
   const sidebarW = collapsed ? 58 : 288;
 
   return (
-    <div style={{
-      minHeight: "100vh", background: C.void,
-      color: C.onSurface, fontFamily: C.fontBody, overflowX: "hidden",
-    }}>
+    <div style={{ minHeight: "100vh", background: C.void, color: C.onSurface, fontFamily: C.fontBody, overflowX: "hidden" }}>
       <Styles />
       <NeuralCanvas />
-      <Sidebar
-        onNavigate={onNavigate} user={user}
-        onLogout={onLogout} collapsed={collapsed} setCollapsed={setCollapsed}
-      />
+      <Sidebar onNavigate={onNavigate} user={user} onLogout={onLogout} collapsed={collapsed} setCollapsed={setCollapsed} />
 
       <main style={{
         marginLeft: sidebarW, padding: "36px 36px 80px",
@@ -1526,50 +1620,35 @@ export default function SettingsPage({ user, onNavigate, onLogout }) {
         position: "relative", zIndex: 10,
       }}>
         <header style={{ marginBottom: 44, paddingTop: 8 }}>
-          <p style={{
-            fontFamily: C.fontMono, fontSize: 11,
-            color: C.textSecondary, textTransform: "uppercase",
-            letterSpacing: "0.24em", marginBottom: 10,
-          }}>
+          <p style={{ fontFamily: C.fontMono, fontSize: 11, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "0.24em", marginBottom: 10 }}>
             Neural Research Environment
           </p>
           <h1 style={{
             fontFamily: C.fontDisplay,
             fontSize: "clamp(3.4rem,7.5vw,6rem)",
-            fontWeight: 400,
-            textTransform: "uppercase",
-            letterSpacing: "0.02em",
-            lineHeight: 0.95,
-            margin: 0,
+            fontWeight: 400, textTransform: "uppercase",
+            letterSpacing: "0.02em", lineHeight: 0.95, margin: 0,
             background: "linear-gradient(180deg, #ffffff 0%, #e8ecf2 35%, #aab1bd 75%, #6f7787 100%)",
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            color: "transparent",
+            WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
             animation: "settingsGlow 3.5s ease-in-out infinite",
           }}>
             Settings
           </h1>
-          <p style={{
-            fontFamily: C.fontBody, fontSize: 16,
-            color: C.onSurfaceVariant, marginTop: 14, lineHeight: 1.5,
-          }}>
+          <p style={{ fontFamily: C.fontBody, fontSize: 16, color: C.onSurfaceVariant, marginTop: 14, lineHeight: 1.5 }}>
             Manage your keys, preferences, and account.
           </p>
-          <div style={{
-            height: 1, marginTop: 18,
-            background: `linear-gradient(90deg, ${C.silverBorder}, transparent)`,
-          }} />
+          <div style={{ height: 1, marginTop: 18, background: `linear-gradient(90deg, ${C.silverBorder}, transparent)` }} />
         </header>
 
-        <ProfileSection     user={user} push={push} />
-        <ApiKeysSection     push={push} />
-        <AppearanceSection />
-        <PreferencesSection push={push} />
-        <NotificationsSection />
-        <IntegrationsSection />
-        <SecuritySection />
-        <DataStorageSection push={push} />
-        <DangerZone />
+        <ProfileSection     user={user}   push={push} />
+        <ApiKeysSection                   push={push} />
+        <AppearanceSection                push={push} />
+        <PreferencesSection               push={push} />
+        <NotificationsSection             push={push} />
+        <IntegrationsSection              push={push} />
+        <SecuritySection                  push={push} />
+        <DataStorageSection               push={push} />
+        <DangerZone                       push={push} />
       </main>
 
       <ToastBox toasts={toasts} />

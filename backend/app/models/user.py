@@ -21,7 +21,7 @@ class User(Base):
     
     # Authentication
     email = Column(String(255), unique=True, index=True, nullable=False)
-    username = Column(String(100), unique=True, index=True, nullable=False)
+    username = Column(String(100), unique=False, index=True, nullable=True)
     hashed_password = Column(String(255), nullable=False)
     
     # Security
@@ -41,6 +41,26 @@ class User(Base):
     tier = Column(String(20), default="free")
     is_active = Column(Boolean, default=True)
     email_verified = Column(Boolean, default=False)
+    
+    # Preferences & Notifications (stored as JSON)
+    preferences = Column(JSON, default=lambda: {
+        "default_mode": "research",
+        "response_style": "academic",
+        "streaming_enabled": True,
+        "auto_save": True,
+        "confidence_threshold": 70
+    })
+    notifications = Column(JSON, default=lambda: {
+        "email": False,
+        "research": True,
+        "weekly": False,
+        "rate_limit": True
+    })
+    integrations = Column(JSON, default=lambda: {
+        "google": {"connected": False},
+        "github": {"connected": False},
+        "notion": {"connected": False}
+    })
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

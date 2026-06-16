@@ -103,6 +103,10 @@ function Icon({ name, style: s }) {
   );
 }
 
+// ─── API helpers ─────────────────────────────────────────────────────────────
+const BASE = "http://localhost:8000";
+const getToken = () => window.__POLYNOUS_ACCESS_TOKEN__ || localStorage.getItem('polynous_token') || '';
+
 // ─── Three.js Mountain (full Code-1 implementation, in React) ─────────────────
 function ThreeMountain() {
   const containerRef = useRef(null);
@@ -908,6 +912,29 @@ export default function PolynousResearch({ user, onNavigate, onLogout }) {
   const [history,        setHistory]        = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted,        setMounted]        = useState(false);
+  const [userStyle,      setUserStyle]      = useState("academic");
+
+  // Fetch user preferences on mount
+  useEffect(() => {
+    const fetchStyle = async () => {
+      try {
+        const token = getToken();
+        const res = await fetch(`${BASE}/settings/preferences`, {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json'
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUserStyle(data.response_style || "academic");
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchStyle();
+  }, []);
 
   useEffect(() => { requestAnimationFrame(() => setMounted(true)); }, []);
 
@@ -923,17 +950,20 @@ export default function PolynousResearch({ user, onNavigate, onLogout }) {
     setAgentStatus("Initializing…");
 
     // ✅ Get JWT token
-    const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
-                  localStorage.getItem('polynous_token') || '';
+    const token = getToken();
 
     try {
-        const res = await fetch("http://localhost:8000/ask-stream", {
+        const res = await fetch(`${BASE}/ask-stream`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": token ? `Bearer ${token}` : ''
             },
-            body: JSON.stringify({ query: qText, debate_mode: false }),
+            body: JSON.stringify({
+                query: qText,
+                debate_mode: false,
+                response_style: userStyle,   // ← ADDED user style
+            }),
         });
 
         if (!res.ok) {

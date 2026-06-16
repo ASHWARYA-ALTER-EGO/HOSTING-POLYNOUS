@@ -41,8 +41,8 @@ class SemanticSearchEngine:
             self.index = None
     
     def add_to_index(self, query: str, answer: str, mode: str = "research", 
-                     confidence: float = 0, sources: List = None):
-        """Add research entry to search index"""
+                     confidence: float = 0, sources: List = None, user_id: str = "guest"):
+        """Add research entry to search index with user_id"""
         # Convert sources list of dicts to list of strings for Pinecone compatibility
         source_titles = []
         if sources:
@@ -57,6 +57,7 @@ class SemanticSearchEngine:
             "sources": json.dumps(source_titles),  # Store as JSON string
             "source_count": len(source_titles),
             "score": 100.0,
+            "user_id": user_id,  # ✅ Added user_id
             "timestamp": time.time()
         }
         
@@ -101,6 +102,7 @@ class SemanticSearchEngine:
                                 "mode": meta.get('mode', 'research'),
                                 "confidence": meta.get('confidence', 0),
                                 "sources": sources,
+                                "user_id": meta.get('user_id', 'guest'),  # Include user_id in results
                             })
             except Exception as e:
                 print(f"Pinecone search error: {e}")
@@ -127,15 +129,22 @@ class SemanticSearchEngine:
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:top_k]
     
-    def get_suggestions(self, query: str, limit: int = 5) -> List[str]:
-        """Get search suggestions"""
-        ql = query.lower()
+    def get_suggestions(self, query: str, limit: int = 5, user_id: str = None) -> List[str]:
+        """Get search suggestions, optionally scoped to user"""
+        query_lower = query.lower()
         suggestions, seen = [], set()
         for entry in self.fallback_memory:
+            # Filter by user if provided
+            if user_id and entry.get('user_id', 'guest') != user_id:
+                continue
+            
             q = entry.get("query", "")
-            if ql in q.lower() and q not in seen:
-                suggestions.append(q); seen.add(q)
-            if len(suggestions) >= limit: break
+            if query_lower in q.lower() and q not in seen:
+                suggestions.append(q)
+                seen.add(q)
+            if len(suggestions) >= limit:
+                break
         return suggestions
+
 
 semantic_search = SemanticSearchEngine()

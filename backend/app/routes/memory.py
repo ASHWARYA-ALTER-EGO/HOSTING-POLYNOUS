@@ -81,11 +81,17 @@ async def get_suggestions(request: Request, topic: str = Query(...)):
 @router.get("/stats")
 async def get_user_stats(request: Request):
     """Get current user's statistics"""
-    user_id = get_user_id(request)
-    print(f"🔍 Memory stats requested for user: {user_id}")  # ✅ ADDED
+    # ✅ Get user ID from auth middleware (NOT from URL)
+    user_id = getattr(request.state, 'user_public_id', None)
+    
+    print(f"🔍 Memory stats requested for user: {user_id}")
     print(f"   request.state.user_public_id: {getattr(request.state, 'user_public_id', 'NOT SET')}")
     print(f"   request.state.user_id: {getattr(request.state, 'user_id', 'NOT SET')}")
     print(f"   request.state.user_email: {getattr(request.state, 'user_email', 'NOT SET')}")
+    
+    # If no authenticated user, return empty immediately
+    if not user_id or user_id == 'guest':
+        return {"total_research": 0, "total_debates": 0, "avg_confidence": 0, "unique_topics": 0}
     
     stats = user_memory.get_user_stats(user_id)
     if not stats:

@@ -1,0 +1,31 @@
+{
+  "export_date": "2026-06-16T18:10:39.579519",
+  "user": {
+    "username": "test_settings",
+    "email": "test_settings_user@polynous.ai",
+    "tier": "free",
+    "member_since": "2026-06-16 17:46:26.509846"
+  },
+  "preferences": {
+    "default_mode": "research",
+    "response_style": "academic",
+    "streaming_enabled": true,
+    "auto_save": true,
+    "confidence_threshold": 70
+  },
+  "notifications": {
+    "email": false,
+    "research": true,
+    "weekly": false,
+    "rate_limit": true
+  },
+  "research_summary": {
+    "total_research": 0,
+    "total_debates": 0,
+    "avg_confidence": 0,
+    "unique_topics": 0
+  },
+  "top_interests": [],
+  "recent_research": [],
+  "recent_debates": []
+}

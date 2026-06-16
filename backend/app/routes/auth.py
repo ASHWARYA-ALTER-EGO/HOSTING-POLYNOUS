@@ -7,8 +7,10 @@ import os
 import bcrypt
 import uuid
 import re
+import time
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, validator, field_validator
+from typing import Optional
 
 from app.database import get_db
 from app.models.user import User
@@ -194,7 +196,7 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)) -> U
 
 class RegisterRequest(BaseModel):
     email: str
-    username: str
+    username: str = ""   # Now optional — default empty string
     password: str
     
     @field_validator('email')
@@ -212,12 +214,14 @@ class RegisterRequest(BaseModel):
     @classmethod
     def validate_username(cls, v):
         v = v.strip()
-        if len(v) < 3:
-            raise ValueError('Username must be at least 3 characters')
-        if len(v) > 50:
-            raise ValueError('Username must be less than 50 characters')
-        if not re.match(r'^[a-zA-Z0-9_\-]+$', v):
-            raise ValueError('Username can only contain letters, numbers, underscores, and hyphens')
+        # Only validate length if a username is actually provided
+        if v:
+            if len(v) < 3:
+                raise ValueError('Username must be at least 3 characters')
+            if len(v) > 50:
+                raise ValueError('Username must be less than 50 characters')
+            if not re.match(r'^[a-zA-Z0-9_\-]+$', v):
+                raise ValueError('Username can only contain letters, numbers, underscores, and hyphens')
         return v
     
     @field_validator('password')
@@ -255,105 +259,52 @@ class TokenResponse(BaseModel):
 @router.post("/register", response_model=TokenResponse)
 async def register(request: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     """
-    Register a new user with secure defaults.
-    Returns access token + sets refresh token as HttpOnly cookie.
+    Register a new user.
+    ✅ Only checks duplicate email — username is optional & non‑unique
+    ✅ Auto‑generates a username if none provided
     """
     
-    # ✅ Improved error messages for duplicate checks
-    if db.query(User).filter(User.email == request.email).first():
-        raise HTTPException(status_code=409, detail="This email is already registered. Please login or use a different email.")
+    # Normalize email to lowercase
+    email = request.email.strip().lower()
     
-    if db.query(User).filter(User.username == request.username).first():
-        raise HTTPException(status_code=409, detail="This username is already taken. Please choose another.")
+    # Check duplicate email
+    existing_email = db.query(User).filter(User.email == email).first()
+    if existing_email:
+        raise HTTPException(
+            status_code=409, 
+            detail=f"An account with email '{email}' already exists. Please login instead."
+        )
+    
+    # Username is optional — generate a default if empty
+    username = request.username.strip() if request.username.strip() else f"researcher_{int(time.time()) % 10000}"
     
     # Validate password strength
     is_valid, message = validate_password_strength(request.password)
     if not is_valid:
         raise HTTPException(status_code=400, detail=message)
     
-    # ✅ Generate user-specific encryption key for API key storage
-    user_encryption_key = Fernet.generate_key().decode()
-    
-    # Create user with encryption key
-    user = User(
-        public_id=str(uuid.uuid4()),
-        email=request.email,
-        username=request.username,
-        hashed_password=hash_password(request.password),
-        encryption_key=user_encryption_key,  # ✅ Store for encrypting their API keys
-    )
-    
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    
-    # Generate tokens
-    access_token = create_access_token(user.id, user.public_id, user.email)
-    refresh_token = create_refresh_token(user.id, user.public_id, user.email)
-    
-    # Set refresh token as HttpOnly secure cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=False,        # Set to True in production (HTTPS)
-        samesite="lax",
-        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        path="/auth"
-    )
-    
-    return TokenResponse(
-        access_token=access_token,
-        user_id=user.public_id,
-        username=user.username,
-        email=user.email,
-        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
-
-@router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, response: Response, db: Session = Depends(get_db)):
-    """
-    Login with email and password.
-    Includes brute force protection.
-    """
-    
-    # Find user
-    user = db.query(User).filter(User.email == request.email).first()
-    
-    if not user:
-        # Don't reveal if email exists — same error message
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    
-    # Check if account is locked
-    if user.locked_until and user.locked_until > datetime.utcnow():
-        remaining = (user.locked_until - datetime.utcnow()).seconds // 60
-        raise HTTPException(
-            status_code=423,
-            detail=f"Account locked. Try again in {remaining} minutes."
+    # Create user with explicit commit
+    try:
+        user_encryption_key = Fernet.generate_key().decode()
+        
+        user = User(
+            public_id=str(uuid.uuid4()),
+            email=email,
+            username=username,
+            hashed_password=hash_password(request.password),
+            encryption_key=user_encryption_key,
         )
-    
-    # Verify password
-    if not verify_password(request.password, user.hashed_password):
-        # Increment failed attempts
-        user.failed_login_attempts += 1
         
-        # Lock account if too many attempts
-        if user.failed_login_attempts >= MAX_LOGIN_ATTEMPTS:
-            user.locked_until = datetime.utcnow() + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
-            db.commit()
-            raise HTTPException(
-                status_code=423,
-                detail=f"Account locked for {LOCKOUT_DURATION_MINUTES} minutes due to too many failed attempts."
-            )
-        
+        db.add(user)
         db.commit()
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    
-    # Successful login — reset failed attempts
-    user.failed_login_attempts = 0
-    user.locked_until = None
-    user.last_login = datetime.utcnow()
-    db.commit()
+        db.refresh(user)
+        
+        print(f"✅ User registered: {user.email} (ID: {user.public_id})")
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Registration error: {e}")
+        raise HTTPException(status_code=500, detail="Registration failed. Please try again.")
     
     # Generate tokens
     access_token = create_access_token(user.id, user.public_id, user.email)
@@ -378,15 +329,69 @@ async def login(request: LoginRequest, response: Response, db: Session = Depends
         expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
 
+@router.post("/login", response_model=TokenResponse)
+async def login(request: LoginRequest, response: Response, db: Session = Depends(get_db)):
+    """
+    Login with email and password.
+    ✅ Case‑insensitive email lookup
+    """
+    
+    email = request.email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    if user.locked_until and user.locked_until > datetime.utcnow():
+        remaining = (user.locked_until - datetime.utcnow()).seconds // 60
+        raise HTTPException(
+            status_code=423,
+            detail=f"Account locked. Try again in {remaining} minutes."
+        )
+    
+    if not verify_password(request.password, user.hashed_password):
+        user.failed_login_attempts += 1
+        if user.failed_login_attempts >= MAX_LOGIN_ATTEMPTS:
+            user.locked_until = datetime.utcnow() + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+            db.commit()
+            raise HTTPException(
+                status_code=423,
+                detail=f"Account locked for {LOCKOUT_DURATION_MINUTES} minutes."
+            )
+        db.commit()
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.last_login = datetime.utcnow()
+    db.commit()
+    
+    access_token = create_access_token(user.id, user.public_id, user.email)
+    refresh_token = create_refresh_token(user.id, user.public_id, user.email)
+    
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/auth"
+    )
+    
+    return TokenResponse(
+        access_token=access_token,
+        user_id=user.public_id,
+        username=user.username,
+        email=user.email,
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+
 @router.post("/refresh")
 async def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
-    """
-    Get new access token using refresh token from HttpOnly cookie.
-    """
     refresh_token = request.cookies.get("refresh_token", "")
     
     if not refresh_token:
-        # Fallback to Authorization header
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             refresh_token = auth_header.replace("Bearer ", "")
@@ -395,14 +400,12 @@ async def refresh(request: Request, response: Response, db: Session = Depends(ge
         raise HTTPException(status_code=401, detail="Refresh token required")
     
     payload = decode_token(refresh_token, "refresh")
-    
     user_id = int(payload.get("sub", 0))
     user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
     
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     
-    # Generate new tokens (token rotation)
     new_access_token = create_access_token(user.id, user.public_id, user.email)
     new_refresh_token = create_refresh_token(user.id, user.public_id, user.email)
     
@@ -424,9 +427,6 @@ async def refresh(request: Request, response: Response, db: Session = Depends(ge
 
 @router.get("/me")
 async def get_current_user_profile(user: User = Depends(get_current_user)):
-    """
-    Get current user profile. Requires valid access token.
-    """
     return {
         "user_id": user.public_id,
         "email": user.email,
@@ -437,39 +437,71 @@ async def get_current_user_profile(user: User = Depends(get_current_user)):
         "last_login": str(user.last_login) if user.last_login else None
     }
 
+@router.put("/me")
+async def update_profile(
+    data: dict,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if 'username' in data:
+        new_username = data['username'].strip()
+        if len(new_username) < 3:
+            raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+        if len(new_username) > 50:
+            raise HTTPException(status_code=400, detail="Username must be less than 50 characters")
+        
+        existing = db.query(User).filter(User.username == new_username, User.id != user.id).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Username already taken")
+        
+        user.username = new_username
+    
+    db.commit()
+    db.refresh(user)
+    
+    return {
+        "username": user.username,
+        "email": user.email,
+        "message": "Profile updated"
+    }
+
 @router.post("/logout")
 async def logout(response: Response, user: User = Depends(get_current_user)):
-    """
-    Logout — clear refresh token cookie.
-    """
     response.delete_cookie(key="refresh_token", path="/auth")
     return {"message": "Logged out successfully"}
 
 @router.put("/change-password")
 async def change_password(
-    old_password: str,
-    new_password: str,
+    data: dict,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Change password — requires current password"""
+    current = data.get("current_password")
+    new = data.get("new_password")
     
-    # Verify old password
-    if not verify_password(old_password, user.hashed_password):
+    if not current or not new:
+        raise HTTPException(status_code=400, detail="Both current and new passwords required")
+    
+    if not verify_password(current, user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     
-    # Validate new password
-    is_valid, message = validate_password_strength(new_password)
+    is_valid, msg = validate_password_strength(new)
     if not is_valid:
-        raise HTTPException(status_code=400, detail=message)
+        raise HTTPException(status_code=400, detail=msg)
     
-    # Can't reuse same password
-    if verify_password(new_password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="New password must be different from current")
-    
-    # Update password
-    user.hashed_password = hash_password(new_password)
+    user.hashed_password = hash_password(new)
     user.password_changed_at = datetime.utcnow()
     db.commit()
     
-    return {"message": "Password changed successfully"}
+    return {"message": "Password changed successfully — please login again"}
+
+@router.post("/revoke-sessions")
+async def revoke_sessions(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user.password_changed_at = datetime.utcnow()
+    db.commit()
+    return {
+        "message": "All sessions revoked. Existing tokens are now invalid. Please login again."
+    }

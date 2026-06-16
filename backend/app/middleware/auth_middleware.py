@@ -53,7 +53,7 @@ async def extract_user_middleware(request: Request, call_next):
             user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
             if user:
                 request.state.user_id = user.id
-                request.state.user_public_id = user.public_id
+                request.state.user_public_id = user.public_id  # ← from DB, matches JWT uid
                 request.state.user_email = user.email
                 request.state.is_authenticated = True
             else:

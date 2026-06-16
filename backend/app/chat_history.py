@@ -216,3 +216,14 @@ def get_debate_history(session_id: str = None, limit: int = 50):
         })
     
     return result
+
+# ─── Clear User Data ───
+def clear_user_chats(user_id: str):
+    """Delete all chat history for a specific user"""      
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM chat_history WHERE session_id = ?", (user_id,))
+    cursor.execute("DELETE FROM debate_history WHERE session_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    print(f"🗑️ Cleared chat history for user: {user_id}")

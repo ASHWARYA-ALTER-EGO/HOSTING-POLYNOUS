@@ -1,15 +1,16 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 import os
 
-# Use environment variable with fallback - NEVER hardcode credentials
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./polynous.db")
 
-# SQLite needs special connect args
 if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        echo=False  # Set to True for debugging SQL queries
+    )
 else:
-    # PostgreSQL with SSL for production
     engine = create_engine(
         DATABASE_URL,
         connect_args={"sslmode": "require"},
@@ -18,7 +19,10 @@ else:
         pool_pre_ping=True
     )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# ✅ Use scoped_session — ensures each request gets a FRESH session
+SessionLocal = scoped_session(
+    sessionmaker(autocommit=False, autoflush=False, bind=engine)
+)
 
 def init_db():
     """Create all database tables safely"""
@@ -27,9 +31,14 @@ def init_db():
     print("✅ Database tables created!")
 
 def get_db():
-    """Dependency to get database session"""
+    """
+    Dependency to get database session.
+    ✅ Each request gets a NEW session.
+    ✅ Session is automatically closed after request.
+    """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+        SessionLocal.remove()  # ✅ CRITICAL: Remove session from registry

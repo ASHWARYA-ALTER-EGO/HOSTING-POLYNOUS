@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -26,22 +26,21 @@ class PreferencesResponse(BaseModel):
 
 # ─── GET PREFERENCES ──────────────────────────────
 @router.get("", response_model=PreferencesResponse)
-async def get_preferences(
-    user_id: str = Query("guest_user"),
-    db: Session = Depends(get_db)
-):
+async def get_preferences(request: Request, db: Session = Depends(get_db)):
     """
     Load user preferences from database.
-    Called when Settings page loads and when Research page starts.
+    Uses the authenticated user from request.state (set by auth middleware).
+    Falls back to guest defaults if not authenticated.
     """
-    user = db.query(User).filter(
-        (User.email == user_id) | (User.username == user_id)
-    ).first()
-    
-    if not user:
-        # Return defaults for new users
+    user_id = getattr(request.state, 'user_id', 0)
+    if user_id == 0:
+        # Return defaults for guest / unauthenticated users
         return PreferencesResponse()
-    
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return PreferencesResponse()
+
     return PreferencesResponse(
         default_mode=user.default_mode or "research",
         response_style=user.response_style or "academic",
@@ -54,47 +53,43 @@ async def get_preferences(
 @router.put("")
 async def update_preferences(
     prefs: PreferencesUpdate,
-    user_id: str = Query("guest_user"),
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
     Save user preferences to database.
-    Called whenever user changes any setting.
+    Uses the authenticated user from request.state.
+    Returns a detailed summary of what was updated.
     """
-    user = db.query(User).filter(
-        (User.email == user_id) | (User.username == user_id)
-    ).first()
-    
+    user_id = getattr(request.state, 'user_id', 0)
+    if user_id == 0:
+        raise HTTPException(status_code=401, detail="Login required")
+
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found. Please login first.")
-    
-    # Update only the fields that were provided
+        raise HTTPException(status_code=404, detail="User not found")
+
     updated = []
-    
     if prefs.default_mode is not None:
         user.default_mode = prefs.default_mode
         updated.append(f"default_mode={prefs.default_mode}")
-    
     if prefs.response_style is not None:
         user.response_style = prefs.response_style
         updated.append(f"response_style={prefs.response_style}")
-    
     if prefs.streaming_enabled is not None:
         user.streaming_enabled = prefs.streaming_enabled
         updated.append(f"streaming_enabled={prefs.streaming_enabled}")
-    
     if prefs.auto_save is not None:
         user.auto_save = prefs.auto_save
         updated.append(f"auto_save={prefs.auto_save}")
-    
     if prefs.confidence_threshold is not None:
         user.confidence_threshold = prefs.confidence_threshold
         updated.append(f"confidence_threshold={prefs.confidence_threshold}")
-    
+
     db.commit()
-    
-    print(f"✅ Preferences saved for {user_id}: {', '.join(updated)}")
-    
+
+    print(f"✅ Preferences saved for user_id={user_id}: {', '.join(updated)}")
+
     return {
         "message": "Preferences saved successfully",
         "status": "ok",

@@ -208,6 +208,13 @@ function generateDemoData() {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════
 export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D }) {
+  // ✅ FIX 1: Add Token Helper Inside Component
+  const getAuthHeaders = () => {
+    const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
+                  localStorage.getItem('polynous_token') || '';
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  };
+
   const containerRef = useRef(null)
   const canvasRef = useRef(null)
 
@@ -258,6 +265,9 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
   const [nodeDetailCache, setNodeDetailCache] = useState({})
   const [loadingDetail, setLoadingDetail] = useState(false)
 
+  // ✅ FIX 6: Demo data indicator
+  const [isDemoData, setIsDemoData] = useState(false)
+
   // ─────────────────────────────────────────
   // API helpers
   // ─────────────────────────────────────────
@@ -265,7 +275,8 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
 
   async function fetchNodeDetail(id) {
     try {
-      const res = await fetch(`${API}/node/${id}`)
+      // ✅ FIX 5: Updated fetchNodeDetail with headers
+      const res = await fetch(`${API}/node/${id}`, { headers: getAuthHeaders() })
       if (!res.ok) throw new Error('not ok')
       return await res.json()
     } catch {
@@ -275,8 +286,9 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
 
   async function fetchConnections(entity1, entity2) {
     try {
+      // ✅ FIX 5: Updated fetchConnections with headers
       const params = new URLSearchParams({ entity1, entity2 })
-      const res = await fetch(`${API}/connections?${params}`)
+      const res = await fetch(`${API}/connections?${params}`, { headers: getAuthHeaders() })
       if (!res.ok) throw new Error('not ok')
       return await res.json()  // { paths: [...] }
     } catch {
@@ -288,11 +300,17 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
   // Load data
   // ─────────────────────────────────────────
   useEffect(() => {
+    // ✅ FIX 2: Updated initial data load with auth headers and demo data flag
     if (initialData?.nodes?.length) { setGraphData(initialData); setLoading(false); return }
-    fetch(`${API}/rich-graph`)
-      .then(r => r.json())
+    fetch(`${API}/rich-graph`, { headers: getAuthHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => { setGraphData(d); setLoading(false) })
-      .catch(() => { setGraphData(generateDemoData()); setLoading(false) })
+      .catch(() => { 
+        setGraphData(generateDemoData()); 
+        setLoading(false);
+        setIsDemoData(true);
+        console.log('⚠️ Using demo data (API unavailable or no auth)');
+      })
   }, [])
 
   // ─────────────────────────────────────────
@@ -412,9 +430,9 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
             setSelectedNode(hit)
             setDetailPanel(hit)
             animateCameraToNode(hit)
-            // Fetch enriched node data from API
+            // ✅ FIX 3: Fetch enriched node data from API with auth headers
             setLoadingDetail(true)
-            fetch(`http://localhost:8000/knowledge/node/${hit.id}`)
+            fetch(`http://localhost:8000/knowledge/node/${hit.id}`, { headers: getAuthHeaders() })
               .then(r => r.ok ? r.json() : null)
               .then(data => {
                 if (data) setNodeDetailCache(prev => ({ ...prev, [hit.id]: data }))
@@ -1142,6 +1160,12 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
           <StatRow label="Total Edges" value={stats.edges} color={T.cyan} />
           <StatRow label="Density" value={stats.density} color={T.orange} />
           <StatRow label="Active Filter" value={filter === 'all' ? 'All' : (NODE_LABELS[filter] || filter)} color={T.green} />
+          {/* ✅ FIX 6: Demo data indicator */}
+          {isDemoData && (
+            <div style={{ fontSize: 9, color: '#ffaa00', fontFamily: T.fontMono, marginTop: 6, padding: '4px 8px', background: 'rgba(255,170,0,0.1)', borderRadius: 6, border: '1px solid rgba(255,170,0,0.2)' }}>
+              ⚠️ Demo data — log in to see your research graph
+            </div>
+          )}
         </GlassPanel>
 
         {/* Top Topics */}
@@ -1346,11 +1370,11 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
                     </p>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={async () => {
-                        // Try API first: GET /knowledge/connections?entity1=X&entity2=Y
+                        // ✅ FIX 4: Pathfinding API call with auth headers
                         setLoadingDetail(true)
                         try {
                           const params = new URLSearchParams({ entity1: pathStart.id, entity2: detailPanel.id })
-                          const res = await fetch(`http://localhost:8000/knowledge/connections?${params}`)
+                          const res = await fetch(`http://localhost:8000/knowledge/connections?${params}`, { headers: getAuthHeaders() })
                           if (res.ok) {
                             const data = await res.json()
                             // API returns { paths: [[id, id, ...], ...] } — use first path

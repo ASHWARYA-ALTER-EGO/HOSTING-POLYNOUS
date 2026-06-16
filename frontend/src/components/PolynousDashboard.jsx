@@ -547,20 +547,52 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const base = "http://localhost:8000", userId = "guest_user";
+      const BASE = "http://localhost:8000";
+
+      // ---- 1. Get the current user's token ----
+      const token =
+        localStorage.getItem("polynous_token") ||
+        window.__POLYNOUS_ACCESS_TOKEN__ ||
+        "";
+
+      const headers = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      // ---- 2. Fetch real data from the protected endpoints ----
       const [sRes, hRes, dRes] = await Promise.all([
-        fetch(base + "/memory/stats/" + userId),
-        fetch(base + "/memory/history/" + userId),
-        fetch(base + "/memory/debates/" + userId),
+        fetch(`${BASE}/memory/stats`,     { headers }),
+        fetch(`${BASE}/memory/history`,   { headers }),
+        fetch(`${BASE}/memory/debates`,   { headers }),
       ]);
-      const [statsData, historyData, debatesData] = await Promise.all([sRes.json(), hRes.json(), dRes.json()]);
-      setStats({ totalQueries: statsData.total_research || 0, totalDebates: statsData.total_debates || 0, avgConfidence: statsData.avg_confidence || 0, uniqueTopics: statsData.unique_topics || 0 });
+
+      // ---- 3. Parse responses safely ----
+      const statsData   = sRes.ok ? await sRes.json() : {};
+      const historyData = hRes.ok ? await hRes.json() : {};
+      const debatesData = dRes.ok ? await dRes.json() : {};
+
+      // ---- 4. Populate state with real values ----
+      setStats({
+        totalQueries:   statsData.total_research   || 0,
+        totalDebates:   statsData.total_debates    || 0,
+        avgConfidence:  statsData.avg_confidence   || 0,
+        uniqueTopics:   statsData.unique_topics    || 0,
+      });
+
       setHistory(historyData.history || []);
       setDebates(debatesData.debates || []);
-    } catch (e) { console.error("Dashboard error:", e); }
-    finally { setLoading(false); }
+    } catch (e) {
+      console.error("Dashboard error:", e);
+      // Keep the previous data (or zero) — never fill with fake data
+      setStats(null);
+      setHistory([]);
+      setDebates([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Derived data for charts (using real data only)
   const confTrend = history.map(h => h.confidence || 0).slice(-10);
 
   const activityData = {};
@@ -576,14 +608,6 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
       if (activityData[date] !== undefined) activityData[date]++;
     }
   });
-  const hasRealActivity = history.some(h => h.timestamp);
-  if (!hasRealActivity) {
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(now); d.setDate(d.getDate() - i);
-      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      activityData[label] = Math.max(0, Math.floor(Math.sin(i * 0.4) * 3 + Math.random() * 4));
-    }
-  }
 
   const topicFreq = {};
   history.forEach(h => {
@@ -591,19 +615,13 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
       .filter(w => w.length > 4 && !['what', 'how', 'does', 'work', 'that', 'this', 'they', 'with', 'from', 'about', 'which', 'their'].includes(w))
       .forEach(w => { topicFreq[w] = (topicFreq[w] || 0) + 1; });
   });
-  if (Object.keys(topicFreq).length === 0) {
-    topicFreq['Quantum'] = 5; topicFreq['Computing'] = 4; topicFreq['Climate'] = 3;
-    topicFreq['Fermi'] = 3; topicFreq['Neural'] = 2; topicFreq['Cosmos'] = 2;
-    topicFreq['Entropy'] = 2; topicFreq['Biology'] = 1; topicFreq['Relativity'] = 1;
-    topicFreq['Topology'] = 1;
-  }
 
   const highCount = history.filter(h => (h.confidence || 0) >= 80).length;
   const mediumCount = history.filter(h => (h.confidence || 0) >= 60 && (h.confidence || 0) < 80).length;
   const lowCount = history.filter(h => (h.confidence || 0) < 60).length;
-  const confDist = { high: highCount || history.length, medium: mediumCount || 0, low: lowCount || 0 };
+  const confDist = { high: highCount || 0, medium: mediumCount || 0, low: lowCount || 0 };
 
-  const hourlyData = { 'Mon': { '9': 1, '10': 2, '14': 1 }, 'Tue': { '11': 1, '15': 2 }, 'Wed': { '9': 1, '13': 1, '16': 3 }, 'Thu': { '10': 2, '14': 1 }, 'Fri': { '9': 1, '11': 2, '15': 1 }, 'Sat': { '12': 1 }, 'Sun': { '16': 1 } };
+  const hourlyData = { 'Mon': {}, 'Tue': {}, 'Wed': {}, 'Thu': {}, 'Fri': {}, 'Sat': {}, 'Sun': {} };
   history.forEach(h => {
     if (h.timestamp) {
       const d = new Date(h.timestamp);

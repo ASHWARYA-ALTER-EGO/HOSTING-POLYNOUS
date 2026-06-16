@@ -43,7 +43,7 @@ function Icon({ name, style }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ✅ FIXED: API call now goes to YOUR POLYNOUS backend
+// ✅ FIXED: API call now includes JWT token for user isolation
 // ═══════════════════════════════════════════════════════════════
 
 async function callDebateAPI(topic, detailed) {
@@ -51,10 +51,16 @@ async function callDebateAPI(topic, detailed) {
     ? `${topic} Please provide comprehensive, detailed arguments with specific examples, data points, and thorough explanations for each point.`
     : topic;
 
-  // ✅ Calls YOUR backend at localhost:8000/ask with debate_mode=true
+  // ✅ Get JWT token
+  const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
+                localStorage.getItem('polynous_token') || '';
+
   const res = await fetch("http://localhost:8000/ask", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : ''
+    },
     body: JSON.stringify({ query: enhancedQuery, debate_mode: true })
   });
 

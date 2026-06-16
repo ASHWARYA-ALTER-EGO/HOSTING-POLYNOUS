@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from "react";
+import ProfileSetup from './ProfileSetup'
 
 // ─── Design Tokens ────────────────────────────────────────────
 const C = {
@@ -301,7 +302,12 @@ function LoginCard({ onLogin }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
   const [success, setSuccess]   = useState("");
-  const [isLogin, setIsLogin]   = useState(true);  // ← ADDED for Sign Up toggle
+  const [isLogin, setIsLogin]   = useState(true);
+
+  // ✅ Profile setup states
+  const [showProfileSetup, setShowProfileSetup] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState('')
+  const [tempLoginData, setTempLoginData] = useState(null)
 
   const handleSubmit = async () => {
     setError(""); setSuccess("");
@@ -309,7 +315,10 @@ function LoginCard({ onLogin }) {
     setLoading(true);
     try {
       const endpoint = isLogin ? '/auth/login' : '/auth/register'
-      const body = isLogin ? { email, password, remember } : { email, username: email.split('@')[0], password }
+      // ✅ Send 'new_user' as placeholder username for registration
+      const body = isLogin 
+        ? { email, password } 
+        : { email, username: 'new_user', password }
       
       const res = await fetch(`http://localhost:8000${endpoint}`, {
         method: "POST",
@@ -317,10 +326,54 @@ function LoginCard({ onLogin }) {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Authentication failed.");
       
-      localStorage.setItem('polynous_token', data.token)
-      localStorage.setItem('polynous_user', JSON.stringify({ username: data.username || email.split('@')[0], email }))
+      if (!res.ok) {
+        // ✅ FIX: Extract readable error message from validation errors
+        let errorMsg = data.detail || "Authentication failed.";
+        
+        if (Array.isArray(data.detail)) {
+          errorMsg = data.detail.map(e => e.msg).join('. ');
+        } else if (typeof data.detail === 'object') {
+          if (data.detail.errors) {
+            errorMsg = data.detail.errors.map(e => e.message).join('. ');
+          } else if (data.detail.msg) {
+            errorMsg = data.detail.msg;
+          }
+        }
+        
+        throw new Error(errorMsg);
+      }
+      
+      // ✅ After successful REGISTRATION, show success message then profile setup
+      if (!isLogin) {
+        setTempLoginData(data)
+        setRegisteredEmail(email)
+        setSuccess('Account created! Redirecting…')
+        // Short delay to show the success message before moving to profile setup
+        setTimeout(() => {
+          setShowProfileSetup(true)
+        }, 1500)
+        return
+      }
+      
+      // ✅ Store in BOTH memory and localStorage for compatibility
+      const token = data.access_token || data.token
+      window.__POLYNOUS_ACCESS_TOKEN__ = token
+      localStorage.setItem('polynous_token', token)
+      
+      // Store refresh token only if using token rotation
+      if (data.refresh_token) {
+        window.__POLYNOUS_REFRESH_TOKEN__ = data.refresh_token
+      }
+      
+      // Store user info with user_id for SettingsPage compatibility
+      localStorage.setItem('polynous_user', JSON.stringify({ 
+          username: data.username || email.split('@')[0], 
+          email: email,
+          user_id: data.user_id
+      }))
+      localStorage.setItem('polynous_user_id', data.user_id)
+      localStorage.setItem('polynous_username', data.username || email.split('@')[0])
       
       setSuccess('Synapse active. Welcome, Researcher.')
       
@@ -330,7 +383,7 @@ function LoginCard({ onLogin }) {
         window.location.href = '/dashboard'
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Authentication failed.");
     } finally {
       setLoading(false);
     }
@@ -342,11 +395,35 @@ function LoginCard({ onLogin }) {
 
   const handleGuest = () => {
     const guest = { skip: true, username: 'Guest', email: 'guest@polynous.ai' }
-    localStorage.setItem('polynous_token', 'guest_' + Date.now())
-    localStorage.setItem('polynous_user', JSON.stringify(guest))
+    // Guest tokens stored in BOTH memory and localStorage
+    const guestToken = 'guest_' + Date.now()
+    window.__POLYNOUS_ACCESS_TOKEN__ = guestToken
+    localStorage.setItem('polynous_token', guestToken)
+    localStorage.setItem('polynous_user', JSON.stringify({ username: 'Guest', email: 'guest@polynous.ai', user_id: 'guest' }))
+    localStorage.setItem('polynous_user_id', 'guest')
+    localStorage.setItem('polynous_username', 'Guest')
     if (onLogin) onLogin(guest)
     else window.location.href = '/dashboard'
   };
+
+  // ✅ Show profile setup after registration success delay
+  if (showProfileSetup) {
+    return (
+      <ProfileSetup 
+        email={registeredEmail}
+        onComplete={async (username) => {
+          // Save username to localStorage
+          const stored = JSON.parse(localStorage.getItem('polynous_user') || '{}')
+          localStorage.setItem('polynous_user', JSON.stringify({ ...stored, username }))
+          
+          // Now complete login
+          if (onLogin && tempLoginData) {
+            onLogin({ ...tempLoginData, username })
+          }
+        }}
+      />
+    )
+  }
 
   return (
     <div

@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Sidebar from "./Sidebar";
 
+// ─── TOKEN HELPER ──────────────────────────────────────────
+function getToken() {
+  if (typeof window !== 'undefined') {
+    if (window.__POLYNOUS_ACCESS_TOKEN__) return window.__POLYNOUS_ACCESS_TOKEN__;
+    return localStorage.getItem('polynous_token') || '';
+  }
+  return '';
+}
+
 // ─── COLOR TOKENS ────────────────────────────────────────────
 const C = {
   green: "#00FF9F",
@@ -931,20 +940,48 @@ function CommandPalette({ nodes, onClose, onSelectNode, onAction, filter, setFil
   );
 }
 
-// ─── PATHFINDER ──────────────────────────────────────────────
+// ─── PATHFINDER (WITH AUTHENTICATED API CALL) ──────────────────
 function Pathfinder({ positions, graphData, onClose, onPathFound }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [result, setResult] = useState(null);
   const [searching, setSearching] = useState(false);
-  const find = () => {
-    setSearching(true); setResult(null);
-    setTimeout(() => {
-      const path = bfsPath(graphData.nodes, graphData.edges || [], from, to);
-      setResult(path); if (path) onPathFound(path); setSearching(false);
-    }, 80);
+
+  const find = async () => {
+    setSearching(true);
+    setResult(null);
+    const token = getToken();
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    try {
+      const params = new URLSearchParams({ entity1: from, entity2: to });
+      const res = await fetch(`http://localhost:8000/knowledge/connections?${params}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const apiPath = data?.paths?.[0];
+        if (apiPath?.length) {
+          const nodeIds = new Set(apiPath);
+          const steps = apiPath.map((id, i) => {
+            const node = positions.find(n => n.id === id);
+            return { node: node?.label || id, edge: i > 0 ? '→' : null };
+          });
+          const pathResult = { nodeIds, steps };
+          setResult(pathResult);
+          if (onPathFound) onPathFound(pathResult);
+          setSearching(false);
+          return;
+        }
+      }
+    } catch (e) { /* fallback to BFS */ }
+
+    // Local BFS as fallback
+    const localPath = bfsPath(graphData.nodes, graphData.edges || [], from, to);
+    setResult(localPath);
+    if (onPathFound) onPathFound(localPath);
+    setSearching(false);
   };
+
   const clearPath = () => { setResult(null); onPathFound(null); };
+
   return (
     <div style={{ position: "absolute", top: 200, left: 14, zIndex: 30, width: 280 }}>
       <div style={{ background: "rgba(8,6,20,0.97)", backdropFilter: "blur(20px)", border: "1px solid rgba(70,179,255,0.18)", borderRadius: 12, padding: "14px" }}>
@@ -1282,15 +1319,20 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
 
   const loadGraph = useCallback(async (richMode = true) => {
     setLoading(true);
+    const token = getToken();
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     try {
       const endpoint = richMode ? "http://localhost:8000/knowledge/rich-graph" : "http://localhost:8000/knowledge/graph";
-      const res = await fetch(endpoint);
+      const res = await fetch(endpoint, { headers });
       if (res.ok) {
         const data = await res.json();
         if (data.nodes?.length > 0) { setGraphData(data); }
         else if (richMode) {
-          await fetch("http://localhost:8000/knowledge/seed-rich-demo", { method: "POST" });
-          const r2 = await fetch(endpoint);
+          await fetch("http://localhost:8000/knowledge/seed-rich-demo", { 
+            method: "POST",
+            headers: { ...headers, 'Content-Type': 'application/json' }
+          });
+          const r2 = await fetch(endpoint, { headers });
           if (r2.ok) setGraphData(await r2.json());
         }
       }
@@ -1399,10 +1441,12 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
       const targetZoom = Math.min(2.2, Math.max(1.2, zoomRef.current));
       cameraTargetRef.current = { panX: -node.x * targetZoom + canvas.offsetWidth / 2, panY: -node.y * targetZoom + canvas.offsetHeight / 2, zoom: targetZoom, progress: 0 };
     }
+    const token = getToken();
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     try {
       const cleanId = node.id?.replace(/^(claim_|evidence_|arg_|topic_|debate_)/, "") || node.label;
       const [detailRes] = await Promise.all([
-        fetch(`http://localhost:8000/knowledge/node/${encodeURIComponent(cleanId)}`),
+        fetch(`http://localhost:8000/knowledge/node/${encodeURIComponent(cleanId)}`, { headers }),
       ]);
       if (detailRes.ok) setNodeDetails(await detailRes.json());
     } catch (e) { console.error(e); }

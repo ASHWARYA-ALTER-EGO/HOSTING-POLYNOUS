@@ -12,14 +12,14 @@ const C = {
   amber:              "#ffaa00",
   gold:               "#ffd700",
   purple:             "#a855f7",
-  void:               "#051424",       // Code 1 bg-main
-  sidebar:            "#010f1f",       // Code 1 bg-sidebar
-  panel:              "#0d1c2d",       // Code 1 bg-panel
-  card:               "#122131",       // Code 1 bg-card
+  void:               "#051424",
+  sidebar:            "#010f1f",
+  panel:              "#0d1c2d",
+  card:               "#122131",
   surface:            "#111125",
   surfaceContainer:   "#1e1e32",
-  onSurface:          "#d4e4fa",       // Code 1 text color
-  onSurfaceVariant:   "#84967f",       // Code 1 text-muted
+  onSurface:          "#d4e4fa",
+  onSurfaceVariant:   "#84967f",
   textSecondary:      "#8899aa",
   white10:            "rgba(255,255,255,0.1)",
   white5:             "rgba(255,255,255,0.05)",
@@ -914,45 +914,79 @@ export default function PolynousResearch({ user, onNavigate, onLogout }) {
   const startResearch = async (q) => {
     const qText = typeof q === "string" ? q : query;
     if (!qText.trim() || loading) return;
-    setLoading(true); setAnswer(""); setSources([]); setConfidence(0);
-    setAgentProgress([]); setAgentStatus("Initializing…");
+
+    setLoading(true);
+    setAnswer("");
+    setSources([]);
+    setConfidence(0);
+    setAgentProgress([]);
+    setAgentStatus("Initializing…");
+
+    // ✅ Get JWT token
+    const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
+                  localStorage.getItem('polynous_token') || '';
 
     try {
-      const res = await fetch("http://localhost:8000/ask-stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: qText, debate_mode: false }),
-      });
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-      let fullAnswer = "", srcList = [], confScore = 0;
+        const res = await fetch("http://localhost:8000/ask-stream", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({ query: qText, debate_mode: false }),
+        });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        for (const line of chunk.split("\n")) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if      (data.type === "start")    setAgentStatus("Neural network activated");
-              else if (data.type === "progress") { setAgentStatus(data.message); setAgentProgress(prev => [...prev, data]); }
-              else if (data.type === "token")    { fullAnswer += (data.content || ""); setAnswer(fullAnswer); }
-              else if (data.type === "citations") srcList   = data.citations || [];
-              else if (data.type === "confidence") confScore = data.score || 0;
-              else if (data.type === "end") {
-                setAnswer(fullAnswer); setSources(srcList); setConfidence(confScore);
-                setAgentStatus("");
-                setHistory(prev => [{ query: qText, confidence: confScore, date: new Date().toLocaleDateString() }, ...prev].slice(0, 10));
-              }
-            } catch (_) {}
-          }
+        if (!res.ok) {
+            throw new Error(`Server responded with ${res.status}`);
         }
-      }
-    } catch (_) {
-      setAgentStatus("Connection error — is the backend running?");
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullAnswer = "", srcList = [], confScore = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            for (const line of chunk.split("\n")) {
+                if (line.startsWith("data: ")) {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.type === "start") {
+                            setAgentStatus("Neural network activated");
+                        } else if (data.type === "progress") {
+                            setAgentStatus(data.message);
+                            setAgentProgress(prev => [...prev, data]);
+                        } else if (data.type === "token") {
+                            fullAnswer += (data.content || "");
+                            setAnswer(fullAnswer);
+                        } else if (data.type === "citations") {
+                            srcList = data.citations || [];
+                        } else if (data.type === "confidence") {
+                            confScore = data.score || 0;
+                        } else if (data.type === "end") {
+                            setAnswer(fullAnswer);
+                            setSources(srcList);
+                            setConfidence(confScore);
+                            setAgentStatus("");
+                            setHistory(prev => [{
+                                query: qText,
+                                confidence: confScore,
+                                date: new Date().toLocaleDateString()
+                            }, ...prev].slice(0, 10));
+                        }
+                    } catch (e) {
+                        // ignore malformed JSON
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        setAgentStatus("Connection error — is the backend running?");
+        console.error("Research error:", error);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 

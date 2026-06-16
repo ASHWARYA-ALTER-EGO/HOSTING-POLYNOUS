@@ -1,12 +1,42 @@
 from anthropic import Anthropic
 from openai import OpenAI
 import os
+from typing import Optional
 from dotenv import load_dotenv
+from app.utils.encryption import decrypt_api_key
 
 load_dotenv()
 
-def get_llm_client(user_api_key=None, provider="anthropic"):
-    """Get LLM client - uses user's key if provided, else system key"""
+def get_user_api_key(db, user_id: int, provider: str = "anthropic") -> Optional[str]:
+    """
+    Get user's decrypted API key for a provider.
+    Returns None if user has no key for that provider.
+    """
+    from app.models.user import User
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return None
+    
+    encrypted_key = getattr(user, f"{provider}_api_key", None)
+    if not encrypted_key:
+        return None
+    
+    return decrypt_api_key(encrypted_key, user.encryption_key)
+
+def get_llm_client(user_api_key=None, provider="anthropic", db=None, user_id=None):
+    """
+    Get LLM client - uses user's key if provided, else system key.
+    
+    Priority:
+    1. Explicitly provided user_api_key
+    2. Database-stored user API key (if db and user_id provided)
+    3. System environment variable fallback
+    """
+    
+    # ✅ If no key provided but we have db + user_id, try to get user's stored key
+    if not user_api_key and db is not None and user_id is not None:
+        user_api_key = get_user_api_key(db, user_id, provider)
     
     if provider == "anthropic":
         api_key = user_api_key or os.getenv("ANTHROPIC_API_KEY")
@@ -19,9 +49,14 @@ def get_llm_client(user_api_key=None, provider="anthropic"):
         api_key = user_api_key or os.getenv("ANTHROPIC_API_KEY")
         return Anthropic(api_key=api_key)
 
-def get_llm_response(messages, user_api_key=None, provider="anthropic", temperature=0.7):
+def get_llm_response(messages, user_api_key=None, provider="anthropic", temperature=0.7, db=None, user_id=None):
     """Get LLM response with user's preferred provider"""
-    client = get_llm_client(user_api_key, provider)
+    
+    # ✅ If no key provided but we have db + user_id, try to get user's stored key
+    if not user_api_key and db is not None and user_id is not None:
+        user_api_key = get_user_api_key(db, user_id, provider)
+    
+    client = get_llm_client(user_api_key, provider, db=db, user_id=user_id)
     
     if provider == "openai":
         response = client.chat.completions.create(

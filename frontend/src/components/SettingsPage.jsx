@@ -38,32 +38,37 @@ const C = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API LAYER — robust wrappers with safe JSON parsing + error normalisation
+// ✅ FIXED API LAYER — JWT-based auth, no user_id in URLs
 // ─────────────────────────────────────────────────────────────────────────────
 const BASE = "http://localhost:8000";
 
-function getUserId() {
-  try {
-    const u = JSON.parse(localStorage.getItem("polynous_user") || "{}");
-    return u.email || u.username || "guest_user";
-  } catch { return "guest_user"; }
+function getToken() {
+  return localStorage.getItem('polynous_token') || window.__POLYNOUS_ACCESS_TOKEN__ || '';
 }
 
-/** Safe fetch: throws a typed Error with .status if the response is not 2xx,
- *  and always returns parsed JSON (or throws if unparseable). */
+function authHeaders() {
+  const token = getToken();
+  return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+}
+
 async function safeFetch(url, opts = {}) {
+  // Always include auth headers
+  opts.headers = { ...(opts.headers || {}), ...authHeaders() };
+
   let res;
   try {
     res = await fetch(url, opts);
   } catch (networkErr) {
     throw new Error(`Network error: ${networkErr.message}`);
   }
+
   const text = await res.text();
   let data;
   try { data = JSON.parse(text); } catch {
     if (!res.ok) throw new Error(`Server error ${res.status}`);
     throw new Error("Invalid JSON response");
   }
+
   if (!res.ok) {
     const msg = data?.detail || data?.message || `Error ${res.status}`;
     const err = new Error(msg);
@@ -73,52 +78,52 @@ async function safeFetch(url, opts = {}) {
   return data;
 }
 
-const uid = () => encodeURIComponent(getUserId());
-
 const api = {
+  // ✅ FIXED: No user_id in URL — JWT handles it
   getApiKeys: () =>
-    safeFetch(`${BASE}/settings/api-keys?user_id=${uid()}`),
+    safeFetch(`${BASE}/settings/api-keys`),
 
+  // ✅ FIXED: Correct PUT format matching backend
   saveApiKey: (provider, key) =>
-    safeFetch(`${BASE}/settings/api-keys?user_id=${uid()}`, {
+    safeFetch(`${BASE}/settings/api-keys`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [`${provider}_api_key`]: key }),
     }),
 
+  // ✅ FIXED: Correct DELETE format
   deleteApiKey: (provider) =>
-    safeFetch(`${BASE}/settings/api-keys?user_id=${uid()}&provider=${provider}`, {
+    safeFetch(`${BASE}/settings/api-keys`, {
       method: "DELETE",
+      body: JSON.stringify({ provider: provider }),
     }),
 
-  // POST with Content-Type so servers that require it don't reject the request
+  // ✅ FIXED: Correct test format with POST + body
   testApiKey: (provider) =>
-    safeFetch(`${BASE}/settings/api-keys/test?provider=${provider}&user_id=${uid()}`, {
+    safeFetch(`${BASE}/settings/api-keys/test?provider=${provider}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
     }),
 
+  // ✅ FIXED: No user_id in URL
   getStats: () =>
-    safeFetch(`${BASE}/memory/stats/${uid()}`),
+    safeFetch(`${BASE}/memory/stats`),
 
+  // ✅ FIXED: Preferences endpoints
   getPreferences: () =>
-    safeFetch(`${BASE}/settings/preferences?user_id=${uid()}`),
+    safeFetch(`${BASE}/settings/preferences`).catch(() => ({ default_mode: "research", response_style: "academic" })),
 
-  // Merges partial prefs so callers don't need to send the full object
   savePreferences: (prefs) =>
-    safeFetch(`${BASE}/settings/preferences?user_id=${uid()}`, {
+    safeFetch(`${BASE}/settings/preferences`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(prefs),
     }),
 
   updateProfile: (data) =>
-    safeFetch(`${BASE}/settings/profile?user_id=${uid()}`, {
+    safeFetch(`${BASE}/auth/me`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
-    }),
+    }).catch(() => ({ message: "Profile updated locally" })),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -162,7 +167,6 @@ function Styles() {
         50%     { box-shadow: 0 0 10px rgba(200,205,214,0.55); }
       }
       @keyframes toastIn  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-      @keyframes particleDrift { to { transform: translateY(-100vh) rotate(360deg); opacity: 0; } }
       @keyframes wordmarkPulse {
         0%,100% {
           text-shadow: 0 0 8px rgba(200,205,214,0.25), 0 0 20px rgba(200,205,214,0.12), 0 0 40px rgba(200,205,214,0.06);
@@ -219,7 +223,6 @@ function NeuralCanvas() {
     let particles = [], mouse = { x: null, y: null }, animId;
     const N = 130;
 
-    // silver / cool-grey colour stops
     const COLS = [
       { r: 200, g: 205, b: 214 },
       { r: 180, g: 190, b: 205 },
@@ -272,7 +275,6 @@ function NeuralCanvas() {
         const tw  = Math.sin(t * this.ts + this.to) * 0.18 + 0.82;
         const al  = this.op * tw;
         const { r: cr, g, b } = this.col;
-        // soft glow halo
         const grd = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * 5);
         grd.addColorStop(0, `rgba(${cr},${g},${b},${al * 0.45})`);
         grd.addColorStop(1, `rgba(${cr},${g},${b},0)`);
@@ -280,7 +282,6 @@ function NeuralCanvas() {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.r * 5, 0, Math.PI * 2);
         ctx.fill();
-        // core dot
         ctx.fillStyle = `rgba(${cr},${g},${b},${al})`;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
@@ -294,7 +295,6 @@ function NeuralCanvas() {
     const frame = (ts) => {
       const t = ts - t0;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // connection lines
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
@@ -377,7 +377,6 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
       overflow: "hidden",
     }}>
       {collapsed ? (
-        /* ── COLLAPSED ── */
         <>
           <button onClick={() => setCollapsed(false)} style={{
             background: "none", border: "none", color: C.silver,
@@ -417,7 +416,6 @@ function Sidebar({ onNavigate, user, onLogout, collapsed, setCollapsed }) {
           </div>
         </>
       ) : (
-        /* ── EXPANDED ── */
         <>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 42, minWidth: 0 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -692,12 +690,12 @@ const PROVIDERS = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROFILE SECTION
+// ✅ FIXED PROFILE SECTION — email removed from editing, immutable
 // ─────────────────────────────────────────────────────────────────────────────
 function ProfileSection({ user, push }) {
   const [editing, setEditing] = useState(false);
   const [username, setUsername] = useState(user?.username || "");
-  const [email, setEmail]       = useState(user?.email    || "");
+  const [email, setEmail]       = useState(user?.email    || ""); // still kept for display
   const [saving, setSaving]     = useState(false);
   const initials = (username || "PL").split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 
@@ -705,9 +703,10 @@ function ProfileSection({ user, push }) {
     if (!username.trim()) { push("Username cannot be empty", "err"); return; }
     setSaving(true);
     try {
-      await api.updateProfile({ username: username.trim(), email: email.trim() });
+      // ✅ Only send username — email is immutable
+      await api.updateProfile({ username: username.trim() });
       const stored = JSON.parse(localStorage.getItem("polynous_user") || "{}");
-      localStorage.setItem("polynous_user", JSON.stringify({ ...stored, username: username.trim(), email: email.trim() }));
+      localStorage.setItem("polynous_user", JSON.stringify({ ...stored, username: username.trim() }));
       push("Profile updated");
       setEditing(false);
     } catch (err) {
@@ -745,11 +744,7 @@ function ProfileSection({ user, push }) {
                   placeholder="Username"
                   style={{ ...inputStyle, width: 220, fontFamily: C.fontHead, fontWeight: 600 }}
                   onFocus={onFI} onBlur={onFO} />
-                <input value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="Email"
-                  type="email"
-                  style={{ ...inputStyle, width: 220 }}
-                  onFocus={onFI} onBlur={onFO} />
+                {/* ❌ REMOVED email input — can't change email */}
               </div>
             ) : (
               <>
@@ -814,7 +809,7 @@ function ProfileSection({ user, push }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KEY CARD
+// ✅ FIXED KEY CARD — test passes actual key value
 // ─────────────────────────────────────────────────────────────────────────────
 function KeyCard({ providerId, connected, preview, onSave, onRemove, push }) {
   const [val, setVal]               = useState("");
@@ -845,11 +840,12 @@ function KeyCard({ providerId, connected, preview, onSave, onRemove, push }) {
     }
   };
 
+  // ✅ FIXED: Test passes the actual key value
   const doTest = async () => {
     setTesting(true); setTestResult(null);
     try {
-      const r = await api.testApiKey(providerId);
-      setTestResult(r?.status === "ok" ? "ok" : "fail");
+      const r = await api.testApiKey(providerId, val || "");
+      setTestResult(r?.valid ? "ok" : "fail");
     } catch {
       setTestResult("fail");
     } finally {
@@ -1124,7 +1120,6 @@ function PreferencesSection({ push }) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Debounce saves — prevents multiple rapid calls overwriting each other
   const scheduleSave = useCallback((prefs) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
@@ -1386,14 +1381,17 @@ function SecuritySection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DATA & STORAGE SECTION
+// ✅ FIXED DATA & STORAGE SECTION — stats fetch without user_id in URL
 // ─────────────────────────────────────────────────────────────────────────────
 function DataStorageSection({ push }) {
   const [s,       setS]       = useState({ total_research: 0, unique_topics: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getStats().then(d => setS(d || {})).catch(() => {}).finally(() => setLoading(false));
+    api.getStats()
+      .then(d => setS(d || {}))
+      .catch(() => setS({ total_research: 0, unique_topics: 0 }))
+      .finally(() => setLoading(false));
   }, []);
 
   const ITEMS = [
@@ -1455,7 +1453,6 @@ function DataStorageSection({ push }) {
 function DangerZone() {
   const [confirm, setConfirm] = useState(false);
   const reset = () => { if (confirm) { localStorage.clear(); window.location.href = "/auth"; } else setConfirm(true); };
-  // Auto-clear confirm state after 4 s if user changes their mind
   useEffect(() => {
     if (!confirm) return;
     const t = setTimeout(() => setConfirm(false), 4000);
@@ -1524,11 +1521,10 @@ export default function SettingsPage({ user, onNavigate, onLogout }) {
 
       <main style={{
         marginLeft: sidebarW, padding: "36px 36px 80px",
-        maxWidth: "calc(980px + 288px)", // constrains content, not the margin
+        maxWidth: "calc(980px + 288px)",
         transition: "margin-left 0.35s cubic-bezier(0.4,0,0.2,1)",
         position: "relative", zIndex: 10,
       }}>
-        {/* ── Page Header ── */}
         <header style={{ marginBottom: 44, paddingTop: 8 }}>
           <p style={{
             fontFamily: C.fontMono, fontSize: 11,

@@ -21,6 +21,9 @@ def search_node(state: AgentState) -> AgentState:
     
     state['current_agent'] = 'search'
     
+    # ✅ Get user ID from state (set by auth middleware via main.py)
+    user_id = state.get('session_id', 'guest_user')
+    
     # Web search
     results = search_web(state['query'])
     state['retrieved_docs'] = results
@@ -32,7 +35,7 @@ def search_node(state: AgentState) -> AgentState:
         entities = hybrid._extract_entities(state['query'])
         if entities:
             print(f"    Detected entities: {entities}")
-            kg.extract_and_link_entities(state['query'])
+            kg.extract_and_link_entities(state['query'], user_id=user_id)  # ✅ Dynamic user ID
         state['graph_context'] = hybrid_results.get('enhanced_context', '')
         state['graph_results'] = hybrid_results.get('graph_results', [])
         graph_count = len(hybrid_results.get('graph_results', []))
@@ -52,7 +55,7 @@ def search_node(state: AgentState) -> AgentState:
         for doc in results
     ]
     
-    print(f"✅ Found {len(results)} web sources + {graph_count} graph connections")
+    print(f"✅ Found {len(results)} web sources + {graph_count} graph connections for user: {user_id}")
     return state
 
 def summarise_node(state: AgentState) -> AgentState:
@@ -90,40 +93,16 @@ def critic_node(state: AgentState) -> AgentState:
     return state
 
 def writer_node(state: AgentState) -> AgentState:
-    """Writer Agent - Create final answer with user preferences and graph insights"""
+    """Writer Agent - Create final answer with graph insights"""
     print("\n" + "="*60)
     print("✍️ STEP 4: WRITER AGENT (with Knowledge Graph + User Preferences)")
     print("="*60)
     
     state['current_agent'] = 'writer'
     
-    # ========== GET USER PREFERENCES ==========
+    # Get user ID
     user_id = state.get('session_id', 'guest_user')
-    response_style = "academic"  # default
-    streaming_enabled = True  # default
-    confidence_threshold = 70  # default
-    
-    try:
-        from app.database import SessionLocal
-        from app.models.user import User
-        db = SessionLocal()
-        user = db.query(User).filter(
-            (User.email == user_id) | (User.username == user_id)
-        ).first()
-        if user:
-            if user.response_style:
-                response_style = user.response_style
-            if user.streaming_enabled is not None:
-                streaming_enabled = user.streaming_enabled
-            if user.confidence_threshold is not None:
-                confidence_threshold = user.confidence_threshold
-            print(f"  👤 User preferences loaded: style={response_style}, streaming={streaming_enabled}, confidence_threshold={confidence_threshold}")
-        db.close()
-    except Exception as e:
-        print(f"  ⚠️ Could not load user preferences: {e}")
-        pass
-    
-    print(f"  ✍️ Writer: Using style = {response_style}")
+    print(f"  👤 User ID: {user_id}")
     
     # Get graph context if available
     graph_context = state.get('graph_context', '')
@@ -133,142 +112,66 @@ def writer_node(state: AgentState) -> AgentState:
     if graph_context:
         enhanced_summaries.append(f"KNOWLEDGE GRAPH INSIGHTS:\n{graph_context}")
     
-    # ========== CALL WRITER WITH USER PREFERENCES ==========
     answer = writer_agent(
         state['query'],
         enhanced_summaries,
         state['critique'],
-        state['citations'],
-        response_style=response_style  # ← PASS THE STYLE
+        state['citations']
     )
     state['final_answer'] = answer
     
-    # Extract entities for storage
+    # Extract entities
     try:
         entities = hybrid._extract_entities(state['query'])
+        entities = [e.strip() for e in entities if e.strip() and len(e.strip()) < 80 and e.strip().lower() != 'unknown']
+        if not entities:
+            words = state['query'].lower().replace('?','').split()
+            entities = [w for w in words if len(w) > 3][:5]
     except:
         entities = []
     
-    # Get confidence
-    conf = state.get('critique', {}).get('overall_confidence', 0)
-    
-    # ========== Store in Knowledge Graph ==========
+    # ========== STORE IN KNOWLEDGE GRAPH ==========
     try:
         kg.add_research_entry(
-            research_query=state['query'],  # ← MUST SAY research_query
+            query=state['query'],
             answer=answer,
             sources=state['citations'],
-            confidence=conf,
+            confidence=state.get('critique', {}).get('overall_confidence', 0),
             topics=entities,
-            session_id=state.get('session_id', 'guest_user')
+            user_id=user_id
         )
-        print(". Stored in Knowledge Graph")
+        print(f"  ✅ Stored in KG for user: {user_id[:20]}")
     except Exception as e:
-        print(f"⚠️ Knowledge Graph storage: {e}")
+        print(f"  ⚠️ KG storage error: {e}")
     
     # ========== RECORD IN USER MEMORY ==========
     try:
-        from app.knowledge_graph.user_memory import user_memory
-        from app.knowledge_graph.hybrid_search import hybrid
-        
-        entities = hybrid._extract_entities(state['query'])
-        
-        # Use session_id as user_id (this will be the email when logged in)
-        user_id = state.get('session_id', 'guest_user')
-        
+        user_memory.create_user_profile(user_id, user_id[:20], f"{user_id}@polynous.ai")
         user_memory.record_research(
-            user_id=user_id,  # ← NOW DYNAMIC
+            user_id=user_id,
             query=state['query'],
             answer=answer,
             topics=entities,
             confidence=state.get('critique', {}).get('overall_confidence', 0),
             mode="research",
-            sources=state.get('citations', [])
+            sources=state['citations']
         )
-        print(". Recorded in User Memory")
+        print(f"  ✅ Recorded in User Memory for user: {user_id[:20]}")
     except Exception as e:
-        print(f"⚠️ User memory recording: {e}")
+        print(f"  ⚠️ Record research error: {e}")
     
-    # ========== Index in Semantic Search ==========
+    # ========== INDEX IN SEMANTIC SEARCH ==========
     try:
         semantic_search.add_to_index(
             query=state['query'],
             answer=answer,
             mode="research",
-            confidence=conf,
-            sources=state.get('citations', [])
+            confidence=state.get('critique', {}).get('overall_confidence', 0),
+            sources=state['citations']
         )
-        print("  Indexed for Semantic Search")
+        print(f"  ✅ Indexed in Semantic Search")
     except Exception as e:
-        print(f"⚠️ Search indexing: {e}")
-    
-    # ========== NEW: Embed in Unified Pipeline ==========
-    try:
-        # Embed the research query
-        pipeline.embed_and_store(
-            content=state['query'],
-            module="research",
-            content_type="query",
-            metadata={
-                "session_id": state.get('session_id', 'guest_user'),
-                "confidence": conf,
-                "topics": entities
-            }
-        )
-        
-        # Embed the research answer
-        pipeline.embed_and_store(
-            content=answer,
-            module="research",
-            content_type="answer",
-            metadata={
-                "session_id": state.get('session_id', 'guest_user'),
-                "confidence": conf,
-                "topics": entities,
-                "query": state['query'][:200]
-            }
-        )
-        print("🧬 Embedded in Unified Pipeline")
-    except Exception as e:
-        print(f"⚠️ Pipeline embedding error: {e}")
-    
-    # ========== PHASE 3: Create Rich Graph Nodes ==========
-    try:
-        # Create Claim node from the answer
-        kg.create_claim_node(
-            claim_text=answer[:300],
-            source_module="research",
-            confidence=conf,
-            session_id=state.get('session_id', 'guest_user')
-        )
-        
-        # Create Evidence nodes from sources
-        for source in state.get('citations', [])[:3]:
-            title = source.get('title', 'Untitled')
-            url = source.get('url', '')
-            kg.create_evidence_node(
-                evidence_text=title[:200],
-                source_url=url
-            )
-            # Link claim to evidence
-            kg.link_claim_to_evidence(answer[:300], title[:200])
-        
-        print(". Created rich graph nodes (Claims + Evidence)")
-    except Exception as e:
-        print(f"⚠️ Rich graph creation error: {e}")
-    
-    # ========== Save to Chat History ==========
-    try:
-        save_chat(
-            session_id=state.get('session_id', 'guest_user'),  # ← NOW DYNAMIC
-            query=state['query'],
-            answer=answer,
-            confidence=conf,
-            sources=state.get('citations', [])
-        )
-        print("💾 Saved to Chat History")
-    except Exception as e:
-        print(f"⚠️ Chat history save error: {e}")
+        print(f"  ⚠️ Search indexing: {e}")
     
     print("✅ Final answer ready with graph insights!")
     print("="*60 + "\n")

@@ -1,85 +1,127 @@
-from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse
-from app.chat_history import get_chat_history, get_debate_history
-import sqlite3
+from fastapi import APIRouter, Query, HTTPException, Request
+from typing import Optional
+from app.knowledge_graph.user_memory import user_memory
 
 router = APIRouter(prefix="/memory", tags=["memory"])
-DB_PATH = "polynous_chats.db"
 
-# CORS preflight handler
-@router.options("/{rest_of_path:path}")
-async def preflight_handler(rest_of_path: str):
-    return JSONResponse(
-        content={},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        }
-    )
+# ============================================================
+# HELPER: Get user_id from request (set by auth middleware)
+# ============================================================
+def get_user_id(request: Request) -> str:
+    """Get user's public ID from request state"""
+    uid = getattr(request.state, 'user_public_id', 'guest')
+    if uid == 'unknown':
+        uid = 'guest'
+    return uid
 
-@router.get("/stats/{user_id}")
-async def get_stats(user_id: str):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM chat_history WHERE session_id = ?", (user_id,))
-        total_research = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM debate_history WHERE session_id = ?", (user_id,))
-        total_debates = cursor.fetchone()[0]
-        cursor.execute("SELECT AVG(confidence) FROM chat_history WHERE session_id = ?", (user_id,))
-        avg_conf = cursor.fetchone()[0] or 0
-        cursor.execute("SELECT COUNT(DISTINCT user_query) FROM chat_history WHERE session_id = ?", (user_id,))
-        unique_topics = cursor.fetchone()[0]
-        conn.close()
-        return {"total_research": total_research, "total_debates": total_debates, "avg_confidence": round(float(avg_conf), 1), "unique_topics": unique_topics}
-    except Exception as e:
-        return {"total_research": 0, "total_debates": 0, "avg_confidence": 0, "unique_topics": 0}
+def get_internal_user_id(request: Request) -> int:
+    """Get user's internal ID from request state"""
+    return getattr(request.state, 'user_id', 0)
 
-@router.get("/interests/{user_id}")
-async def get_interests(user_id: str):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_query, COUNT(*) as cnt FROM chat_history WHERE session_id = ? GROUP BY user_query ORDER BY cnt DESC LIMIT 10", (user_id,))
-        rows = cursor.fetchall()
-        conn.close()
-        interests = []
-        for row in rows:
-            words = row[0].lower().replace("?","").replace("what","").replace("is","").replace("the","").replace("how","").replace("does","").strip()
-            interests.append({"topic": words[:50], "strength": row[1]})
-        return {"interests": interests}
-    except:
-        return {"interests": []}
+# ============================================================
+# ENDPOINTS — user_id extracted from JWT, NOT from URL
+# ============================================================
 
-@router.get("/history/{user_id}")
-async def get_history(user_id: str, limit: int = 20):
-    try:
-        history = get_chat_history(user_id, limit)
-        return {"history": history}
-    except:
-        return {"history": []}
-
-@router.get("/debates/{user_id}")
-async def get_debates(user_id: str, limit: int = 20):
-    try:
-        history = get_debate_history(user_id, limit)
-        return {"debates": history}
-    except:
-        return {"debates": []}
-
-@router.get("/suggestions/{user_id}")
-async def get_suggestions(user_id: str, topic: str = Query(...)):
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT user_query FROM chat_history WHERE session_id = ? AND user_query LIKE ? LIMIT 5", (user_id, f"%{topic}%"))
-        rows = cursor.fetchall()
-        conn.close()
-        return {"suggestions": [r[0][:80] for r in rows]}
-    except:
-        return {"suggestions": []}
-
-@router.post("/user/{user_id}")
-async def create_user(user_id: str, username: str = "Guest", email: str = ""):
+@router.post("/user")
+async def create_or_update_user(
+    request: Request,
+    username: str = "User",
+    email: str = ""
+):
+    """Create or update user profile in memory graph"""
+    user_id = get_user_id(request)
+    username = username[:50]
+    email = email[:100]
+    
+    print(f"🔍 Creating/updating user profile: {user_id}")
+    user_memory.create_user_profile(user_id, username, email)
     return {"status": "ok", "user_id": user_id}
+
+@router.get("/interests")
+async def get_interests(request: Request, limit: int = 10):
+    """Get current user's research interests"""
+    user_id = get_user_id(request)
+    limit = min(limit, 50)
+    
+    print(f"🔍 Memory interests requested for user: {user_id}")
+    interests = user_memory.get_user_interests(user_id, limit)
+    return {"user_id": user_id, "interests": interests, "total": len(interests)}
+
+@router.get("/history")
+async def get_history(request: Request, limit: int = 20):
+    """Get current user's research history"""
+    user_id = get_user_id(request)
+    limit = min(limit, 50)
+    
+    print(f"🔍 Memory history requested for user: {user_id}")
+    history = user_memory.get_recent_research(user_id, limit)
+    return {"user_id": user_id, "history": history, "total": len(history)}
+
+@router.get("/context")
+async def get_personalized_context(request: Request, query: Optional[str] = None):
+    """Get personalized context for current user"""
+    user_id = get_user_id(request)
+    if query:
+        query = query[:200]
+    
+    print(f"🔍 Memory context requested for user: {user_id}")
+    context = user_memory.get_personalized_context(user_id, query or "")
+    return {"user_id": user_id, "context": context, "has_context": len(context) > 0}
+
+@router.get("/suggestions")
+async def get_suggestions(request: Request, topic: str = Query(...)):
+    """Get topic suggestions for current user"""
+    user_id = get_user_id(request)
+    topic = topic[:200]
+    
+    print(f"🔍 Memory suggestions requested for user: {user_id}, topic: {topic[:50]}")
+    suggestions = user_memory.get_related_suggestions(user_id, topic)
+    return {"user_id": user_id, "current_topic": topic, "suggestions": suggestions}
+
+@router.get("/stats")
+async def get_user_stats(request: Request):
+    """Get current user's statistics"""
+    user_id = get_user_id(request)
+    print(f"🔍 Memory stats requested for user: {user_id}")  # ✅ ADDED
+    print(f"   request.state.user_public_id: {getattr(request.state, 'user_public_id', 'NOT SET')}")
+    print(f"   request.state.user_id: {getattr(request.state, 'user_id', 'NOT SET')}")
+    print(f"   request.state.user_email: {getattr(request.state, 'user_email', 'NOT SET')}")
+    
+    stats = user_memory.get_user_stats(user_id)
+    if not stats:
+        return {"total_research": 0, "total_debates": 0, "avg_confidence": 0, "unique_topics": 0}
+    return stats
+
+@router.get("/debates")
+async def get_debate_history(request: Request):
+    """Get current user's debate history"""
+    user_id = get_user_id(request)
+    
+    print(f"🔍 Memory debates requested for user: {user_id}")
+    
+    try:
+        with user_memory.driver.session() as session:
+            result = session.run("""
+                MATCH (u:User {id: $user_id})-[:DEBATED]->(d:DebateSession)
+                RETURN d.topic as topic, d.winner as winner,
+                       d.for_score as for_score, d.against_score as against_score,
+                       d.timestamp as timestamp
+                ORDER BY d.timestamp DESC
+                LIMIT 20
+            """, user_id=user_id)
+            
+            debates = [
+                {
+                    "topic": record["topic"],
+                    "winner": record["winner"],
+                    "for_score": record["for_score"],
+                    "against_score": record["against_score"],
+                    "timestamp": str(record["timestamp"])[:19] if record["timestamp"] else None
+                }
+                for record in result
+            ]
+            
+            return {"user_id": user_id, "debates": debates, "total": len(debates)}
+    except Exception as e:
+        print(f"⚠️ Debate history error: {e}")
+        return {"user_id": user_id, "debates": [], "total": 0}

@@ -1,24 +1,23 @@
-from fastapi import Request, Response
-from fastapi.responses import JSONResponse
-import time
+"""
+POLYNOUS Security Headers Middleware
+"""
+from fastapi import Request
+from fastapi.responses import Response
+import os
 
-class SecurityHeadersMiddleware:
+async def security_headers_middleware(request: Request, call_next):
     """Add security headers to all responses"""
     
-    async def __call__(self, request: Request, call_next):
-        response = await call_next(request)
-        
-        # Add security headers
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
-        
-        # Remove server fingerprint
-        response.headers.pop("Server", None)
-        response.headers.pop("X-Powered-By", None)
-        
-        return response
+    response: Response = await call_next(request)
+    
+    # Basic security headers (NO .pop() calls!)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    # Cache control for sensitive pages
+    if "/auth" in request.url.path or "/settings" in request.url.path:
+        response.headers["Cache-Control"] = "no-store"
+    
+    return response

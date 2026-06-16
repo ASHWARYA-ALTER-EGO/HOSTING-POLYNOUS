@@ -1,4 +1,4 @@
-// PDF Neural Lab — fully enhanced
+// PDF Neural Lab — fully enhanced with security validation
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -71,6 +71,37 @@ button{cursor:pointer;font-family:'Inter',sans-serif}
 .cta-secondary{transition:background 0.2s,border-color 0.2s,transform 0.2s,color 0.2s}
 .cta-secondary:hover{background:rgba(255,214,10,0.09)!important;border-color:rgba(255,214,10,0.4)!important;color:${T.gold}!important;transform:translateY(-3px)}
 `;
+
+// ─── Security constants (from PdfUpload) ──────────────────────────────────────
+const ALLOWED_TYPES = ['application/pdf'];
+const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+
+// ─── File validation (merged from PdfUpload) ──────────────────────────────────
+const validateFile = (file) => {
+  const errors = [];
+  
+  // Check file type
+  if (!ALLOWED_TYPES.includes(file.type) && !file.name.toLowerCase().endsWith('.pdf')) {
+    errors.push('Only PDF files are allowed');
+  }
+
+  // Check file size
+  if (file.size === 0) {
+    errors.push('File is empty');
+  }
+
+  if (file.size > MAX_SIZE) {
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    errors.push(`File too large (${sizeMB}MB). Maximum is 50MB`);
+  }
+
+  // Check filename for path traversal
+  if (file.name.includes('..') || file.name.includes('/') || file.name.includes('\\')) {
+    errors.push('Invalid filename');
+  }
+
+  return errors;
+};
 
 // ─── Icon helper ──────────────────────────────────────────────────────────────
 function Icon({ name, size = 20, color, style: s }) {
@@ -850,6 +881,8 @@ export default function PDFNeuralLab({ user, onNavigate, onLogout }) {
   const [uploadMsg, setUploadMsg] = useState("");
   const [pdfs, setPdfs] = useState([]);
   const [selectedPdf, setSelectedPdf] = useState(null);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadWarnings, setUploadWarnings] = useState([]);
 
   const [askQuery, setAskQuery] = useState("");
   const [askLoading, setAskLoading] = useState(false);
@@ -872,7 +905,18 @@ export default function PDFNeuralLab({ user, onNavigate, onLogout }) {
   };
 
   const triggerUpload = async file => {
-    if (!file?.name?.endsWith(".pdf")) { notify("⚠ Please upload a PDF file."); return; }
+    // Reset states
+    setUploadError("");
+    setUploadWarnings([]);
+    
+    // ─── VALIDATE FILE (merged from PdfUpload) ─────────────────
+    const validationErrors = validateFile(file);
+    if (validationErrors.length > 0) {
+      setUploadError(validationErrors[0]);
+      notify(`❌ ${validationErrors[0]}`);
+      return;
+    }
+
     setUploading(true); setUploadPct(0); setUploadMsg("Uploading…");
     let poll;
     try {
@@ -893,11 +937,18 @@ export default function PDFNeuralLab({ user, onNavigate, onLogout }) {
       clearInterval(poll);
       setUploadPct(100);
       setUploadMsg(data.message || `✓ Indexed ${data.total_chunks ?? "?"} chunks`);
+      
+      // Handle warnings from server
+      if (data.warnings?.length > 0) {
+        setUploadWarnings(data.warnings);
+      }
+      
       notify(`✓ "${file.name}" is ready`);
       await fetchPdfs();
-    } catch {
+    } catch (err) {
       if (poll) clearInterval(poll);
       setUploadMsg("Upload failed — is the server running?");
+      setUploadError("Connection error. Is backend running?");
       notify("✗ Upload failed");
     } finally {
       setUploading(false);
@@ -1063,19 +1114,19 @@ export default function PDFNeuralLab({ user, onNavigate, onLogout }) {
             onDrop={onDrop}
             onClick={() => !uploading && fileRef.current?.click()}
             style={{
-              border:`2px dashed ${drag ? T.gold : T.borderGold}`,
+              border:`2px dashed ${drag ? T.gold : uploadError ? T.crimson : T.borderGold}`,
               borderRadius:20, padding:"52px 28px",
-              background: drag ? "rgba(255,214,10,0.04)" : T.surface,
+              background: drag ? "rgba(255,214,10,0.04)" : uploadError ? "rgba(255,32,64,0.03)" : T.surface,
               backdropFilter:"blur(14px)", textAlign:"center",
               cursor: uploading ? "default" : "pointer",
               transform: drag ? "scale(1.012)" : "scale(1)",
               transition:"all 0.22s", marginBottom:26,
-              animation:"borderGlow 3s infinite ease-in-out",
+              animation: uploadError ? "none" : "borderGlow 3s infinite ease-in-out",
             }}
           >
             <input ref={fileRef} type="file" accept=".pdf" style={{ display:"none" }} onChange={onFileChange} />
             <div style={{ width:76, height:76, borderRadius:"50%", background:"rgba(255,214,10,0.12)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
-              <Icon name={uploading ? "hourglass_top" : "upload_file"} size={38} color={T.gold} />
+              <Icon name={uploading ? "hourglass_top" : "upload_file"} size={38} color={uploadError ? T.crimson : T.gold} />
             </div>
             <h2 style={{ fontFamily:T.display, fontWeight:800, fontSize:18, color:"#fff", marginBottom:8, letterSpacing:"0.01em" }}>
               {uploading ? "Processing document…" : "Drop your PDF here or click to browse"}
@@ -1083,6 +1134,31 @@ export default function PDFNeuralLab({ user, onNavigate, onLogout }) {
             <p style={{ fontFamily:T.body, fontSize:14, color:T.textMid, marginBottom:24 }}>
               Upload research papers, reports, or any PDF document
             </p>
+
+            {/* Upload Error (merged from PdfUpload) */}
+            {uploadError && (
+              <div style={{
+                padding:"12px 16px", borderRadius:12,
+                background:"rgba(255,32,64,0.1)", border:"1px solid rgba(255,32,64,0.3)",
+                color:"#ff2040", fontSize:13, marginBottom:12, maxWidth:420, margin:"0 auto 12px",
+              }}>
+                ❌ {uploadError}
+              </div>
+            )}
+
+            {/* Upload Warnings (merged from PdfUpload) */}
+            {uploadWarnings.length > 0 && (
+              <div style={{
+                padding:"12px 16px", borderRadius:12,
+                background:"rgba(255,170,0,0.1)", border:"1px solid rgba(255,170,0,0.3)",
+                color:"#ffaa00", fontSize:12, marginBottom:12, maxWidth:420, margin:"0 auto 12px",
+              }}>
+                <div style={{ fontWeight:600, marginBottom:6 }}>⚠️ Warnings:</div>
+                {uploadWarnings.map((w, i) => (
+                  <div key={i} style={{ marginTop:4 }}>• {w}</div>
+                ))}
+              </div>
+            )}
 
             {uploading ? (
               <div style={{ maxWidth:420, margin:"0 auto" }}>
@@ -1111,6 +1187,15 @@ export default function PDFNeuralLab({ user, onNavigate, onLogout }) {
                 ))}
               </div>
             )}
+
+            {/* Security Info (merged from PdfUpload) */}
+            <div style={{
+              padding:"10px 14px", borderRadius:8,
+              background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)",
+              fontSize:10, color:"#555", maxWidth:480, margin:"16px auto 0",
+            }}>
+              🔒 Files are scanned for malware, validated for PDF authenticity, and checked for embedded scripts
+            </div>
           </section>
 
           {/* ── LIBRARY ──────────────────────────────────────── */}

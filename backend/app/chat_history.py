@@ -1,13 +1,16 @@
-# app/chat_history.py
-import sqlite3
-import os
-import json
+from sqlalchemy.orm import Session
+from app.models.user import Conversation, Message
 from datetime import datetime
+from typing import List, Optional, Dict
+import sqlite3
+import json
+import os
 
+# ─── SQLite Fallback (for sessions not yet in PostgreSQL) ───
 DB_PATH = "polynous_chats.db"
 
-def init_db():
-    """Create tables if they don't exist"""
+def init_sqlite():
+    """Create SQLite tables if they don't exist"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
@@ -37,11 +40,92 @@ def init_db():
     """)
     conn.commit()
     conn.close()
-    print("✅ SQLite Chat History Ready!")
 
+# Initialize on import
+init_sqlite()
+
+# ─── SQLAlchemy ORM Manager (Primary) ─────────────────
+class ChatHistoryManager:
+    """Safely manage chat history with parameterized queries"""
+    
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def create_conversation(self, user_id: int, title: str = "New Research", mode: str = "research") -> Conversation:
+        """Create new conversation - SQLAlchemy auto-parameterizes"""
+        conv = Conversation(
+            user_id=user_id,
+            title=title[:200],
+            mode=mode,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        self.db.add(conv)
+        self.db.commit()
+        self.db.refresh(conv)
+        return conv
+    
+    def get_conversation(self, conv_id: int, user_id: int) -> Optional[Conversation]:
+        """Get conversation by ID - parameterized query"""
+        return self.db.query(Conversation).filter(
+            Conversation.id == conv_id,
+            Conversation.user_id == user_id
+        ).first()
+    
+    def get_user_conversations(self, user_id: int, limit: int = 20) -> List[Conversation]:
+        """Get user's conversations - parameterized query"""
+        return self.db.query(Conversation).filter(
+            Conversation.user_id == user_id
+        ).order_by(Conversation.updated_at.desc()).limit(limit).all()
+    
+    def add_message(
+        self, conv_id: int, role: str, content: str,
+        sources: List[Dict] = None, confidence: float = 0
+    ) -> Message:
+        """Add message to conversation - parameterized query"""
+        msg = Message(
+            conversation_id=conv_id,
+            role=role,
+            content=content[:10000],
+            sources=sources or [],
+            confidence=confidence,
+            created_at=datetime.utcnow()
+        )
+        self.db.add(msg)
+        
+        conv = self.db.query(Conversation).filter(Conversation.id == conv_id).first()
+        if conv:
+            conv.updated_at = datetime.utcnow()
+        
+        self.db.commit()
+        self.db.refresh(msg)
+        return msg
+    
+    def delete_conversation(self, conv_id: int, user_id: int) -> bool:
+        """Delete conversation - parameterized query"""
+        conv = self.db.query(Conversation).filter(
+            Conversation.id == conv_id,
+            Conversation.user_id == user_id
+        ).first()
+        if conv:
+            self.db.delete(conv)
+            self.db.commit()
+            return True
+        return False
+    
+    def search_conversations(self, user_id: int, query: str) -> List[Conversation]:
+        """Search conversations - safe LIKE query"""
+        search_term = f"%{query[:100]}%"
+        return self.db.query(Conversation).filter(
+            Conversation.user_id == user_id,
+            Conversation.title.ilike(search_term)
+        ).limit(20).all()
+
+
+# ─── SQLite Fallback Functions (for compatibility) ───
 def save_chat(session_id: str, query: str, answer: str, 
               confidence: float = 0, sources: list = None, mode: str = "research"):
-    """Save a chat entry"""
+    """Save a chat entry to SQLite (fallback)"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
@@ -50,11 +134,10 @@ def save_chat(session_id: str, query: str, answer: str,
     )
     conn.commit()
     conn.close()
-    print(f"💾 Chat saved: {query[:50]}...")
 
 def save_debate(session_id: str, topic: str, for_score: float, against_score: float,
                 winner: str, reasoning: str = ""):
-    """Save debate to chat history"""
+    """Save debate to SQLite (fallback)"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
@@ -63,12 +146,11 @@ def save_debate(session_id: str, topic: str, for_score: float, against_score: fl
     )
     conn.commit()
     conn.close()
-    print(f"💾 Debate saved: {topic[:50]}...")
 
 def get_chat_history(session_id: str = None, limit: int = 50):
-    """Get chat history"""
+    """Get chat history from SQLite (fallback)"""
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # ← THIS IS THE FIX! Allows dict-like access
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     if session_id:
@@ -85,7 +167,6 @@ def get_chat_history(session_id: str = None, limit: int = 50):
     rows = cursor.fetchall()
     conn.close()
     
-    # Convert to list of dicts
     result = []
     for row in rows:
         result.append({
@@ -99,11 +180,10 @@ def get_chat_history(session_id: str = None, limit: int = 50):
             "topics": (row["query"] or "").split()[:5] if row["query"] else []
         })
     
-    print(f"📊 get_chat_history: Found {len(result)} entries for session={session_id}")
     return result
 
 def get_debate_history(session_id: str = None, limit: int = 50):
-    """Get debate history"""
+    """Get debate history from SQLite (fallback)"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -135,8 +215,4 @@ def get_debate_history(session_id: str = None, limit: int = 50):
             "timestamp": row["timestamp"] or ""
         })
     
-    print(f"📊 get_debate_history: Found {len(result)} entries for session={session_id}")
     return result
-
-# Initialize on import
-init_db()

@@ -1,14 +1,19 @@
+import sys
+import warnings
+from app.middleware.auth_middleware import extract_user_middleware
+from app.middleware.input_sanitizer import input_sanitizer_middleware
+from app.middleware.security_headers import security_headers_middleware
+from app.utils.sanitizer import sanitize_query, is_safe_input
 from app.routes.api_keys import router as api_keys_router
 from app.routes.settings_extended import router as settings_extended_router
 from app.routes.user_stats import router as user_stats_router
-from app.routes.preferences import router as preferences_router
 from app.routes.pdfs import router as pdfs_router
 from app.routes.memory import router as memory_router
 from app.routes.semantic_search import router as search_router
 from app.routes.knowledge import router as knowledge_router
 # REMOVED: from app.middleware.rate_limiter import check_rate_limit
 from app.routes.oauth import router as oauth_router
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -31,24 +36,95 @@ from app.chat_history import save_chat, save_debate, get_chat_history, get_debat
 
 load_dotenv()
 
+# ============================================================
+# CORS CONFIGURATION
+# ============================================================
+
+# Allowed origins — only these domains can access your API
+ALLOWED_ORIGINS = [
+    # Local development
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+    # Production (update these when deployed)
+    os.getenv("FRONTEND_URL", ""),
+    # Cloudflare Pages
+    "https://polynous.pages.dev",
+    "https://*.polynous.pages.dev",
+]
+
+# Remove empty strings and duplicates
+ALLOWED_ORIGINS = list(set([url for url in ALLOWED_ORIGINS if url]))
+
+# ========== CRITICAL DEPENDENCY CHECKER ==========
+def check_critical_dependencies():
+    """Verify critical dependencies are installed with safe versions"""
+    critical = {
+        'fastapi': '0.115.0',
+        'uvicorn': '0.30.0',
+        'sqlalchemy': '2.0.0',
+        'cryptography': '41.0.0',
+    }
+    
+    issues = []
+    for package, min_version in critical.items():
+        try:
+            module = __import__(package)
+            version = getattr(module, '__version__', '0.0.0')
+            
+            # Simple version comparison
+            if version < min_version:
+                issues.append(f"⚠️  {package} {version} < {min_version} (minimum)")
+        except ImportError:
+            issues.append(f"❌ {package} NOT INSTALLED!")
+    
+    if issues:
+        print("\n" + "=" * 60)
+        print("🔒 DEPENDENCY SECURITY WARNING")
+        print("=" * 60)
+        for issue in issues:
+            print(f"  {issue}")
+        print("=" * 60 + "\n")
+
 # ========== CREATE APP ==========
 app = FastAPI(title="POLYNOUS API")
 
-# ========== CORS MIDDLEWARE (must be before routes) ==========
+# ============================================================
+# MIDDLEWARE
+# ============================================================
+
+# Auth extraction
+app.middleware("http")(extract_user_middleware)
+
+# Input sanitizer
+app.middleware("http")(input_sanitizer_middleware)
+
+# Security headers
+app.middleware("http")(security_headers_middleware)
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow ALL methods (GET, POST, OPTIONS, etc.)
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"],
+    expose_headers=["Content-Length", "Content-Type"],
+    max_age=3600,
 )
 
-# ========== REMOVED: Rate Limiter Middleware ==========
-# No rate limiting to prevent CORS preflight blocking
+# ============================================================
+# AUTH DEPENDENCY — Available for all routes
+# ============================================================
+from app.routes.auth import get_current_user
+
+# Make get_current_user available for all routes
+# Routes can use: user: User = Depends(get_current_user)
 
 # ========== STARTUP EVENT ==========
 @app.on_event("startup")
 async def startup():
+    check_critical_dependencies()
     init_db()
     print("✅ Database initialized!")
 
@@ -58,7 +134,6 @@ app.include_router(settings_extended_router)
 app.include_router(auth_router)
 app.include_router(conversations_router)
 app.include_router(user_stats_router)
-app.include_router(preferences_router)
 app.include_router(oauth_router)
 app.include_router(knowledge_router)
 app.include_router(search_router)
@@ -108,10 +183,20 @@ async def debate_history(session_id: str = None, limit: int = 20):
 # This prevents route conflicts and ensures consistency
 
 @app.post("/ask", response_model=QueryResponse)
-async def ask_question(request: QueryRequest):
+async def ask_question(request: QueryRequest, req: Request):
     """Research or Debate endpoint"""
     
-    session_id = request.session_id or "guest_user"
+    # ─── SANITIZE INPUT ─────────────────
+    request.query = sanitize_query(request.query)
+    
+    if not request.query:
+        raise HTTPException(status_code=400, detail="Invalid query")
+    
+    # ✅ Use authenticated user ID from request.state
+    user_public_id = getattr(req.state, 'user_public_id', 'guest')
+    session_id = user_public_id  # ← Now directly uses the real user ID
+    
+    print(f"  👤 User: {session_id}")
     
     state = AgentState(
         query=request.query,
@@ -183,11 +268,21 @@ async def ask_question(request: QueryRequest):
     )
 
 @app.post("/ask-stream")
-async def ask_stream(request: QueryRequest):
+async def ask_stream(request: QueryRequest, req: Request):
     """Streaming endpoint"""
     
+    # ─── SANITIZE INPUT ─────────────────
+    request.query = sanitize_query(request.query)
+    
+    if not request.query:
+        raise HTTPException(status_code=400, detail="Invalid query")
+    
     async def gen():
-        session_id = request.session_id or "guest_user"
+        # ✅ Use authenticated user ID from request.state
+        user_public_id = getattr(req.state, 'user_public_id', 'guest')
+        session_id = user_public_id  # ← Directly uses real user ID
+        
+        print(f"  👤 User (stream): {session_id}")
         
         state = AgentState(
             query=request.query,

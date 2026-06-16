@@ -157,7 +157,7 @@ function NeuralStrandCanvas() {
       container.appendChild(renderer.domElement);
 
       const primaryColor = 0xff8c00;
-      const strandCount  = 25;  // Reduced count but thicker
+      const strandCount  = 25;
       const pointsPer    = 100;
       const strands      = [];
 
@@ -166,11 +166,10 @@ function NeuralStrandCanvas() {
         const pos = new Float32Array(pointsPer * 3);
         geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
         
-        // ⬇️ INCREASED OPACITY for thicker appearance
         const mat = new THREE.LineBasicMaterial({
           color: primaryColor,
           transparent: true,
-          opacity: 0.35 + Math.random() * 0.55,  // Was 0.15-0.35, now 0.35-0.90
+          opacity: 0.35 + Math.random() * 0.55,
           blending: THREE.AdditiveBlending,
         });
         
@@ -187,7 +186,6 @@ function NeuralStrandCanvas() {
         });
       }
 
-      // ⬇️ GLOW LAYER - duplicate strands with larger size for glow effect
       const glowStrands = [];
       for (let i = 0; i < Math.floor(strandCount / 2); i++) {
         const geo = new THREE.BufferGeometry();
@@ -207,14 +205,13 @@ function NeuralStrandCanvas() {
           line,
           offset:    Math.random() * Math.PI * 2,
           speed:     0.0003 + Math.random() * 0.0006,
-          amplitude: 12 + Math.random() * 22,  // Slightly larger amplitude for glow
+          amplitude: 12 + Math.random() * 22,
           frequency: 0.01 + Math.random() * 0.015,
           yOffset:   (Math.random() - 0.5) * 60,
           zOffset:   (Math.random() - 0.5) * 50,
         });
       }
 
-      // Dust particles - increased size
       const pCount = 400;
       const pGeo   = new THREE.BufferGeometry();
       const pPos   = new Float32Array(pCount * 3);
@@ -225,12 +222,11 @@ function NeuralStrandCanvas() {
       }
       pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
       
-      // ⬇️ INCREASED particle size and opacity
       const pMat  = new THREE.PointsMaterial({ 
         color: primaryColor, 
-        size: 0.8,  // Was 0.4
+        size: 0.8,
         transparent: true, 
-        opacity: 0.25,  // Was 0.14
+        opacity: 0.25,
         blending: THREE.AdditiveBlending 
       });
       const dust  = new THREE.Points(pGeo, pMat);
@@ -239,7 +235,6 @@ function NeuralStrandCanvas() {
       const animate = () => {
         const time = Date.now() * 0.001;
         
-        // Main strands
         strands.forEach(s => {
           const pos = s.line.geometry.attributes.position.array;
           for (let j = 0; j < pointsPer; j++) {
@@ -252,12 +247,11 @@ function NeuralStrandCanvas() {
           s.line.rotation.y += s.speed;
         });
         
-        // Glow strands (slightly offset for thickness illusion)
         glowStrands.forEach(s => {
           const pos = s.line.geometry.attributes.position.array;
           for (let j = 0; j < pointsPer; j++) {
             const x = (j - pointsPer/2) * 5;
-            pos[j*3]   = x + 0.5;  // Slight offset
+            pos[j*3]   = x + 0.5;
             pos[j*3+1] = Math.sin(x*s.frequency + time + s.offset) * s.amplitude + s.yOffset + 0.3;
             pos[j*3+2] = Math.cos(x*s.frequency*0.5 + time + s.offset) * (s.amplitude*0.5) + s.zOffset;
           }
@@ -564,39 +558,49 @@ export default function MemoryBank({ user, onNavigate, onLogout }) {
     onNavigate ? onNavigate(dest) : (window.location.href = dest);
   };
 
-  /* ── API calls (taken verbatim from JSX file) ── */
+  /* ── API calls — UPDATED: use Authorization header instead of user_id in URL ── */
   const fetchAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const userId = user?.id || "guest_user";
-      const base   = "http://localhost:8000";
+      // ✅ Get token from memory (secure) or localStorage (fallback)
+      const accessToken = window.__POLYNOUS_ACCESS_TOKEN__ || localStorage.getItem('polynous_token') || '';
+      const base = "http://localhost:8000";
 
-      const sRes = await fetch(`${base}/memory/stats/${userId}`);
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+
+      // ✅ All endpoints now use Authorization header — NO user_id in URL
+      const [statsRes, interestsRes, historyRes, debatesRes] = await Promise.all([
+        fetch(`${base}/memory/stats`,    { headers }),
+        fetch(`${base}/memory/interests`, { headers }),
+        fetch(`${base}/memory/history`,  { headers }),
+        fetch(`${base}/memory/debates`,  { headers })
+      ]);
+
       let statsData = {};
-      try { statsData = await sRes.json(); } catch(_) {}
+      try { statsData = await statsRes.json(); } catch(_) {}
 
-      const hRes = await fetch(`${base}/memory/history/${userId}`);
-      let historyData = { history: [] };
-      try { historyData = await hRes.json(); } catch(_) {}
-
-      const dRes = await fetch(`${base}/memory/debates/${userId}`);
-      let debatesData = { debates: [] };
-      try { debatesData = await dRes.json(); } catch(_) {}
-
-      const iRes = await fetch(`${base}/memory/interests/${userId}`);
       let interestsData = { interests: [] };
-      try { interestsData = await iRes.json(); } catch(_) {}
+      try { interestsData = await interestsRes.json(); } catch(_) {}
+
+      let historyData = { history: [] };
+      try { historyData = await historyRes.json(); } catch(_) {}
+
+      let debatesData = { debates: [] };
+      try { debatesData = await debatesRes.json(); } catch(_) {}
 
       setStats(statsData);
-      setInterests(interestsData.interests  || []);
-      setHistory(historyData.history        || []);
-      setDebates(debatesData.debates        || []);
+      setInterests(interestsData.interests || []);
+      setHistory(historyData.history     || []);
+      setDebates(debatesData.debates     || []);
     } catch(e) {
       console.error("Memory load error:", e);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => { fetchAllData(); }, [fetchAllData]);
 

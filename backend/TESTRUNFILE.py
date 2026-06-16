@@ -1,27 +1,15 @@
-import requests
+from app.knowledge_graph.user_memory import user_memory
 
-YOUR_EMAIL = "pradhanashwarya2122@gmail.com"
+# Use the JWT token from your logged-in session to get the correct user ID.
+# First, let's see which users exist in Neo4j.
+with user_memory.driver.session() as s:
+    result = s.run("MATCH (u:User) RETURN u.id AS uid")
+    print("Neo4j Users:")
+    for r in result:
+        print(" ", r["uid"])
 
-print("\n🧪 TESTING PREFERENCES (AFTER FIX)")
-print("=" * 50)
-
-# Test GET
-print("\n1. GET preferences...")
-res = requests.get(f"http://localhost:8000/settings/preferences?user_id={YOUR_EMAIL}")
-print(f"   Status: {res.status_code}")
-if res.status_code == 200:
-    print(f"   ✅ Response: {res.json()}")
-else:
-    print(f"   ❌ Error: {res.text}")
-
-# Test PUT
-print("\n2. PUT preferences...")
-res = requests.put(
-    f"http://localhost:8000/settings/preferences?user_id={YOUR_EMAIL}",
-    json={"response_style": "casual", "default_mode": "research"}
-)
-print(f"   Status: {res.status_code}")
-if res.status_code == 200:
-    print(f"   ✅ Response: {res.json()}")
-else:
-    print(f"   ❌ Error: {res.text}")
+    # Check for debate sessions (any user)
+    result = s.run("MATCH (d:DebateSession) RETURN d.topic AS topic, d.winner AS winner, d.user_id AS user_id")
+    print("\nDebate Sessions stored:")
+    for r in result:
+        print(f"  {r['topic']} | Winner: {r['winner']} | User: {r['user_id']}")

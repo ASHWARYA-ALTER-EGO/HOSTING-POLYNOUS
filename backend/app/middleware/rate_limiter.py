@@ -8,8 +8,11 @@ class RateLimiter:
         self.window = window_seconds
         self.requests = defaultdict(list)
     
-    async def check(self, request: Request, call_next):
-        client_ip = request.client.host if request.client else "unknown"
+    async def __call__(self, request: Request, call_next):
+        # Get real IP from proxy (Railway sends X-Forwarded-For)
+        forwarded = request.headers.get("X-Forwarded-For")
+        client_ip = forwarded.split(",")[0].strip() if forwarded else request.client.host
+        
         now = time.time()
         window_start = now - self.window
         
@@ -25,4 +28,5 @@ class RateLimiter:
         response = await call_next(request)
         return response
 
-rate_limiter = RateLimiter(max_requests=15, window_seconds=60)  # tighter for testing
+# Create instance with desired limits
+rate_limiter = RateLimiter(max_requests=30, window_seconds=60)

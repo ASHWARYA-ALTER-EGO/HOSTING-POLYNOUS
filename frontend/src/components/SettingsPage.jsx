@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { API_BASE_URL } from '../config';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -42,7 +43,7 @@ const C = {
 // ─────────────────────────────────────────────────────────────────────────────
 // API LAYER
 // ─────────────────────────────────────────────────────────────────────────────
-const BASE = "http://localhost:8000";
+const BASE = API_BASE_URL;
 
 function getToken() {
   return localStorage.getItem("polynous_token") || window.__POLYNOUS_ACCESS_TOKEN__ || "";
@@ -1452,7 +1453,7 @@ function DataStorageSection({ push }) {
     setExporting(true);
     try {
       const token = getToken();
-      const res = await fetch(`${BASE}/settings/export`, { headers: authHeaders() });
+      const res = await fetch(`${API_BASE_URL}/settings/export`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`Export failed: ${res.status}`);
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);

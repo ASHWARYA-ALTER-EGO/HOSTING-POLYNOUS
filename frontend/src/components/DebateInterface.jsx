@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { API_BASE_URL } from '../config';
 
 const C = {
   crimson: "#ff2040", green: "#00e64d", purple: "#a855f7", gold: "#ffd700",
@@ -55,7 +56,7 @@ async function callDebateAPI(topic, detailed) {
   const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
                 localStorage.getItem('polynous_token') || '';
 
-  const res = await fetch("http://localhost:8000/ask", {
+      const res = await fetch(`${API_BASE_URL}/ask`, {
     method: "POST",
     headers: { 
       "Content-Type": "application/json",

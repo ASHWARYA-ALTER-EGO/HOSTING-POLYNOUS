@@ -40,21 +40,29 @@ load_dotenv()
 # CORS CONFIGURATION
 # ============================================================
 
-# Allowed origins — only these domains can access your API
+# ✅ FIXED: Proper CORS origins for cross-domain cookie support
+# When using credentials (cookies), you CANNOT use "*" - must specify exact origins
 ALLOWED_ORIGINS = [
     # Local development
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:3000",
-    # Production (update these when deployed)
-    os.getenv("FRONTEND_URL", ""),
-    # Cloudflare Pages
+    
+    # Cloudflare Pages (production frontend)
     "https://polynous.pages.dev",
-    "https://*.polynous.pages.dev",
+    "https://*.polynous.pages.dev",  # Wildcard for preview deployments
+    
+    # Add your custom domain if you have one
+    # "https://app.polynous.ai",
+    
+    # Environment variable override (for custom domains)
+    os.getenv("FRONTEND_URL", ""),
 ]
 
 # Remove empty strings and duplicates
 ALLOWED_ORIGINS = list(set([url for url in ALLOWED_ORIGINS if url]))
+
+print(f"🌐 Allowed CORS origins: {ALLOWED_ORIGINS}")
 
 # ========== CRITICAL DEPENDENCY CHECKER ==========
 def check_critical_dependencies():
@@ -90,28 +98,40 @@ def check_critical_dependencies():
 app = FastAPI(title="POLYNOUS API")
 
 # ============================================================
-# MIDDLEWARE
+# MIDDLEWARE (order matters!)
 # ============================================================
 
-# Auth extraction
-app.middleware("http")(extract_user_middleware)
-
-# Input sanitizer
-app.middleware("http")(input_sanitizer_middleware)
-
-# Security headers
-app.middleware("http")(security_headers_middleware)
-
-# CORS
+# 1. CORS - MUST be first to handle preflight requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"],
-    expose_headers=["Content-Length", "Content-Type"],
-    max_age=3600,
+    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["http://localhost:5174"],  # Fallback to localhost
+    allow_credentials=True,        # ← CRITICAL for cookies/auth headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=[
+        "Authorization", 
+        "Content-Type", 
+        "X-Requested-With", 
+        "Accept", 
+        "Origin",
+        "Cookie",          # ← Added for cookie support
+        "Set-Cookie",      # ← Added for cookie support
+    ],
+    expose_headers=[
+        "Content-Length", 
+        "Content-Type",
+        "Set-Cookie",      # ← Expose Set-Cookie header to frontend
+    ],
+    max_age=3600,  # Cache preflight for 1 hour
 )
+
+# 2. Security headers
+app.middleware("http")(security_headers_middleware)
+
+# 3. Auth extraction
+app.middleware("http")(extract_user_middleware)
+
+# 4. Input sanitizer
+app.middleware("http")(input_sanitizer_middleware)
 
 # ============================================================
 # AUTH DEPENDENCY — Available for all routes
@@ -127,6 +147,8 @@ async def startup():
     check_critical_dependencies()
     init_db()
     print("✅ Database initialized!")
+    print(f"🔒 CORS configured for: {ALLOWED_ORIGINS}")
+    print(f"🍪 Cookie settings: secure={os.getenv('ENVIRONMENT') == 'production'}, samesite={'none' if os.getenv('ENVIRONMENT') == 'production' else 'lax'}")
 
 # ========== INCLUDE ROUTERS ==========
 app.include_router(api_keys_router)

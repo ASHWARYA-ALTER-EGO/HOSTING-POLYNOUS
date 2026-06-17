@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { API_BASE_URL } from '../config';
 
 const C = {
   green: "#00ff0f", cyan: "#00ccff", crimson: "#ff2040", purple: "#a855f7",
@@ -547,7 +548,7 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const BASE = "http://localhost:8000";
+      // Remove the BASE constant - use API_BASE_URL directly
 
       // ---- 1. Get the current user's token ----
       const token =
@@ -561,9 +562,9 @@ export default function PolynousDashboard({ user, onNavigate, onLogout }) {
 
       // ---- 2. Fetch real data from the protected endpoints ----
       const [sRes, hRes, dRes] = await Promise.all([
-        fetch(`${BASE}/memory/stats`,     { headers }),
-        fetch(`${BASE}/memory/history`,   { headers }),
-        fetch(`${BASE}/memory/debates`,   { headers }),
+        fetch(`${API_BASE_URL}/memory/stats`,     { headers }),
+        fetch(`${API_BASE_URL}/memory/history`,   { headers }),
+        fetch(`${API_BASE_URL}/memory/debates`,   { headers }),
       ]);
 
       // ---- 3. Parse responses safely ----

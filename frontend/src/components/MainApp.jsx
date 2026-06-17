@@ -1,4 +1,5 @@
 import NeuralSidebar from './NeuralSidebar'
+import { API_BASE_URL } from '../config'
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
@@ -116,7 +117,7 @@ export default function MainApp({ user, onLogout, onNavigate, currentPage }) {
     const userEmail = user?.email || localStorage.getItem('polynous_user') ? JSON.parse(localStorage.getItem('polynous_user') || '{}').email : 'guest_user';
 
 try {
-  const response = await fetch('http://localhost:8000/ask-stream', {
+  const response = await fetch(`${API_BASE_URL}/ask-stream`, {
     method: 'POST', 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ 
@@ -158,7 +159,7 @@ try {
         })
       }
     } catch (error) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Connection error. Is backend running on port 8000?', isError: true }])
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Connection error. Is backend running?`, isError: true }])
     } finally { setLoading(false); setAgentStatus(''); setStreamingContent('') }
   }
 

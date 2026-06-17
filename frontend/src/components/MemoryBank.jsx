@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config';
 import { useState, useEffect, useRef, useCallback } from "react";
 
 /* ─────────────────────────────────────────────
@@ -564,7 +565,7 @@ export default function MemoryBank({ user, onNavigate, onLogout }) {
     try {
       // ✅ Get token from memory (secure) or localStorage (fallback)
       const accessToken = window.__POLYNOUS_ACCESS_TOKEN__ || localStorage.getItem('polynous_token') || '';
-      const base = "http://localhost:8000";
+      const base = API_BASE_URL;
 
       const headers = {
         'Authorization': `Bearer ${accessToken}`,

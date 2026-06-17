@@ -29,6 +29,10 @@ BCRYPT_WORK_FACTOR = 12           # Higher = more secure but slower
 MAX_LOGIN_ATTEMPTS = 5            # Lock after 5 failures
 LOCKOUT_DURATION_MINUTES = 15     # Lock for 15 minutes
 
+# Environment detection for cookie settings
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")  # "development" or "production"
+IS_PRODUCTION = ENVIRONMENT == "production"
+
 # ============================================================
 # PASSWORD POLICY
 # ============================================================
@@ -146,6 +150,26 @@ def decode_token(token: str, expected_type: str = "access") -> dict:
         raise HTTPException(status_code=401, detail="Authentication failed.")
 
 # ============================================================
+# COOKIE HELPER - Centralized cookie configuration
+# ============================================================
+
+def set_refresh_cookie(response: Response, refresh_token: str):
+    """
+    Set refresh token cookie with environment-appropriate settings.
+    Production: secure=True, samesite="none" (cross-site)
+    Development: secure=False, samesite="lax" (localhost)
+    """
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=IS_PRODUCTION,          # True in production (HTTPS), False in dev
+        samesite="none" if IS_PRODUCTION else "lax",  # Cross-site in production
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        path="/auth"
+    )
+
+# ============================================================
 # AUTH MIDDLEWARE — Extract user from token
 # ============================================================
 
@@ -160,7 +184,7 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)) -> U
     if auth_header.startswith("Bearer "):
         token = auth_header.replace("Bearer ", "")
     else:
-        # Try cookie
+        # Try cookie (for backward compatibility)
         token = request.cookies.get("access_token", "")
     
     if not token:
@@ -309,16 +333,8 @@ async def register(request: RegisterRequest, response: Response, db: Session = D
     access_token = create_access_token(user.id, user.public_id, user.email)
     refresh_token = create_refresh_token(user.id, user.public_id, user.email)
     
-    # Set refresh token as HttpOnly cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        path="/auth"
-    )
+    # ✅ FIXED: Set refresh token cookie with cross-domain support
+    set_refresh_cookie(response, refresh_token)
     
     return TokenResponse(
         access_token=access_token,
@@ -368,15 +384,8 @@ async def login(request: LoginRequest, response: Response, db: Session = Depends
     access_token = create_access_token(user.id, user.public_id, user.email)
     refresh_token = create_refresh_token(user.id, user.public_id, user.email)
     
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        path="/auth"
-    )
+    # ✅ FIXED: Set refresh token cookie with cross-domain support
+    set_refresh_cookie(response, refresh_token)
     
     return TokenResponse(
         access_token=access_token,
@@ -388,6 +397,10 @@ async def login(request: LoginRequest, response: Response, db: Session = Depends
 
 @router.post("/refresh")
 async def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+    """
+    Refresh access token using refresh token from cookie or Authorization header.
+    ✅ Returns new access token + sets new refresh token cookie
+    """
     refresh_token = request.cookies.get("refresh_token", "")
     
     if not refresh_token:
@@ -408,15 +421,8 @@ async def refresh(request: Request, response: Response, db: Session = Depends(ge
     new_access_token = create_access_token(user.id, user.public_id, user.email)
     new_refresh_token = create_refresh_token(user.id, user.public_id, user.email)
     
-    response.set_cookie(
-        key="refresh_token",
-        value=new_refresh_token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        path="/auth"
-    )
+    # ✅ FIXED: Set new refresh token cookie with cross-domain support
+    set_refresh_cookie(response, new_refresh_token)
     
     return {
         "access_token": new_access_token,
@@ -466,7 +472,13 @@ async def update_profile(
 
 @router.post("/logout")
 async def logout(response: Response, user: User = Depends(get_current_user)):
-    response.delete_cookie(key="refresh_token", path="/auth")
+    """Logout - clear refresh token cookie"""
+    response.delete_cookie(
+        key="refresh_token",
+        path="/auth",
+        secure=IS_PRODUCTION,
+        samesite="none" if IS_PRODUCTION else "lax"
+    )
     return {"message": "Logged out successfully"}
 
 @router.put("/change-password")
@@ -499,6 +511,7 @@ async def revoke_sessions(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """Revoke all existing sessions by invalidating refresh tokens"""
     user.password_changed_at = datetime.utcnow()
     db.commit()
     return {

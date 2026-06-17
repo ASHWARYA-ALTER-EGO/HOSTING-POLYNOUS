@@ -1,5 +1,6 @@
 // PDF Neural Lab — fully enhanced with security validation
 import { useState, useEffect, useRef, useCallback } from "react";
+import { API_BASE_URL } from '../config';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -756,7 +757,7 @@ function Sidebar({ user, onNavigate, onLogout, collapsed, setCollapsed }) {
 }
 
 // ─── API layer ────────────────────────────────────────────────────────────────
-const BASE = "http://localhost:8000";
+const BASE = API_BASE_URL;
 const apiFetch = async (path, opts = {}) => {
   const r = await fetch(BASE + path, opts);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);

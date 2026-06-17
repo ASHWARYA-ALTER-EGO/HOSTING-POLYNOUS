@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Sidebar from "./Sidebar";
+import { API_BASE_URL } from '../config';
 
 // ─── TOKEN HELPER ──────────────────────────────────────────
 function getToken() {
@@ -954,7 +955,7 @@ function Pathfinder({ positions, graphData, onClose, onPathFound }) {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     try {
       const params = new URLSearchParams({ entity1: from, entity2: to });
-      const res = await fetch(`http://localhost:8000/knowledge/connections?${params}`, { headers });
+      const res = await fetch(`${API_BASE_URL}/knowledge/connections?${params}`, { headers });
       if (res.ok) {
         const data = await res.json();
         const apiPath = data?.paths?.[0];
@@ -1322,13 +1323,13 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
     const token = getToken();
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     try {
-      const endpoint = richMode ? "http://localhost:8000/knowledge/rich-graph" : "http://localhost:8000/knowledge/graph";
+      const endpoint = richMode ? `${API_BASE_URL}/knowledge/rich-graph` : `${API_BASE_URL}/knowledge/graph`;
       const res = await fetch(endpoint, { headers });
       if (res.ok) {
         const data = await res.json();
         if (data.nodes?.length > 0) { setGraphData(data); }
         else if (richMode) {
-          await fetch("http://localhost:8000/knowledge/seed-rich-demo", { 
+          await fetch(`${API_BASE_URL}/knowledge/seed-rich-demo`, {  
             method: "POST",
             headers: { ...headers, 'Content-Type': 'application/json' }
           });
@@ -1446,7 +1447,7 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
     try {
       const cleanId = node.id?.replace(/^(claim_|evidence_|arg_|topic_|debate_)/, "") || node.label;
       const [detailRes] = await Promise.all([
-        fetch(`http://localhost:8000/knowledge/node/${encodeURIComponent(cleanId)}`, { headers }),
+        fetch(`${API_BASE_URL}/knowledge/node/${encodeURIComponent(cleanId)}`, { headers }),
       ]);
       if (detailRes.ok) setNodeDetails(await detailRes.json());
     } catch (e) { console.error(e); }

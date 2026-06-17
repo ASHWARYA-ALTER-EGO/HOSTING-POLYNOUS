@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-
+import { API_BASE_URL } from '../config'
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
   green:              "#00ff47",
@@ -104,7 +104,7 @@ function Icon({ name, style: s }) {
 }
 
 // ─── API helpers ─────────────────────────────────────────────────────────────
-const BASE = "http://localhost:8000";
+
 const getToken = () => window.__POLYNOUS_ACCESS_TOKEN__ || localStorage.getItem('polynous_token') || '';
 
 // ─── Three.js Mountain (full Code-1 implementation, in React) ─────────────────
@@ -919,7 +919,7 @@ export default function PolynousResearch({ user, onNavigate, onLogout }) {
     const fetchStyle = async () => {
       try {
         const token = getToken();
-        const res = await fetch(`${BASE}/settings/preferences`, {
+        const res = await fetch(`${API_BASE_URL}/settings/preferences`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
             'Content-Type': 'application/json'
@@ -953,7 +953,7 @@ export default function PolynousResearch({ user, onNavigate, onLogout }) {
     const token = getToken();
 
     try {
-        const res = await fetch(`${BASE}/ask-stream`, {
+        const res = await fetch(`${API_BASE_URL}/ask-stream`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

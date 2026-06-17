@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
+import { API_BASE_URL } from '../config'
 
 // ═══════════════════════════════════════════════════
 // DESIGN TOKENS
@@ -271,7 +272,7 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
   // ─────────────────────────────────────────
   // API helpers
   // ─────────────────────────────────────────
-  const API = 'http://localhost:8000/knowledge'
+  const API = `${API_BASE_URL}/knowledge`
 
   async function fetchNodeDetail(id) {
     try {
@@ -302,7 +303,7 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
   useEffect(() => {
     // ✅ FIX 2: Updated initial data load with auth headers and demo data flag
     if (initialData?.nodes?.length) { setGraphData(initialData); setLoading(false); return }
-    fetch(`${API}/rich-graph`, { headers: getAuthHeaders() })
+    fetch(`${API_BASE_URL}/knowledge/rich-graph`, { headers: getAuthHeaders() })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => { setGraphData(d); setLoading(false) })
       .catch(() => { 
@@ -432,7 +433,7 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
             animateCameraToNode(hit)
             // ✅ FIX 3: Fetch enriched node data from API with auth headers
             setLoadingDetail(true)
-            fetch(`http://localhost:8000/knowledge/node/${hit.id}`, { headers: getAuthHeaders() })
+            fetch(`${API_BASE_URL}/knowledge/node/${hit.id}`, { headers: getAuthHeaders() })
               .then(r => r.ok ? r.json() : null)
               .then(data => {
                 if (data) setNodeDetailCache(prev => ({ ...prev, [hit.id]: data }))
@@ -1374,7 +1375,7 @@ export default function KnowledgeGraph3D({ graphData: initialData, onSwitchTo2D 
                         setLoadingDetail(true)
                         try {
                           const params = new URLSearchParams({ entity1: pathStart.id, entity2: detailPanel.id })
-                          const res = await fetch(`http://localhost:8000/knowledge/connections?${params}`, { headers: getAuthHeaders() })
+                          const res = await fetch(`${API_BASE_URL}/knowledge/connections?${params}`, { headers: getAuthHeaders() })
                           if (res.ok) {
                             const data = await res.json()
                             // API returns { paths: [[id, id, ...], ...] } — use first path

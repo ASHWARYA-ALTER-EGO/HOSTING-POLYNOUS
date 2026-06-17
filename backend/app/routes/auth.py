@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
+from jose.exceptions import JWTError as JoseJWTError        # ← ADDED
 from datetime import datetime, timedelta
 import os
 import bcrypt
@@ -124,8 +125,9 @@ def create_refresh_token(user_id: int, public_id: str, email: str) -> str:
     
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
+# ---------- FIXED decode_token ----------
 def decode_token(token: str, expected_type: str = "access") -> dict:
-    """Decode and verify a JWT token"""
+    """Decode and verify a JWT token."""
     try:
         payload = jwt.decode(
             token,
@@ -133,15 +135,12 @@ def decode_token(token: str, expected_type: str = "access") -> dict:
             algorithms=[ALGORITHM],
             options={"verify_exp": True, "verify_iat": True}
         )
-        
         if payload.get("type") != expected_type:
             raise HTTPException(status_code=401, detail=f"Invalid token type. Expected {expected_type}")
-        
         return payload
-    
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired. Please refresh.")
-    except jwt.InvalidTokenError:
+    except JoseJWTError:          # ← catches any other JWT error
         raise HTTPException(status_code=401, detail="Invalid token. Please login again.")
     except Exception:
         raise HTTPException(status_code=401, detail="Authentication failed.")

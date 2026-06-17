@@ -1,206 +1,105 @@
 """
-POLYNOUS Data Isolation Test
-Verifies that User A CANNOT see User B's research data
+BYOK ENCRYPTION TEST WITH REAL ANTHROPIC KEY
+Verifies: live validation, encrypted storage, masking, decryption
 """
-import requests
-import json
-import time
+import requests, time, sys
 
-BASE_URL = "http://localhost:8000"
-
-# Unique emails so we don't clash with existing users
-TIMESTAMP = int(time.time())
-USER_A_EMAIL = f"isolation_test_a_{TIMESTAMP}@polynous.ai"
-USER_B_EMAIL = f"isolation_test_b_{TIMESTAMP}@polynous.ai"
+BASE = "http://localhost:8000"
 PASSWORD = "TestPass!123"
-
-print("=" * 60)
-print("🔐 POLYNOUS DATA ISOLATION VERIFICATION")
-print("=" * 60)
+TIMESTAMP = int(time.time())
 
 # ============================================================
-# STEP 1: Register User A
+# 🔑 PUT YOUR REAL KEY HERE
 # ============================================================
-print("\n📌 STEP 1: Register User A...")
-res_a = requests.post(f"{BASE_URL}/auth/register", json={
-    "email": USER_A_EMAIL,
-    "username": "user_a_isolation",
+REAL_ANTHROPIC_KEY = "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"
+# ============================================================
+
+def test(name, passed, detail=""):
+    status = "✅ PASS" if passed else "❌ FAIL"
+    print(f"   {status} | {name}" + (f" — {detail}" if detail else ""))
+
+print("=" * 60)
+print("🔐 BYOK ENCRYPTION TEST (REAL KEY)")
+print("=" * 60)
+
+# 1. Register fresh user
+USER_EMAIL = f"byok_real_{TIMESTAMP}@polynous.ai"
+r = requests.post(f"{BASE}/auth/register", json={
+    "email": USER_EMAIL,
+    "username": "byok_real",
     "password": PASSWORD
 })
+if r.status_code != 200:
+    print(f"❌ Registration failed: {r.text}")
+    sys.exit(1)
+token = r.json()["access_token"]
+user_id = r.json()["user_id"]
+print(f"✅ User registered: {user_id}")
 
-if res_a.status_code == 200:
-    token_a = res_a.json()["access_token"]
-    user_id_a = res_a.json()["user_id"]
-    print(f"   ✅ User A registered: {user_id_a[:20]}...")
-else:
-    print(f"   ❌ User A registration failed: {res_a.status_code} - {res_a.text[:150]}")
-    exit(1)
+headers = {"Authorization": f"Bearer {token}"}
 
-# ============================================================
-# STEP 2: Register User B
-# ============================================================
-print("\n📌 STEP 2: Register User B...")
-res_b = requests.post(f"{BASE_URL}/auth/register", json={
-    "email": USER_B_EMAIL,
-    "username": "user_b_isolation",
-    "password": PASSWORD
-})
+# 2. Check current key status (should be empty)
+r = requests.get(f"{BASE}/settings/api-keys", headers=headers)
+data = r.json()
+test("Initial key status empty", not data.get("anthropic", {}).get("has_key"))
 
-if res_b.status_code == 200:
-    token_b = res_b.json()["access_token"]
-    user_id_b = res_b.json()["user_id"]
-    print(f"   ✅ User B registered: {user_id_b[:20]}...")
-else:
-    print(f"   ❌ User B registration failed: {res_b.status_code} - {res_b.text[:150]}")
-    exit(1)
+# 3. Save real API key (this will trigger live validation)
+print("⏳ Validating key with Anthropic...")
+r = requests.put(f"{BASE}/settings/api-keys",
+    json={"provider": "anthropic", "api_key": REAL_ANTHROPIC_KEY},
+    headers=headers)
 
-# ============================================================
-# STEP 3: User A creates research
-# ============================================================
-print("\n📌 STEP 3: User A creates research...")
-headers_a = {"Authorization": f"Bearer {token_a}"}
+if r.status_code != 200:
+    print(f"❌ Save failed: {r.text}")
+    sys.exit(1)
+data = r.json()
+preview = data.get("preview", "")
+test("Key saved successfully", data.get("validated", False) == True)
+test("Preview is masked", "sk-ant-****" in preview and REAL_ANTHROPIC_KEY not in preview,
+     f"Preview: {preview}")
 
-for query in ["What is artificial intelligence?", "How does machine learning work?"]:
-    r = requests.post(f"{BASE_URL}/ask",
-        json={"query": query, "debate_mode": False},
-        headers=headers_a
-    )
-    if r.status_code == 200:
-        print(f"   ✅ User A researched: '{query[:50]}...'")
-    else:
-        print(f"   ⚠️  Research failed: {r.status_code}")
+# 4. Verify API response never returns full key
+r = requests.get(f"{BASE}/settings/api-keys", headers=headers)
+api_data = r.json()
+full_key_exposed = REAL_ANTHROPIC_KEY in str(api_data)
+test("API response never contains full key", not full_key_exposed)
 
-# ============================================================
-# STEP 4: User B creates DIFFERENT research
-# ============================================================
-print("\n📌 STEP 4: User B creates DIFFERENT research...")
-headers_b = {"Authorization": f"Bearer {token_b}"}
+# 5. Check database – encryption at rest
+sys.path.insert(0, '.')
+from app.database import SessionLocal
+from app.models.user import User
 
-for query in ["What is quantum computing?", "How does blockchain work?"]:
-    r = requests.post(f"{BASE_URL}/ask",
-        json={"query": query, "debate_mode": False},
-        headers=headers_b
-    )
-    if r.status_code == 200:
-        print(f"   ✅ User B researched: '{query[:50]}...'")
-    else:
-        print(f"   ⚠️  Research failed: {r.status_code}")
+db = SessionLocal()
+user = db.query(User).filter(User.email == USER_EMAIL).first()
+test("User exists in DB", user is not None)
 
-# ============================================================
-# TEST 1: User A sees ONLY their own research
-# ============================================================
+if user:
+    test("User has encryption_key", bool(user.encryption_key))
+    stored = user.anthropic_api_key
+    test("Encrypted blob stored in DB", stored is not None and len(stored) > 0)
+    if stored:
+        is_encrypted = "sk-ant" not in stored
+        test("DB stores encrypted (not plaintext)", is_encrypted,
+             "Plaintext key found in database!" if not is_encrypted else "")
+
+# 6. Test decryption
+if user and user.encryption_key and user.anthropic_api_key:
+    from app.utils.encryption import decrypt_api_key
+    decrypted = decrypt_api_key(user.anthropic_api_key, user.encryption_key)
+    test("Decrypted key matches original", decrypted == REAL_ANTHROPIC_KEY,
+         f"Decrypted: {decrypted[:30] if decrypted else 'None'}...")
+
+# 7. (Optional) Use the key in a research request
+r = requests.post(f"{BASE}/ask", json={
+    "query": "What is Python?",
+    "debate_mode": False
+}, headers=headers)
+test("Research with user's own key works", r.status_code == 200, f"Status {r.status_code}")
+
+# 8. Clean up – delete the key (optional)
+requests.delete(f"{BASE}/settings/api-keys/anthropic", headers=headers)
+print("\n🔑 Key deleted (cleanup)")
+
+db.close()
 print("\n" + "=" * 60)
-print("📌 TEST 1: User A → User A's stats")
-print("-" * 40)
-
-r = requests.get(f"{BASE_URL}/memory/stats", headers=headers_a)
-if r.status_code == 200:
-    data = r.json()
-    print(f"   User A sees: {data.get('total_research', 0)} research entries")
-
-r = requests.get(f"{BASE_URL}/memory/history", headers=headers_a)
-if r.status_code == 200:
-    history = r.json().get('history', [])
-    queries = [h['query'] for h in history]
-    print(f"   User A queries: {queries}")
-
-# ============================================================
-# TEST 2: User B sees ONLY their own research
-# ============================================================
-print("\n📌 TEST 2: User B → User B's stats")
-print("-" * 40)
-
-r = requests.get(f"{BASE_URL}/memory/stats", headers=headers_b)
-if r.status_code == 200:
-    data = r.json()
-    print(f"   User B sees: {data.get('total_research', 0)} research entries")
-
-r = requests.get(f"{BASE_URL}/memory/history", headers=headers_b)
-if r.status_code == 200:
-    history = r.json().get('history', [])
-    queries = [h['query'] for h in history]
-    print(f"   User B queries: {queries}")
-
-# ============================================================
-# TEST 3: Content Isolation — Can User A see User B's data?
-# ============================================================
-print("\n📌 TEST 3: Content Isolation Check")
-print("-" * 40)
-
-r_a = requests.get(f"{BASE_URL}/memory/history", headers=headers_a)
-r_b = requests.get(f"{BASE_URL}/memory/history", headers=headers_b)
-
-if r_a.status_code == 200 and r_b.status_code == 200:
-    queries_a = [h['query'] for h in r_a.json().get('history', [])]
-    queries_b = [h['query'] for h in r_b.json().get('history', [])]
-
-    # Check if User A can see User B's topics
-    a_has_b_data = any('quantum' in q.lower() or 'blockchain' in q.lower() for q in queries_a)
-    b_has_a_data = any('artificial intelligence' in q.lower() or 'machine learning' in q.lower() for q in queries_b)
-
-    if not a_has_b_data and not b_has_a_data:
-        print(f"   ✅ PASSED: Complete data isolation!")
-        print(f"      User A CANNOT see User B's quantum/blockchain research")
-        print(f"      User B CANNOT see User A's AI/ML research")
-    else:
-        if a_has_b_data:
-            print(f"   ❌ FAILED: User A CAN see User B's research!")
-            print(f"      User A's queries include: {[q for q in queries_a if 'quantum' in q.lower() or 'blockchain' in q.lower()]}")
-        if b_has_a_data:
-            print(f"   ❌ FAILED: User B CAN see User A's research!")
-            print(f"      User B's queries include: {[q for q in queries_b if 'artificial intelligence' in q.lower() or 'machine learning' in q.lower()]}")
-
-# ============================================================
-# TEST 4: Guest (no token) sees nothing
-# ============================================================
-print("\n📌 TEST 4: No token → Guest access")
-print("-" * 40)
-
-r = requests.get(f"{BASE_URL}/memory/stats")
-if r.status_code == 200:
-    data = r.json()
-    print(f"   Guest sees: {data.get('total_research', 0)} research entries")
-    if data.get('total_research', 0) == 0:
-        print(f"   ✅ PASSED: Guest sees no data")
-    else:
-        print(f"   ⚠️  Guest can see {data.get('total_research')} entries")
-
-# ============================================================
-# TEST 5: User A tries to access with User B's token (should see B's data)
-# ============================================================
-print("\n📌 TEST 5: Cross-token verification")
-print("-" * 40)
-
-r = requests.get(f"{BASE_URL}/memory/history", headers=headers_b)
-if r.status_code == 200:
-    history = r.json().get('history', [])
-    queries = [h['query'] for h in history]
-    print(f"   With User B's token, queries are: {queries}")
-    has_b_data = any('quantum' in q.lower() or 'blockchain' in q.lower() for q in queries)
-    has_a_data = any('artificial intelligence' in q.lower() or 'machine learning' in q.lower() for q in queries)
-    
-    if has_b_data and not has_a_data:
-        print(f"   ✅ PASSED: User B's token shows only User B's data")
-    elif has_a_data:
-        print(f"   ❌ FAILED: User B's token shows User A's data — ISOLATION BROKEN!")
-
-# ============================================================
-# SUMMARY
-# ============================================================
-print("\n" + "=" * 60)
-print("📊 DATA ISOLATION TEST SUMMARY")
-print("=" * 60)
-print(f"""
-   User A: {USER_A_EMAIL}
-   User B: {USER_B_EMAIL}
-   
-   If tests pass:
-   ✅ Each user sees only their own research
-   ✅ Guest users see nothing
-   ✅ Tokens are properly scoped to individual users
-   ✅ Data isolation is WORKING correctly
-   
-   If tests fail:
-   ❌ The orchestrator or memory routes may still be using
-      hardcoded "guest_user" instead of the authenticated user ID
-""")
+print("BYOK ENCRYPTION TEST COMPLETE")

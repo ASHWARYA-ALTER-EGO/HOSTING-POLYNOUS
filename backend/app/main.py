@@ -145,7 +145,7 @@ class QueryRequest(BaseModel):
     query: str
     debate_mode: bool = False
     session_id: Optional[str] = None
-    response_style: Optional[str] = "academic"   # ← ADDED
+    response_style: Optional[str] = "academic"
 
 class QueryResponse(BaseModel):
     answer: str
@@ -187,15 +187,17 @@ async def debate_history(session_id: str = None, limit: int = 20):
 async def ask_question(request: QueryRequest, req: Request):
     """Research or Debate endpoint"""
     
-    # ─── SANITIZE INPUT ─────────────────
-    request.query = sanitize_query(request.query)
+    # ─── INPUT VALIDATION ─────────────────
+    if not is_safe_input(request.query):
+        raise HTTPException(status_code=400, detail="Invalid query detected")
     
+    request.query = sanitize_query(request.query)
     if not request.query:
-        raise HTTPException(status_code=400, detail="Invalid query")
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
     
     # ✅ Use authenticated user ID from request.state
     user_public_id = getattr(req.state, 'user_public_id', 'guest')
-    session_id = user_public_id  # ← Now directly uses the real user ID
+    session_id = user_public_id
     
     print(f"  👤 User: {session_id}")
     
@@ -213,40 +215,44 @@ async def ask_question(request: QueryRequest, req: Request):
         errors=[],
         warnings=[],
         current_agent="start",
-        response_style=request.response_style,   # ← ADDED
+        response_style=request.response_style,
     )
     
-    if request.debate_mode:
-        print("\n🗣️ DEBATE MODE ACTIVATED")
-        result = debate_graph.invoke(state)
-        
-        # Save debate to chat history
-        try:
-            save_debate(
-                session_id=session_id,
-                topic=request.query,
-                for_score=result.get('judge_verdict', {}).get('for_score', 5),
-                against_score=result.get('judge_verdict', {}).get('against_score', 5),
-                winner=result.get('judge_verdict', {}).get('winner', 'TIE')
-            )
-            print("💾 Saved debate to chat history")
-        except Exception as e:
-            print(f"⚠️ Failed to save debate history: {e}")
-    else:
-        print("\n    RESEARCH MODE ACTIVATED")
-        result = orchestrator.invoke(state)
-        
-        # Save research to chat history
-        try:
-            save_chat(
-                session_id=session_id,
-                query=request.query,
-                answer=result.get('final_answer', ''),
-                confidence=result.get('critique', {}).get('overall_confidence', 0)
-            )
-            print("💾 Saved chat to history")
-        except Exception as e:
-            print(f"⚠️ Failed to save chat history: {e}")
+    try:
+        if request.debate_mode:
+            print("\n🗣️ DEBATE MODE ACTIVATED")
+            result = debate_graph.invoke(state)
+            
+            # Save debate to chat history
+            try:
+                save_debate(
+                    session_id=session_id,
+                    topic=request.query,
+                    for_score=result.get('judge_verdict', {}).get('for_score', 5),
+                    against_score=result.get('judge_verdict', {}).get('against_score', 5),
+                    winner=result.get('judge_verdict', {}).get('winner', 'TIE')
+                )
+                print("💾 Saved debate to chat history")
+            except Exception as e:
+                print(f"⚠️ Failed to save debate history: {e}")
+        else:
+            print("\n    RESEARCH MODE ACTIVATED")
+            result = orchestrator.invoke(state)
+            
+            # Save research to chat history
+            try:
+                save_chat(
+                    session_id=session_id,
+                    query=request.query,
+                    answer=result.get('final_answer', ''),
+                    confidence=result.get('critique', {}).get('overall_confidence', 0)
+                )
+                print("💾 Saved chat to history")
+            except Exception as e:
+                print(f"⚠️ Failed to save chat history: {e}")
+    except Exception as e:
+        print(f"Research/debate error: {e}")
+        raise HTTPException(status_code=400, detail="Research request failed. Please rephrase your query.")
     
     citations = result.get('citations', [])
     final_answer = result.get('final_answer', 'No answer generated')
@@ -273,16 +279,18 @@ async def ask_question(request: QueryRequest, req: Request):
 async def ask_stream(request: QueryRequest, req: Request):
     """Streaming endpoint"""
     
-    # ─── SANITIZE INPUT ─────────────────
-    request.query = sanitize_query(request.query)
+    # ─── INPUT VALIDATION ─────────────────
+    if not is_safe_input(request.query):
+        raise HTTPException(status_code=400, detail="Invalid query detected")
     
+    request.query = sanitize_query(request.query)
     if not request.query:
-        raise HTTPException(status_code=400, detail="Invalid query")
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
     
     async def gen():
         # ✅ Use authenticated user ID from request.state
         user_public_id = getattr(req.state, 'user_public_id', 'guest')
-        session_id = user_public_id  # ← Directly uses real user ID
+        session_id = user_public_id
         
         print(f"  👤 User (stream): {session_id}")
         
@@ -292,7 +300,7 @@ async def ask_stream(request: QueryRequest, req: Request):
             retrieved_docs=[], summaries=[], critique={}, final_answer="", citations=[],
             debate_mode=request.debate_mode, debate_history=[], judge_verdict={},
             errors=[], warnings=[], current_agent="",
-            response_style=request.response_style,   # ← ADDED
+            response_style=request.response_style,
         )
         
         mode_name = "debate" if request.debate_mode else "research"
@@ -349,7 +357,7 @@ async def ask_stream(request: QueryRequest, req: Request):
             yield f"data: {json.dumps({'type': 'end'})}\n\n"
             
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Research request failed. Please rephrase your query.'})}\n\n"
     
     return StreamingResponse(gen(), media_type="text/event-stream")
 

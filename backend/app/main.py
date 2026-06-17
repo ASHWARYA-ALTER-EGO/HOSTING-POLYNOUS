@@ -10,12 +10,12 @@ from app.routes.user_stats import router as user_stats_router
 from app.routes.pdfs import router as pdfs_router
 from app.routes.memory import router as memory_router
 from app.routes.semantic_search import router as search_router
+
 from app.routes.knowledge import router as knowledge_router
-# REMOVED: from app.middleware.rate_limiter import check_rate_limit
 from app.routes.oauth import router as oauth_router
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse  # ← Added JSONResponse
 from pydantic import BaseModel
 import os
 import json
@@ -27,7 +27,7 @@ from app.state import AgentState
 from typing import Optional
 
 # Database and routes
-from app.database import init_db
+from app.database import init_db, get_db, check_database_connection  # ← Added imports
 from app.routes.auth import router as auth_router
 from app.routes.conversations import router as conversations_router
 
@@ -40,24 +40,35 @@ load_dotenv()
 # CORS CONFIGURATION
 # ============================================================
 
-# ✅ FIXED: Proper CORS origins for cross-domain cookie support
-# When using credentials (cookies), you CANNOT use "*" - must specify exact origins
+# ✅ FIXED: Explicit origins only — NO wildcards with allow_credentials=True
+# This is required because browsers reject wildcard origins when credentials are sent.
+# Each frontend URL that needs cookie/OAuth support must be listed explicitly.
+
 ALLOWED_ORIGINS = [
-    # Local development
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:3000",
+    # ── Local Development ──────────────────────────────────
+    "http://localhost:5173",          # Vite default
+    "http://localhost:5174",          # Vite alternate
+    "http://localhost:3000",          # React / Next.js
+    "http://127.0.0.1:5173",         # Vite via IP
+    "http://127.0.0.1:5174",         # Vite alternate via IP
     
-    # Cloudflare Pages (production frontend)
-    "https://polynous.pages.dev",
-    "https://*.polynous.pages.dev",  # Wildcard for preview deployments
+    # ── Cloudflare Pages (Production Frontend) ──────────────
+    "https://polynous.pages.dev",     # Main production URL
     
-    # Add your custom domain if you have one
-    # "https://app.polynous.ai",
+    # ── Custom Domain (if you have one) ─────────────────────
+    # "https://app.polynous.ai",      # Uncomment and update
     
-    # Environment variable override (for custom domains)
-    os.getenv("FRONTEND_URL", ""),
+    # ── Environment Variable Override ───────────────────────
+    # Set FRONTEND_URL in Railway dashboard to add custom domains dynamically
 ]
+
+# Add environment variable if set (supports comma-separated for multiple URLs)
+env_frontend = os.getenv("FRONTEND_URL", "").strip()
+if env_frontend:
+    for url in env_frontend.split(","):
+        url = url.strip()
+        if url and url not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(url)
 
 # Remove empty strings and duplicates
 ALLOWED_ORIGINS = list(set([url for url in ALLOWED_ORIGINS if url]))
@@ -102,10 +113,12 @@ app = FastAPI(title="POLYNOUS API")
 # ============================================================
 
 # 1. CORS - MUST be first to handle preflight requests
+# ⚠️  IMPORTANT: Never use allow_origins=["*"] with allow_credentials=True
+#     Browsers will reject the request. Each origin must be explicitly listed.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["http://localhost:5174"],  # Fallback to localhost
-    allow_credentials=True,        # ← CRITICAL for cookies/auth headers
+    allow_credentials=True,        # ← CRITICAL for cookies, OAuth, and auth headers
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=[
         "Authorization", 
@@ -113,15 +126,15 @@ app.add_middleware(
         "X-Requested-With", 
         "Accept", 
         "Origin",
-        "Cookie",          # ← Added for cookie support
-        "Set-Cookie",      # ← Added for cookie support
+        "Cookie",          # ← Required for refresh token cookie
+        "Set-Cookie",      # ← Required for cookie support
     ],
     expose_headers=[
         "Content-Length", 
         "Content-Type",
         "Set-Cookie",      # ← Expose Set-Cookie header to frontend
     ],
-    max_age=3600,  # Cache preflight for 1 hour
+    max_age=3600,  # Cache preflight responses for 1 hour
 )
 
 # 2. Security headers
@@ -145,10 +158,19 @@ from app.routes.auth import get_current_user
 @app.on_event("startup")
 async def startup():
     check_critical_dependencies()
-    init_db()
-    print("✅ Database initialized!")
-    print(f"🔒 CORS configured for: {ALLOWED_ORIGINS}")
-    print(f"🍪 Cookie settings: secure={os.getenv('ENVIRONMENT') == 'production'}, samesite={'none' if os.getenv('ENVIRONMENT') == 'production' else 'lax'}")
+    
+    # Initialize database
+    try:
+        init_db()
+        print("✅ Database initialized!")
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")
+        if os.getenv("ENVIRONMENT", "").lower() == "production":
+            raise  # Fail fast in production
+    
+    print(f"🔒 CORS origins: {ALLOWED_ORIGINS}")
+    print(f"🔐 allow_credentials: True")
+    print(f"🍪 Cookie mode: {'production (secure+sameSite=None)' if os.getenv('ENVIRONMENT') == 'production' else 'development (lax)'}")
 
 # ========== INCLUDE ROUTERS ==========
 app.include_router(api_keys_router)
@@ -176,19 +198,79 @@ class QueryResponse(BaseModel):
     contradictions: list = []
     debate_verdict: dict = {}
 
-# ========== ENDPOINTS ==========
+# ============================================================
+# ENDPOINTS
+# ============================================================
+
 @app.get("/")
 async def root():
+    """Root endpoint — API information"""
+    # Check database status
+    db_healthy, db_msg = check_database_connection()
+    
     return {
         "system": "POLYNOUS",
         "tagline": "Many Minds, One Answer",
         "version": "3.0",
-        "endpoints": ["/ask", "/ask-stream", "/health", "/auth/register", "/auth/login", "/conversations"]
+        "database": "connected" if db_healthy else "disconnected",
+        "endpoints": [
+            "/ask",
+            "/ask-stream",
+            "/health",
+            "/auth/register",
+            "/auth/login",
+            "/auth/refresh",
+            "/conversations"
+        ]
     }
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "agents": 7}
+    """
+    Health check endpoint with real database verification.
+    
+    Returns:
+        200 OK with status "healthy" if database is reachable
+        503 Service Unavailable if database connection fails
+    
+    Used by:
+        - Railway health checks
+        - Cloudflare health checks
+        - Monitoring tools
+        - Load balancers
+    """
+    try:
+        # Get a fresh database session
+        db = next(get_db())
+        
+        # Execute a simple query to verify connectivity
+        db.execute("SELECT 1")
+        
+        # Close the session
+        db.close()
+        
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "agents": 7,
+            "version": "3.0",
+            "environment": os.getenv("ENVIRONMENT", "development")
+        }
+        
+    except Exception as e:
+        # Log the error for debugging
+        print(f"❌ Health check failed: {str(e)}")
+        
+        # Return 503 with details
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+                "error": str(e) if os.getenv("ENVIRONMENT") != "production" else "Service unavailable",
+                "version": "3.0"
+            }
+        )
 
 # ========== Chat History Endpoints ==========
 @app.get("/history/chats")

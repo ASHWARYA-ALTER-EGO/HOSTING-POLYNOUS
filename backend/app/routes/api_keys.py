@@ -45,7 +45,7 @@ class APIKeysResponse(BaseModel):
 # ============================================================
 
 def get_current_db_user(request: Request, db: Session = Depends(get_db)) -> User:
-    """Get current user from database using request state"""
+    """Get current user from database using request state (set by auth middleware)"""
     user_id = getattr(request.state, 'user_id', 0)
     
     if user_id == 0:

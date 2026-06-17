@@ -11,7 +11,7 @@ TIMESTAMP = int(time.time())
 # ============================================================
 # 🔑 PUT YOUR REAL KEY HERE
 # ============================================================
-REAL_ANTHROPIC_KEY = "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"
+REAL_ANTHROPIC_KEY = ""
 # ============================================================
 
 def test(name, passed, detail=""):

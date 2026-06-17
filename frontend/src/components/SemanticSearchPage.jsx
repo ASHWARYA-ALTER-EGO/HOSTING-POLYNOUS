@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { API_BASE_URL } from '../config';
 
 // ═══════════════════════════════════════════════════════════════
 // DESIGN TOKENS
@@ -818,7 +819,7 @@ function VectorNodeBadge({ sidebarWidth }) {
         const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
               localStorage.getItem('polynous_token') || '';
 
-const res = await fetch('http://localhost:8000/stats/vector-count', {
+const res = await fetch(`${API_BASE_URL}/stats/vector-count`, {
     headers: {
         'Authorization': token ? `Bearer ${token}` : ''
     }
@@ -1892,7 +1893,7 @@ export default function SemanticSearchPage({ user, onStartResearch, onNavigate, 
       const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
               localStorage.getItem('polynous_token') || '';
 
-const res = await fetch(`http://localhost:8000/search?query=${encodeURIComponent(q)}&top_k=12`, {
+const res = await fetch(`${API_BASE_URL}/search?query=${encodeURIComponent(q)}&top_k=12`, {
     headers: {
         'Authorization': token ? `Bearer ${token}` : ''
     }
@@ -1914,7 +1915,7 @@ const res = await fetch(`http://localhost:8000/search?query=${encodeURIComponent
         const token = window.__POLYNOUS_ACCESS_TOKEN__ || 
               localStorage.getItem('polynous_token') || '';
 
-const res = await fetch(`http://localhost:8000/search/suggestions?query=${encodeURIComponent(value)}&limit=5`, {
+const res = await fetch(`${API_BASE_URL}/search/suggestions?query=${encodeURIComponent(value)}&limit=5`, {
     headers: {
         'Authorization': token ? `Bearer ${token}` : ''
     }

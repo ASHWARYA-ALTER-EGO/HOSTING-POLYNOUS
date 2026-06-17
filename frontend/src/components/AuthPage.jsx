@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import ProfileSetup from './ProfileSetup'
+import { API_BASE_URL } from '../config'
 
 // ─── Design Tokens ────────────────────────────────────────────
 const C = {
@@ -310,12 +311,12 @@ function LoginCard({ onLogin }) {
     setLoading(true);
     try {
       const endpoint = isLogin ? '/auth/login' : '/auth/register'
-      // Registration uses 'new_user' as placeholder username; the user will set it later
       const body = isLogin 
         ? { email, password } 
         : { email, username: 'new_user', password }
       
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
+      // ✅ FIXED: Use API_BASE_URL instead of hardcoded localhost
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -323,9 +324,7 @@ function LoginCard({ onLogin }) {
       const data = await res.json();
       
       if (!res.ok) {
-        // ✅ FIX: Extract readable error message from validation errors
         let errorMsg = data.detail || "Authentication failed.";
-        
         if (Array.isArray(data.detail)) {
           errorMsg = data.detail.map(e => e.msg).join('. ');
         } else if (typeof data.detail === 'object') {
@@ -335,11 +334,9 @@ function LoginCard({ onLogin }) {
             errorMsg = data.detail.msg;
           }
         }
-        
         throw new Error(errorMsg);
       }
       
-      // Store tokens in both memory (secure) and localStorage (compatibility)
       const token = data.access_token || data.token;
       window.__POLYNOUS_ACCESS_TOKEN__ = token;
       localStorage.setItem('polynous_token', token);
@@ -348,7 +345,6 @@ function LoginCard({ onLogin }) {
         window.__POLYNOUS_REFRESH_TOKEN__ = data.refresh_token;
       }
       
-      // Store user info
       localStorage.setItem('polynous_user', JSON.stringify({ 
           username: data.username || email.split('@')[0], 
           email: email,
@@ -357,9 +353,7 @@ function LoginCard({ onLogin }) {
       localStorage.setItem('polynous_user_id', data.user_id);
       localStorage.setItem('polynous_username', data.username || email.split('@')[0]);
       
-      // ✅ NEW: For registration, pass a flag so the parent shows ProfileSetup
       if (!isLogin && onLogin) {
-        // Pass the registration data plus the flag
         onLogin({ ...data, email, needs_profile_setup: true });
       } else if (onLogin) {
         onLogin(data);
@@ -373,13 +367,13 @@ function LoginCard({ onLogin }) {
     }
   };
 
+  // ✅ FIXED: Use API_BASE_URL for OAuth redirects
   const handleOAuth = (provider) => {
-    window.location.href = `http://localhost:8000/oauth/${provider}`;
+    window.location.href = `${API_BASE_URL}/oauth/${provider}`;
   };
 
   const handleGuest = () => {
     const guest = { skip: true, username: 'Guest', email: 'guest@polynous.ai' }
-    // Guest tokens stored in BOTH memory and localStorage
     const guestToken = 'guest_' + Date.now()
     window.__POLYNOUS_ACCESS_TOKEN__ = guestToken
     localStorage.setItem('polynous_token', guestToken)
@@ -515,7 +509,6 @@ export default function PolynousLoginV2({ onLogin }) {
 
   const handleLogin = (data) => {
     if (data.needs_profile_setup) {
-      // User just registered – show ProfileSetup
       setProfileSetupUser(data);
     } else if (onLogin) {
       onLogin(data);
@@ -524,12 +517,9 @@ export default function PolynousLoginV2({ onLogin }) {
     }
   };
 
-  // When ProfileSetup completes, finalise login
   const handleProfileComplete = (username) => {
-    // Update localStorage with the chosen username
     const stored = JSON.parse(localStorage.getItem('polynous_user') || '{}');
     localStorage.setItem('polynous_user', JSON.stringify({ ...stored, username }));
-    // Call the original onLogin with the updated data
     if (onLogin) {
       onLogin({ ...profileSetupUser, username });
     } else {

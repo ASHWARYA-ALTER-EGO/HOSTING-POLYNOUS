@@ -45,7 +45,7 @@ function injectStyles() {
   document.head.appendChild(tag)
 }
 
-// ─── Neural Canvas (ported from LoginCard) ────────────────────────────────────
+// ─── Neural Canvas ────────────────────────────────────────────────────────────
 function NeuralCanvas() {
   const ref = useRef(null)
 
@@ -192,14 +192,330 @@ function StatusDot({ state }) {
   )
 }
 
+// ─── Radial Style Dial ────────────────────────────────────────────────────────
+
+const STYLES_MAP = {
+  academic:  { label: 'Academic',  icon: 'auto_stories', accent: '#00ff0f', angle: 0,   sub: 'Peer-grade rigour · Cited' },
+  technical: { label: 'Technical', icon: 'terminal',     accent: '#a855f7', angle: 90,  sub: 'Spec-level · Statistically rigorous' },
+  eli5:      { label: 'ELI5',      icon: 'lightbulb',    accent: '#ffb800', angle: 180, sub: 'Feynman method · Always clear' },
+  casual:    { label: 'Casual',    icon: 'chat_bubble',  accent: '#00ccff', angle: 270, sub: 'Brilliant friend · Zero jargon' },
+}
+
+function hexToRgb(hex) {
+  return [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(',')
+}
+
+const CX = 130, CY = 130, NODE_R = 86, NODE_BTN = 44
+const NODE_POS = {
+  academic:  { x: CX,          y: CY - NODE_R },
+  technical: { x: CX + NODE_R, y: CY          },
+  eli5:      { x: CX,          y: CY + NODE_R },
+  casual:    { x: CX - NODE_R, y: CY          },
+}
+
+function StyleDial({ selected, onChange }) {
+  const [needleAngle, setNeedleAngle] = useState(0)
+  const [isDragging,  setIsDragging]  = useState(false)
+  const dialRef = useRef(null)
+  const dragRef = useRef(null)
+
+  const getMouseAngle = useCallback((e) => {
+    if (!dialRef.current) return 0
+    const r  = dialRef.current.getBoundingClientRect()
+    const dx = e.clientX - (r.left + r.width  / 2)
+    const dy = e.clientY - (r.top  + r.height / 2)
+    return Math.atan2(dy, dx) * 180 / Math.PI
+  }, [])
+
+  const nearestMode = useCallback((angle) => {
+    const norm = ((angle % 360) + 360) % 360
+    return Object.entries(STYLES_MAP).reduce((best, [id, opt]) => {
+      let diff = Math.abs(norm - opt.angle)
+      if (diff > 180) diff = 360 - diff
+      return diff < best.diff ? { id, diff } : best
+    }, { id: 'academic', diff: Infinity }).id
+  }, [])
+
+  const snapTo = useCallback((fromAngle, modeId) => {
+    const target = STYLES_MAP[modeId].angle
+    const curr   = ((fromAngle % 360) + 360) % 360
+    let delta    = target - curr
+    if (delta >  180) delta -= 360
+    if (delta < -180) delta += 360
+    setNeedleAngle(fromAngle + delta)
+    onChange(modeId)
+  }, [onChange])
+
+  const selectStyle = useCallback((id) => {
+    if (id === selected) return
+    snapTo(needleAngle, id)
+  }, [selected, needleAngle, snapTo])
+
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault()
+    dragRef.current = {
+      startMouseAngle:  getMouseAngle(e),
+      startNeedleAngle: needleAngle,
+    }
+    setIsDragging(true)
+  }, [getMouseAngle, needleAngle])
+
+  useEffect(() => {
+    if (!isDragging) return
+
+    const onMove = (e) => {
+      const delta = getMouseAngle(e) - dragRef.current.startMouseAngle
+      setNeedleAngle(dragRef.current.startNeedleAngle + delta)
+    }
+
+    const onUp = (e) => {
+      const finalAngle = dragRef.current.startNeedleAngle +
+                         (getMouseAngle(e) - dragRef.current.startMouseAngle)
+      const mode = nearestMode(finalAngle)
+      snapTo(finalAngle, mode)
+      setIsDragging(false)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup',   onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup',   onUp)
+    }
+  }, [isDragging, getMouseAngle, nearestMode, snapTo])
+
+  const active = STYLES_MAP[selected]
+
+  const ticks = Array.from({ length: 36 }, (_, i) => {
+    const vis = i * 10
+    const rad  = (vis - 90) * Math.PI / 180
+    const maj  = vis % 90 === 0
+    return {
+      x1: CX + 112 * Math.cos(rad), y1: CY + 112 * Math.sin(rad),
+      x2: CX + (maj ? 100 : 107) * Math.cos(rad),
+      y2: CY + (maj ? 100 : 107) * Math.sin(rad),
+      major: maj,
+    }
+  })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Section divider */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
+        <span style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 9, letterSpacing: '0.16em', color: '#444', textTransform: 'uppercase',
+        }}>Response Style</span>
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
+      </div>
+
+      {/* Dial container */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div
+          ref={dialRef}
+          style={{
+            position: 'relative', width: 260, height: 260, flexShrink: 0,
+            cursor: isDragging ? 'grabbing' : 'grab',
+          }}
+        >
+          {/* SVG: rings · ticks · spokes · needle */}
+          <svg
+            width="260" height="260" viewBox="0 0 260 260"
+            style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible', userSelect: 'none' }}
+            onMouseDown={handleMouseDown}
+          >
+            {/* Outer glow */}
+            <circle cx={CX} cy={CY} r={113} fill="none"
+              stroke={`rgba(${hexToRgb(active.accent)},0.07)`}
+              strokeWidth={7}
+              style={{ transition: 'stroke 0.4s ease' }}
+            />
+            {/* Outer structural ring */}
+            <circle cx={CX} cy={CY} r={112} fill="none"
+              stroke="rgba(255,255,255,0.09)" strokeWidth={1} />
+
+            {/* Tick marks */}
+            {ticks.map((t, i) => (
+              <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
+                stroke={t.major
+                  ? `rgba(${hexToRgb(active.accent)},${isDragging ? 0.7 : 0.45})`
+                  : `rgba(255,255,255,${isDragging ? 0.14 : 0.09})`}
+                strokeWidth={t.major ? 1.5 : 0.75}
+                strokeLinecap="round"
+                style={{ transition: 'stroke 0.3s ease' }}
+              />
+            ))}
+
+            {/* Cardinal N E S W */}
+            {[
+              { l: 'N', x: CX,  y: 14,  a: 'middle' },
+              { l: 'E', x: 250, y: CY,  a: 'start'  },
+              { l: 'S', x: CX,  y: 248, a: 'middle' },
+              { l: 'W', x: 10,  y: CY,  a: 'end'    },
+            ].map(({ l, x, y, a }) => (
+              <text key={l} x={x} y={y}
+                textAnchor={a} dominantBaseline="middle"
+                fontFamily="'JetBrains Mono',monospace"
+                fontSize={8} letterSpacing={1.5}
+                fill={`rgba(255,255,255,${isDragging ? 0.35 : 0.18})`}
+                style={{ transition: 'fill 0.2s ease', userSelect: 'none' }}
+              >{l}</text>
+            ))}
+
+            {/* Radial spokes */}
+            {Object.entries(NODE_POS).map(([id, pos]) => (
+              <line key={id} x1={CX} y1={CY} x2={pos.x} y2={pos.y}
+                stroke={selected === id
+                  ? `rgba(${hexToRgb(STYLES_MAP[id].accent)},0.22)`
+                  : 'rgba(255,255,255,0.04)'}
+                strokeWidth={selected === id ? 1 : 0.5}
+                strokeDasharray="2 5" strokeLinecap="round"
+                style={{ transition: 'stroke 0.3s ease' }}
+              />
+            ))}
+
+            {/* Inner ring */}
+            <circle cx={CX} cy={CY} r={27} fill="rgba(6,6,20,0.97)"
+              stroke={`rgba(${hexToRgb(active.accent)},0.32)`}
+              strokeWidth={1}
+              style={{ transition: 'stroke 0.4s ease' }}
+            />
+
+            {/* Needle (no transition during drag; spring on snap) */}
+            <g style={{
+              transformOrigin: `${CX}px ${CY}px`,
+              transform: `rotate(${needleAngle}deg)`,
+              transition: isDragging ? 'none' : 'transform 0.52s cubic-bezier(0.34,1.56,0.64,1)',
+            }}>
+              {/* Counterweight tail */}
+              <line x1={CX} y1={CY} x2={CX} y2={CY + 18}
+                stroke="rgba(255,255,255,0.15)"
+                strokeWidth={1.5} strokeLinecap="round"
+              />
+              {/* Needle shaft */}
+              <line x1={CX} y1={CY + 4} x2={CX} y2={CY - 63}
+                stroke={active.accent} strokeWidth={1.8} strokeLinecap="round"
+                style={{ filter: `drop-shadow(0 0 ${isDragging ? 6 : 3}px ${active.accent})`, transition: 'filter 0.2s, stroke 0.3s' }}
+              />
+              {/* Arrowhead */}
+              <polygon
+                points={`${CX},${CY - 68} ${CX - 5},${CY - 57} ${CX + 5},${CY - 57}`}
+                fill={active.accent}
+                style={{ filter: `drop-shadow(0 0 ${isDragging ? 8 : 5}px ${active.accent})`, transition: 'fill 0.3s, filter 0.2s' }}
+              />
+            </g>
+
+            {/* Centre cap */}
+            <circle cx={CX} cy={CY} r={7}
+              fill={active.accent}
+              style={{ filter: `drop-shadow(0 0 ${isDragging ? 14 : 9}px ${active.accent})`, transition: 'fill 0.3s, filter 0.2s' }}
+            />
+            <circle cx={CX} cy={CY} r={3} fill="#06061a" />
+
+            {/* Drag-active outer pulse ring */}
+            {isDragging && (
+              <circle cx={CX} cy={CY} r={112}
+                fill="none"
+                stroke={`rgba(${hexToRgb(active.accent)},0.2)`}
+                strokeWidth={2}
+              />
+            )}
+          </svg>
+
+          {/* Node buttons */}
+          {Object.entries(STYLES_MAP).map(([id, opt]) => {
+            const pos      = NODE_POS[id]
+            const isActive = selected === id
+            const half     = NODE_BTN / 2
+            return (
+              <button key={id}
+                onClick={() => selectStyle(id)}
+                title={opt.label}
+                style={{
+                  position: 'absolute',
+                  left: pos.x - half, top: pos.y - half,
+                  width: NODE_BTN, height: NODE_BTN,
+                  borderRadius: '50%',
+                  background: isActive
+                    ? `rgba(${hexToRgb(opt.accent)},0.16)`
+                    : 'rgba(8,8,24,0.93)',
+                  border: `1px solid ${isActive ? opt.accent : 'rgba(255,255,255,0.1)'}`,
+                  boxShadow: isActive
+                    ? `0 0 22px rgba(${hexToRgb(opt.accent)},0.55), inset 0 0 12px rgba(${hexToRgb(opt.accent)},0.08)`
+                    : 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(10px)',
+                  transition: 'all 0.22s ease',
+                  outline: 'none',
+                  zIndex: 2,
+                  pointerEvents: isDragging ? 'none' : 'auto',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{
+                  fontSize: 20,
+                  color: isActive ? opt.accent : 'rgba(255,255,255,0.22)',
+                  transition: 'color 0.22s ease',
+                  userSelect: 'none',
+                }}>
+                  {opt.icon}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Mode readout */}
+      <div key={selected} style={{ animation: 'fadeIn 0.28s ease' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          marginBottom: 6,
+        }}>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 8, letterSpacing: '0.2em',
+            color: '#333', textTransform: 'uppercase', flexShrink: 0,
+          }}>
+            MODE
+          </span>
+          <div style={{ flex: 1, borderTop: '1px dashed rgba(255,255,255,0.06)' }} />
+          <span style={{
+            fontFamily: "'Sora', sans-serif",
+            fontSize: 17, fontWeight: 700, letterSpacing: '0.1em',
+            color: active.accent, textTransform: 'uppercase', flexShrink: 0,
+            textShadow: `0 0 24px rgba(${hexToRgb(active.accent)},0.45)`,
+            transition: 'color 0.3s ease, text-shadow 0.3s ease',
+          }}>
+            {active.label}
+          </span>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 9, letterSpacing: '0.1em',
+            color: 'rgba(255,255,255,0.18)', textTransform: 'uppercase',
+          }}>
+            {active.sub}
+          </span>
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ProfileSetup({ onComplete, email }) {
-  const [username, setUsername]    = useState('')
-  const [loading, setLoading]      = useState(false)
-  const [error, setError]          = useState('')
-  const [inputFocused, setFocused] = useState(false)
-  const [btnLabel, setBtnLabel]    = useState('INITIALIZE →')
+  const [username, setUsername]       = useState('')
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState('')
+  const [inputFocused, setFocused]    = useState(false)
+  const [btnLabel, setBtnLabel]       = useState('INITIALIZE →')
+  const [responseStyle, setResponseStyle] = useState('academic')
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -227,6 +543,9 @@ export default function ProfileSetup({ onComplete, email }) {
     setError('')
   }, [])
 
+  // ─── handleSubmit: passes both username AND responseStyle to onComplete ──────
+  // This mirrors Document 1 exactly. onComplete(trimmed, responseStyle) ensures
+  // the caller's API save receives the style preference alongside the username.
   const handleSubmit = useCallback(async () => {
     if (loading) return
     const trimmed = username.trim()
@@ -244,13 +563,13 @@ export default function ProfileSetup({ onComplete, email }) {
     setError('')
     setBtnLabel('SYNCHRONIZING...')
     try {
-      if (onComplete) await onComplete(trimmed)
+      if (onComplete) await onComplete(trimmed, responseStyle)
     } catch (err) {
       setError(err?.message || 'Failed to initialize. Try again.')
       setLoading(false)
       setBtnLabel('INITIALIZE →')
     }
-  }, [loading, username, onComplete])
+  }, [loading, username, responseStyle, onComplete])
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter') handleSubmit()
@@ -265,7 +584,6 @@ export default function ProfileSetup({ onComplete, email }) {
   const inputGlow = inputFocused ? '0 0 20px rgba(0,255,15,0.15)' : 'none'
 
   return (
-    // ⚠ position:fixed + inset:0 breaks out of any parent container constraints
     <div style={{
       position: 'fixed',
       top: 0, left: 0, right: 0, bottom: 0,
@@ -289,15 +607,24 @@ export default function ProfileSetup({ onComplete, email }) {
         pointerEvents: 'none',
       }} />
 
-      {/* Card */}
+      {/* Scrollable card wrapper — allows card to scroll on short viewports */}
       <div style={{
         position: 'relative',
         zIndex: 10,
         width: '100%',
         maxWidth: 500,
-        padding: '0 24px',
+        padding: '24px 24px',
+        maxHeight: '100vh',
+        overflowY: 'auto',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        // hide scrollbar visually while keeping it functional
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
       }}>
         <div style={{
+          width: '100%',
           background: 'rgba(10,10,30,0.65)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
@@ -346,7 +673,7 @@ export default function ProfileSetup({ onComplete, email }) {
           {/* Form */}
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* Input */}
+            {/* Username input */}
             <div>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10,
@@ -417,6 +744,9 @@ export default function ProfileSetup({ onComplete, email }) {
               </div>
             </div>
 
+            {/* ── Response Style Dial (integrated from Document 1) ── */}
+            <StyleDial selected={responseStyle} onChange={setResponseStyle} />
+
             {/* Error banner */}
             {error && (
               <div style={{
@@ -463,7 +793,7 @@ export default function ProfileSetup({ onComplete, email }) {
             You can modify this later in Settings
           </p>
 
-          {/* Status cluster */}
+          {/* Status cluster — bottom left */}
           <div style={{
             position: 'absolute', bottom: 14, left: 28,
             display: 'flex', alignItems: 'center', gap: 5,
@@ -479,6 +809,7 @@ export default function ProfileSetup({ onComplete, email }) {
             </span>
           </div>
 
+          {/* Status cluster — bottom right */}
           <div style={{
             position: 'absolute', bottom: 14, right: 28,
             display: 'flex', alignItems: 'center', gap: 5,

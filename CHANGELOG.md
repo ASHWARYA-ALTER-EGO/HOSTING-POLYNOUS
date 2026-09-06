@@ -7,6 +7,81 @@ and compile-verified but not yet exercised end-to-end in production).
 
 ---
 
+## [Unreleased] — Growth loops: /discover, KG share, ChatGPT import, referrals, cost transparency, share pill, cookie-gated intro, Person schema
+
+### /discover public gallery
+- New `/discover` route + `GET /discover?kind=&limit=` endpoint. Anonymised
+  card grid of recent shared research and debate reports (topic, snippet,
+  view count, kind). Social proof + SEO landing surface. No auth required.
+
+### Read-only knowledge-graph share (`/g/:id`)
+- `POST /graph/share` snapshots the caller's KG (labels + structure only, no
+  private summaries) into the existing `shared_reports` table under `kind='graph'`.
+- `GET /graph/share/:id` returns that snapshot.
+- New `/g/:id` frontend route renders a lightweight force-laid SVG view with
+  hover highlighting and a "Build your own" CTA. Nodes are coloured by
+  community; edges by weight. Fully public, no signup wall.
+- Prominent **Share graph** pill added top-right of the KG page.
+
+### Import from ChatGPT / NotebookLM / notes
+- New `POST /import/notes` extracts capitalised topic phrases from pasted
+  text (server-side, no LLM key needed), seeds the caller's KG with pairwise
+  edges between neighbouring topics, and saves a research entry so the import
+  shows up in Memory Bank. Enforces auth, 200KB cap, 40-char minimum.
+- New `ImportNotesModal` with tab presets for ChatGPT / NotebookLM / plain
+  notes, live char counter, success card listing every extracted concept.
+- Prominent **Import from ChatGPT** pill added top-right of the KG page.
+
+### Referral loop
+- Landing captures `?ref=<public_id>` into `localStorage` (30-day expiry).
+- On successful signup the client fires-and-forgets `POST /referral/register`
+  which records two negative-usage rows (-10 daily-cap consumed) for the
+  referrer and referee, so both get 10 bonus free-key runs. Idempotent per
+  pair.
+
+### Cost transparency (BYO-key or free-key)
+- Report and debate action docks now surface a **This run / This debate**
+  cost chip: dollar amount when priced, token count otherwise. Makes the
+  value of the free-key trial visible and converts curious users to
+  paid keys once they see the numbers.
+
+### Share loop: research report
+- The research-report dock gains a **Share report** button as the first,
+  most prominent action. Posts `/share`, copies the `/r/:id` link, fires the
+  existing `pnToast`. One click, one link. (`/d/:id` for debates was already
+  covered by the verdict-card share flow.)
+
+### Cookie-gated Big Bang intro
+- The KG's Big Bang cinematic now shows only on first visit (or after 30
+  days). Repeat visitors go straight to the graph. Kept the intro for the
+  moment of delight, killed it for the tax on returning users.
+
+### SEO / LLM discoverability
+- Added `Person` JSON-LD for Ashwarya Pradhan alongside the existing
+  `SoftwareApplication` schema so search engines and LLMs correctly link
+  Polynous back to its founder and their LinkedIn / GitHub profiles.
+- Added `<meta name="author" content="Ashwarya Pradhan" />`.
+
+### Backend
+- New router `app/routes/growth.py`, wired into `main.py`. Endpoints:
+  `GET /discover`, `POST /graph/share`, `GET /graph/share/:id`,
+  `POST /import/notes`, `POST /referral/register`. Reuses the existing
+  `SharedReport` table (new `kind='graph'`) and the existing `UsageLog`
+  table (new `mode='referral'`) so no migration is needed.
+
+### Deferred (called out honestly)
+- Chrome extension: needs its own repo + manifest + Chrome Web Store listing.
+- Embed widget (`/embed/d/:id`, `/embed/r/:id`): needs iframe-safe minimal
+  render; the read-only KG view could be adapted first.
+
+### Caveats
+- Referral credit assumes the rate-limiter treats negative UsageLog rows as
+  bonus quota; verify against `enforce()` once the backend is live. Import
+  extractor is deterministic capitalised-phrase; upgradable to the real
+  entity pipeline when a run happens on the imported entry.
+
+---
+
 ## [Unreleased] — Knowledge Graph: grounded node actions, edge percentile filter, date timeline, See-in-graph, TF-IDF fallback labels
 
 ### Grounded actions on a selected node

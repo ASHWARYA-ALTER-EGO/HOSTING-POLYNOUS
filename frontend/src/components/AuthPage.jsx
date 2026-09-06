@@ -464,7 +464,23 @@ function LoginCard({ onLogin, oauthError }) {
       }));
       localStorage.setItem('polynous_user_id', data.user_id);
       localStorage.setItem('polynous_username', data.username || email.split('@')[0]);
-      
+
+      // Referral: if this signup arrived via a ?ref=<public_id> landing, credit
+      // both users. Fire-and-forget — never block signup on the reward.
+      if (!isLogin) {
+        try {
+          const ref = localStorage.getItem('polynous_ref');
+          if (ref && ref !== data.user_id) {
+            fetch(`${API_BASE_URL}/referral/register`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ referrer_public_id: ref, referee_public_id: data.user_id }),
+            }).catch(() => {});
+            localStorage.removeItem('polynous_ref');
+          }
+        } catch (_) { /* silent */ }
+      }
+
       // New users get the onboarding demo BEFORE entering the app; logins go
       // straight in. The overlay's continue/skip resumes the normal flow.
       if (!isLogin) {

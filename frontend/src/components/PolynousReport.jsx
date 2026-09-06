@@ -1633,6 +1633,9 @@ export default function PolynousReport(props) {
     query: props.query || d.query || "",
     findings: d.findings || [],
     boundaries: d.boundaries || [],
+    cost: d.telemetry && d.telemetry.cost,
+    tokens: d.telemetry && d.telemetry.tokens,
+    model: d.model,
   };
   return (
     <>

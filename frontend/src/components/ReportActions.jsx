@@ -257,9 +257,40 @@ export default function ReportActions({ ctx, onRunQuery }) {
       window.location.assign("/?q=" + encodeURIComponent(q));
     }
   };
+  const cost = ctx && ctx.cost;
+  const tokens = ctx && ctx.tokens;
+  const shareReport = async () => {
+    try {
+      const snap = window.__rpSnapshot || {};
+      if (!snap.answer && !snap.report) { setWhich(null); return; }
+      const tok = getAuthToken();
+      const res = await fetch(API_BASE_URL + "/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(tok ? { Authorization: "Bearer " + tok } : {}) },
+        body: JSON.stringify({ kind: "research", title: snap.query || "", payload: snap }),
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      const url = window.location.origin + (j.url_path || ("/r/" + j.id));
+      try { await navigator.clipboard.writeText(url); } catch (_) {}
+      if (typeof window.pnToast === "function") window.pnToast("Public link copied: " + url);
+    } catch (_) { /* silent */ }
+  };
   return (
     <>
       <div className={"ra-dock" + (open ? " is-open" : "")} data-print-hide>
+        {(cost != null || tokens != null) && (
+          <div className="ra-cost-chip" title="What this run actually cost">
+            <span className="ra-cost-lbl">This run</span>
+            <span className="ra-cost-val">
+              {cost ? "$" + Number(cost).toFixed(4) : (tokens ? Number(tokens).toLocaleString() + " tok" : "free")}
+            </span>
+          </div>
+        )}
+        <button className="ra-dock-btn ra-dock-share" onClick={shareReport}>
+          <span className="ra-dock-glyph">⇪</span>
+          <span className="ra-dock-lbl">Share report</span>
+        </button>
         <button className="ra-dock-btn" onClick={() => setWhich("debate")}>
           <span className="ra-dock-glyph">⚔</span>
           <span className="ra-dock-lbl">Debate report</span>

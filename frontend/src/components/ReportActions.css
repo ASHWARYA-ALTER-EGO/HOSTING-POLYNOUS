@@ -369,4 +369,25 @@
   40% { opacity: 1; transform: scale(1.15); }
 }
 
+/* Cost transparency chip + share prominence */
+.ra-cost-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px 6px 12px;
+  background: color-mix(in srgb, var(--ra-ink) 4%, var(--ra-surface));
+  border: 1px solid var(--ra-line);
+  border-radius: 999px;
+  box-shadow: 0 8px 18px -8px rgba(15,18,22,0.18);
+  font: 500 10.5px/1 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.06em;
+  min-width: 178px;
+}
+.ra-cost-lbl { color: var(--ra-mut); text-transform: uppercase; }
+.ra-cost-val { color: var(--ra-accent); font-weight: 700; }
+.ra-dock-share { background: var(--ra-ink); color: var(--ra-surface); border-color: var(--ra-ink); }
+.ra-dock-share:hover { transform: translateY(-2px); box-shadow: 0 14px 26px -10px rgba(15,18,22,0.4); }
+.ra-dock-share .ra-dock-glyph { background: color-mix(in srgb, var(--ra-surface) 20%, transparent); color: var(--ra-surface); }
+
 @media print { .ra-dock, .ra-back { display: none !important; } }

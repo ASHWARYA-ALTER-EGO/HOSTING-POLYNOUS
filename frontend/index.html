@@ -102,6 +102,26 @@
       ]
     }
     </script>
+
+    <!-- Person schema: helps Google and LLMs correctly attribute Polynous
+         to Ashwarya Pradhan and surface the right social profiles. Update
+         `sameAs` with the real handles once the profile URLs are final. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      "name": "Ashwarya Pradhan",
+      "url": "https://polynous.pages.dev/",
+      "jobTitle": "Founder, Polynous",
+      "worksFor": { "@type": "Organization", "name": "Polynous" },
+      "description": "Founder of Polynous, a multi-agent AI research and debate platform.",
+      "sameAs": [
+        "https://github.com/ashwaryapradhan",
+        "https://www.linkedin.com/in/ashwaryapradhan"
+      ]
+    }
+    </script>
+    <meta name="author" content="Ashwarya Pradhan" />
   </head>
 
   <body>

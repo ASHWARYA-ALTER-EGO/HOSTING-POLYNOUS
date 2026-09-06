@@ -826,6 +826,9 @@ export default function PolynousDebateReport(props) {
     proReb: d.forRebuttal,
     conReb: d.againstRebuttal,
     verdict: d.reasoning || d.strongest || d.winnerLabel,
+    cost: d.cost,
+    tokens: d.tokens,
+    model: d.model,
   };
   return (
     <>

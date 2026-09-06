@@ -335,9 +335,19 @@ export default function DebateActions({ ctx }) {
     const t = setTimeout(() => setOpen(true), 240);
     return () => clearTimeout(t);
   }, []);
+  const cost = ctx && ctx.cost;
+  const tokens = ctx && ctx.tokens;
   return (
     <>
       <div className={"ra-dock" + (open ? " is-open" : "")} data-print-hide>
+        {(cost != null || tokens != null) && (
+          <div className="ra-cost-chip" title="What this debate actually cost">
+            <span className="ra-cost-lbl">This debate</span>
+            <span className="ra-cost-val">
+              {cost ? "$" + Number(cost).toFixed(4) : (tokens ? Number(tokens).toLocaleString() + " tok" : "free")}
+            </span>
+          </div>
+        )}
         <button className="ra-dock-btn" onClick={() => setWhich("cx")}>
           <span className="ra-dock-glyph">?</span>
           <span className="ra-dock-lbl">Cross-examine</span>

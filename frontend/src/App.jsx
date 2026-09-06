@@ -25,6 +25,8 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
 const PolynousReport = lazy(() => import('./components/PolynousReport'))
 const PolynousDebateReport = lazy(() => import('./components/PolynousDebateReport'))
 const SharedReportView = lazy(() => import('./components/SharedReportView'))
+const SharedGraphView = lazy(() => import('./components/SharedGraphView'))
+const DiscoverPage = lazy(() => import('./components/DiscoverPage'))
 const PrivacyPage = lazy(() => import('./components/StaticPages').then(m => ({ default: m.PrivacyPage })))
 const TermsPage = lazy(() => import('./components/StaticPages').then(m => ({ default: m.TermsPage })))
 const DocsPage = lazy(() => import('./components/StaticPages').then(m => ({ default: m.DocsPage })))
@@ -48,6 +50,7 @@ const ROUTE_TITLES = {
   '/search': 'Semantic Search — Polynous',
   '/pdf-lab': 'PDF Lab — Polynous',
   '/analytics': 'Analytics — Polynous',
+  '/discover': 'Discover — Polynous',
 };
 
 function RouteTitles() {
@@ -59,6 +62,24 @@ function RouteTitles() {
     else if (path === '/auth/callback') document.title = 'Signing in — Polynous';
     else document.title = BASE_TITLE;
   }, [location.pathname]);
+  // Capture ?ref=<public_id> once, stash for 30 days so the credit fires on
+  // signup even if the visitor bounces and returns later.
+  useEffect(() => {
+    try {
+      const usp = new URLSearchParams(location.search || '');
+      const ref = usp.get('ref');
+      if (ref && /^[\w-]{6,64}$/.test(ref)) {
+        localStorage.setItem('polynous_ref', ref);
+        localStorage.setItem('polynous_ref_at', String(Date.now()));
+      }
+      // Expire ref after 30 days.
+      const at = Number(localStorage.getItem('polynous_ref_at') || 0);
+      if (at && (Date.now() - at) > 30 * 24 * 60 * 60 * 1000) {
+        localStorage.removeItem('polynous_ref');
+        localStorage.removeItem('polynous_ref_at');
+      }
+    } catch (_) { /* silent */ }
+  }, [location.search]);
   return null;
 }
 
@@ -410,6 +431,8 @@ export default function App() {
         {/* Public, no-sign-in shared report views (from Copy-link). */}
         <Route path="/r/:id" element={<SharedReportView kind="research" />} />
         <Route path="/d/:id" element={<SharedReportView kind="debate" />} />
+        <Route path="/g/:id" element={<SharedGraphView />} />
+        <Route path="/discover" element={<DiscoverPage />} />
         <Route path="/debate-preview" element={<DebateInterface preview onNavigate={navigateTo} onLogout={handleLogout} user={{ username: 'Preview' }} />} />
 
         {/* ── CATCH-ALL: themed 404 page ────────────────── */}

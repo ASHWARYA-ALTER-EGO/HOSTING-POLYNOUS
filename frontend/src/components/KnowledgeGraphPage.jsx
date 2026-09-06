@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { KGNodeActions, KGPathExplain, EdgeWeightSlider } from "./KGActions";
+import ImportNotesModal from "./ImportNotesModal";
 import Sidebar from "./Sidebar";
 import { API_BASE_URL } from '../config';
 
@@ -1323,7 +1324,21 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
   const cameraTargetRef = useRef(null);
 
   // ── INTRO STATE ──────────────────────────────────────────
-  const [introComplete, setIntroComplete] = useState(false);
+  // Gate Big Bang intro to first visit only — repeat visitors bounce on the
+  // 4-second animation. Skip if the user has seen it in the last 30 days.
+  const [introComplete, setIntroComplete] = useState(() => {
+    try {
+      const seen = localStorage.getItem("polynous_kg_intro_seen");
+      if (!seen) return false;
+      const days = (Date.now() - Number(seen)) / (1000 * 60 * 60 * 24);
+      return days < 30;
+    } catch { return false; }
+  });
+  useEffect(() => {
+    if (introComplete) {
+      try { localStorage.setItem("polynous_kg_intro_seen", String(Date.now())); } catch (_) {}
+    }
+  }, [introComplete]);
   const [nodeAnimProgress, setNodeAnimProgress] = useState(0);
   const nodeAnimRef = useRef(null);
   const nodeAnimStartRef = useRef(null);
@@ -1364,6 +1379,22 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
   const [activeEdgeTypes, setActiveEdgeTypes] = useState(new Set(Object.keys(EDGE_LABELS)));
   const [edgeWeightPct, setEdgeWeightPct] = useState(0); // 0 = show all, 90 = show top 10% by weight
   const [pathExplainOpen, setPathExplainOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [shareToast, setShareToast] = useState("");
+  const shareGraph = useCallback(async () => {
+    try {
+      const tok = getToken();
+      const res = await fetch(`${API_BASE_URL}/graph/share`, {
+        method: "POST", headers: { "Content-Type": "application/json", ...(tok ? { Authorization: "Bearer " + tok } : {}) },
+      });
+      if (!res.ok) { setShareToast("Sign in to share your graph."); return; }
+      const j = await res.json();
+      const url = window.location.origin + (j.url_path || ("/g/" + j.id));
+      try { await navigator.clipboard.writeText(url); } catch (_) {}
+      setShareToast("Public link copied: " + url);
+    } catch (e) { setShareToast("Share failed. Try again."); }
+    setTimeout(() => setShareToast(""), 4200);
+  }, []);
   const [centrality, setCentrality]     = useState({});
   const [centralityMode, setCentralityMode] = useState(false);
   const [nodeMetrics, setNodeMetrics]   = useState({});   // label -> {pagerank, betweenness, community, degree}
@@ -2596,6 +2627,24 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
         input[type=range] { appearance: none; height: 3px; border-radius: 2px; background: rgba(168,85,247,0.22); }
         input[type=range]::-webkit-slider-thumb { appearance: none; width: 9px; height: 9px; border-radius: 50%; background: #a855f7; cursor: pointer; }
       `}</style>
+      {/* Import from ChatGPT/NotebookLM + Share your graph + toast --------- */}
+      <div style={{ position: "fixed", top: 20, right: 20, zIndex: 70, display: "flex", gap: 8 }} data-print-hide>
+        <button onClick={() => setImportOpen(true)}
+          style={{ padding: "8px 14px", background: "rgba(11,9,20,0.9)", border: "1px solid rgba(168,85,247,0.3)", color: "#d8b4fe", borderRadius: 999, fontFamily: "'Space Grotesk',sans-serif", fontSize: 11.5, letterSpacing: "0.02em", fontWeight: 500, cursor: "pointer", backdropFilter: "blur(12px)" }}>
+          + Import from ChatGPT
+        </button>
+        <button onClick={shareGraph}
+          style={{ padding: "8px 14px", background: "rgba(168,85,247,0.18)", border: "1px solid rgba(168,85,247,0.5)", color: "#d8b4fe", borderRadius: 999, fontFamily: "'Space Grotesk',sans-serif", fontSize: 11.5, letterSpacing: "0.02em", fontWeight: 600, cursor: "pointer", backdropFilter: "blur(12px)" }}>
+          Share graph
+        </button>
+      </div>
+      {shareToast && (
+        <div style={{ position: "fixed", bottom: 84, left: "50%", transform: "translateX(-50%)", zIndex: 90, background: "rgba(11,9,20,0.95)", border: "1px solid rgba(168,85,247,0.35)", color: "#d8b4fe", padding: "10px 18px", borderRadius: 999, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, letterSpacing: "0.04em", backdropFilter: "blur(12px)" }} data-print-hide>
+          {shareToast}
+        </div>
+      )}
+      <ImportNotesModal open={importOpen} onClose={() => setImportOpen(false)}
+        onImported={() => { setImportOpen(false); setTimeout(() => loadGraph(useRichGraph), 300); }} />
     </div>
   );
 }

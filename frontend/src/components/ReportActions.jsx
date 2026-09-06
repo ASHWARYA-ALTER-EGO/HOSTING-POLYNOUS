@@ -272,6 +272,15 @@ export default function ReportActions({ ctx, onRunQuery }) {
           <span className="ra-dock-glyph">↳</span>
           <span className="ra-dock-lbl">Chain research</span>
         </button>
+        {ctx && ctx.query && (
+          <button className="ra-dock-btn" onClick={() => {
+            const q = encodeURIComponent(ctx.query);
+            window.location.assign(`/graph?focus=${q}`);
+          }}>
+            <span className="ra-dock-glyph">◉</span>
+            <span className="ra-dock-lbl">See in graph</span>
+          </button>
+        )}
       </div>
       <DebateModal open={which === "debate"} onClose={() => setWhich(null)} ctx={ctx} />
       <PerspectiveModal open={which === "persp"} onClose={() => setWhich(null)} ctx={ctx} />

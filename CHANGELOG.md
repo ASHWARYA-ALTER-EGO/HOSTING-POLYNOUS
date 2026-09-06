@@ -7,6 +7,63 @@ and compile-verified but not yet exercised end-to-end in production).
 
 ---
 
+## [Unreleased] — Knowledge Graph: grounded node actions, edge percentile filter, date timeline, See-in-graph, TF-IDF fallback labels
+
+### Grounded actions on a selected node
+- **Why is this connected?** — pick any neighbor of the selected node; the LLM
+  explains the edge in one grounded sentence (<= 32 words) and marks the tie
+  as strong / tentative / weak. Neighbors are pre-ranked by edge weight so the
+  strongest link comes first.
+- **Summarize this cluster** — for the selected node's community, the LLM
+  writes a 5-9 word headline, a 3-5 sentence read of what the cluster is
+  really about, and one open question worth exploring next. Grounded strictly
+  in the cluster's own members (up to 12 summaries).
+- **Explain this path** — when Pathfinder has a result, one click walks each
+  hop (`from -> to`, why in <= 22 words) and closes with a one-sentence
+  read of the overall bridge.
+
+### Edge quality: percentile slider
+- New **Edges shown / top N%** slider in the graph controls. Filters visible
+  edges by weight percentile (0 = show all, 90 = show top 10%). Kills
+  hairballs without redrawing anything or losing structure.
+
+### Timeline: real dates, not just insertion order
+- Growth reveal is now date-aware. If nodes carry `created_at` / `timestamp`,
+  the timeline sorts by that and shows a "cursor date" chip next to the
+  reveal counter, so playback reads as "the graph on 17 May 2026", not
+  "N nodes shown".
+
+### See in graph, from any research report
+- The research-report dock gains a **See in graph** pill. It navigates to
+  `/graph?focus=<query>`; the KG page reads the param on load, selects the
+  matching node, centers on it, and clears the URL so a refresh doesn't
+  re-focus.
+
+### Instant, deterministic community labels
+- New `GET /knowledge/tfidf-labels` computes top-TF-IDF terms per community
+  from node labels/summaries. Runs on the graph payload directly, needs no
+  key, and returns instantly. The KG page fetches this on graph load so
+  cluster chips read as "Alignment · RLHF · Reward Hacking" from the first
+  paint. The existing LLM `/community-labels` endpoint still upgrades these
+  later with richer wording when a key is present.
+
+### Backend
+- New router `app/routes/kg_actions.py`, wired into `main.py`:
+  - `POST /knowledge/why-connected`
+  - `POST /knowledge/summarize-cluster`
+  - `POST /knowledge/explain-path`
+  - `GET  /knowledge/tfidf-labels`
+- LLM endpoints reuse `report_chat._resolve_user_key` and the provider-agnostic
+  `_call_llm` from `report_actions.py`. No new web fetches: the model only
+  sees node summaries already in the user's own graph.
+
+### Caveats
+- LLM endpoints need a live BYO-key run to QA answer quality. TF-IDF labels,
+  edge percentile slider, timeline dates and See-in-graph verified in the
+  frontend build.
+
+---
+
 ## [Unreleased] — Interactive report actions: debate, perspective, cross-exam, replay, share, chain-of-research
 
 ### Research report

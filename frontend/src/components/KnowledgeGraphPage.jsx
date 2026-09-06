@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { KGNodeActions, KGPathExplain, EdgeWeightSlider } from "./KGActions";
 import Sidebar from "./Sidebar";
 import { API_BASE_URL } from '../config';
 
@@ -1070,6 +1071,12 @@ function TimelineSlider({ onExportGIF, exporting, growthStep, maxGrowthStep, gro
           <div style={{ position: "absolute", left: 0, top: 0, height: "100%", borderRadius: 2, width: `${growthPct}%`, background: "linear-gradient(90deg,#7c3aed,#a855f7,#c084fc)" }} />
         </div>
         <span style={{ fontFamily: "'Space Grotesk',monospace", fontSize: 9, color: "#a855f7", fontWeight: 700, minWidth: 60 }}>{growthStep}/{maxGrowthStep}</span>
+        {/* Real-date cursor: only rendered when nodes carry timestamps. */}
+        {typeof window !== "undefined" && window.__kgGrowthDate && (
+          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: "rgba(200,210,224,0.6)", letterSpacing: "0.06em", padding: "2px 6px", border: "1px solid rgba(168,85,247,0.2)", borderRadius: 4, background: "rgba(168,85,247,0.05)" }}>
+            {window.__kgGrowthDate}
+          </span>
+        )}
         {/* Speed buttons */}
         {[0.5, 1, 2, 4].map(s => (
           <button key={s} onClick={() => onSpeedChange(s)} style={{ padding: "2px 6px", borderRadius: 4, fontSize: 8, cursor: "pointer", background: growthSpeed === s ? "rgba(168,85,247,0.2)" : "rgba(255,255,255,0.03)", border: `1px solid ${growthSpeed === s ? "rgba(168,85,247,0.45)" : "rgba(255,255,255,0.06)"}`, color: growthSpeed === s ? "#c084fc" : "rgba(255,255,255,0.3)", fontFamily: "'Space Grotesk',sans-serif" }}>
@@ -1355,6 +1362,8 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [pathResult, setPathResult]     = useState(null);
   const [activeEdgeTypes, setActiveEdgeTypes] = useState(new Set(Object.keys(EDGE_LABELS)));
+  const [edgeWeightPct, setEdgeWeightPct] = useState(0); // 0 = show all, 90 = show top 10% by weight
+  const [pathExplainOpen, setPathExplainOpen] = useState(false);
   const [centrality, setCentrality]     = useState({});
   const [centralityMode, setCentralityMode] = useState(false);
   const [nodeMetrics, setNodeMetrics]   = useState({});   // label -> {pagerank, betweenness, community, degree}
@@ -1448,6 +1457,49 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
 
   useEffect(() => { loadGraph(true); }, []);
 
+  // TF-IDF community labels — instant, deterministic, works offline. Runs
+  // once as soon as the graph loads so we NEVER see raw "cluster_7" chips.
+  // The LLM /community-labels endpoint (called later) upgrades these.
+  useEffect(() => {
+    if (!graphData.nodes || graphData.nodes.length === 0) return;
+    if (communityLabels && Object.keys(communityLabels).length) return;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/knowledge/tfidf-labels`, { headers: { ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) } });
+        if (!res.ok) return;
+        const j = await res.json();
+        if (j && j.labels && Object.keys(j.labels).length) setCommunityLabels(prev => prev && Object.keys(prev).length ? prev : j.labels);
+      } catch (_) { /* silent */ }
+    })();
+  }, [graphData.nodes, communityLabels]);
+
+  // Focus a node when arriving via /?focus=<label> or /knowledge-graph?focus=<label>
+  // (e.g. a "See in graph" pill from a research report). We select the node,
+  // pan-to-center it, and flash a 2-hop halo via the existing highlight machinery.
+  useEffect(() => {
+    if (!graphData.nodes || graphData.nodes.length === 0) return;
+    try {
+      const usp = new URLSearchParams(window.location.search || "");
+      const focus = usp.get("focus");
+      if (!focus) return;
+      const target = graphData.nodes.find(n => (n.label || n.id || "").toLowerCase() === focus.toLowerCase())
+                  || graphData.nodes.find(n => (n.label || n.id || "").toLowerCase().includes(focus.toLowerCase()));
+      if (!target) return;
+      setTimeout(() => {
+        setSelectedNode(target);
+        const pos = positions.find(p => p.id === target.id) || target;
+        if (pos && typeof pos.x === "number") {
+          setPan({ x: -pos.x, y: -pos.y });
+          setZoom(1.6);
+        }
+        // Clean the query param so refresh doesn't refocus.
+        const url = new URL(window.location.href);
+        url.searchParams.delete("focus");
+        window.history.replaceState({}, "", url.toString());
+      }, 500);
+    } catch (_) { /* ignore */ }
+  }, [graphData.nodes, positions]);
+
   useEffect(() => {
     if (graphData.nodes?.length) setCentrality(computeCentrality(graphData.nodes, graphData.edges || []));
   }, [graphData]);
@@ -1510,8 +1562,40 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
     try { localStorage.setItem("polynous_graph_positions", JSON.stringify(toSave)); } catch (e) {}
   }, [positions, dragging, nodeAnimProgress]);
 
-  const growthOrderIds = (graphData.nodes || []).map(n => n.id);
+  // Date-aware timeline: if nodes carry a `created_at` / `timestamp`, replay
+  // the graph as it actually grew day-by-day. Otherwise fall back to insertion
+  // order. `growthDates` mirrors `growthOrderIds` and drives the date readout.
+  const { growthOrderIds, growthDates } = useMemo(() => {
+    const ns = graphData.nodes || [];
+    const toTs = (n) => {
+      const raw = n.created_at || n.createdAt || n.timestamp || (n.metrics && n.metrics.created_at);
+      if (!raw) return null;
+      const t = Date.parse(raw);
+      return Number.isFinite(t) ? t : null;
+    };
+    const withTs = ns.map(n => ({ id: n.id, ts: toTs(n) }));
+    const anyTs = withTs.some(x => x.ts !== null);
+    const sorted = anyTs
+      ? withTs.slice().sort((a, b) => (a.ts ?? Infinity) - (b.ts ?? Infinity))
+      : withTs;
+    return {
+      growthOrderIds: sorted.map(x => x.id),
+      growthDates: sorted.map(x => x.ts),
+    };
+  }, [graphData.nodes]);
   const maxGrowthStep  = growthOrderIds.length;
+  // Human-readable "cursor date" for the timeline (only when we actually have
+  // timestamps to show).
+  const growthCursorDate = (() => {
+    const t = growthDates && growthDates[Math.max(0, growthStep - 1)];
+    if (!t) return null;
+    try { return new Date(t).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); }
+    catch { return null; }
+  })();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.__kgGrowthDate = growthCursorDate;
+  }, [growthCursorDate]);
   const revealedNodeIds = growthPlaying || growthStep > 0
     ? new Set(growthOrderIds.slice(0, growthStep))
     : new Set(growthOrderIds);
@@ -1668,10 +1752,21 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
   }, [graphData, centerGraph]);
 
   const filteredPositions = positions.filter(n => filter === "all" || n.type === filter);
+  // Percentile cutoff on edge weight: cheap way to kill hairballs without
+  // losing structure. edgeWeightPct=0 keeps everything, 90 keeps the top 10%.
+  const edgeWeightCutoff = (() => {
+    const es = graphData.edges || [];
+    if (!es.length || edgeWeightPct <= 0) return -Infinity;
+    const ws = es.map(e => Number(e.weight || 1)).sort((a, b) => a - b);
+    const idx = Math.min(ws.length - 1, Math.floor((edgeWeightPct / 100) * ws.length));
+    return ws[idx];
+  })();
   const filteredEdges = (graphData.edges || []).filter(e => {
     const sv = filter === "all" || positions.find(n => n.id === e.source)?.type === filter;
     const tv = filter === "all" || positions.find(n => n.id === e.target)?.type === filter;
-    return (sv || tv) && (!e.type || activeEdgeTypes.has(e.type));
+    const passesType = !e.type || activeEdgeTypes.has(e.type);
+    const passesWeight = Number(e.weight || 1) >= edgeWeightCutoff;
+    return (sv || tv) && passesType && passesWeight;
   });
 
   // Cluster-collapse display model — super-nodes at community centroids when
@@ -2202,6 +2297,9 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
                 <div style={{ padding:"10px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
                   <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:"rgba(214,196,255,0.72)", fontFamily:"'Space Grotesk',sans-serif", marginBottom:6 }}>Edge Types</div>
                   <EdgeTypeFilter activeEdgeTypes={activeEdgeTypes} onToggle={toggleEdgeType} />
+                  <div style={{ marginTop: 10 }}>
+                    <EdgeWeightSlider value={edgeWeightPct} onChange={setEdgeWeightPct} min={0} max={95} />
+                  </div>
                 </div>
                 <div style={{ padding:"10px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
                   <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", color:"rgba(214,196,255,0.72)", fontFamily:"'Space Grotesk',sans-serif", marginBottom:6 }}>Graph Mode</div>
@@ -2413,11 +2511,32 @@ export default function KnowledgeGraphPage({ user, onStartResearch, onNavigate, 
           </div>
 
           {selectedNode && (
-            <NodeDetailPanel node={selectedNode} details={nodeDetails} research={nodeResearch} positions={positions}
-              onClose={() => { setSelectedNode(null); setNodeDetails(null); setNodeResearch([]); setFocusMode(false); setPathResult(null); }}
-              onResearch={onStartResearch} onFindPath={() => setShowPathfinder(true)}
-              onJump={label => { const p = positions.find(n => n.label === label); if (p) navigateToNode(p); }} />
+            <>
+              <NodeDetailPanel node={selectedNode} details={nodeDetails} research={nodeResearch} positions={positions}
+                onClose={() => { setSelectedNode(null); setNodeDetails(null); setNodeResearch([]); setFocusMode(false); setPathResult(null); }}
+                onResearch={onStartResearch} onFindPath={() => setShowPathfinder(true)}
+                onJump={label => { const p = positions.find(n => n.label === label); if (p) navigateToNode(p); }} />
+              <div style={{ position:"absolute", right: 24, bottom: 130, zIndex: 51, width: 340, maxWidth:"calc(100vw - 48px)" }}>
+                <KGNodeActions node={selectedNode}
+                  edges={graphData.edges || []}
+                  nodes={graphData.nodes || []}
+                  nodeMetrics={nodeMetrics}
+                  communityLabels={communityLabels} />
+                {pathResult && pathResult.nodeIds && pathResult.nodeIds.length >= 2 && (
+                  <button className="kga-act" style={{ marginTop: 8, width:"100%" }}
+                    onClick={() => setPathExplainOpen(true)}>
+                    <span className="kga-glyph">→</span>
+                    <span>Explain path ({pathResult.nodeIds.length} hops)</span>
+                  </button>
+                )}
+              </div>
+            </>
           )}
+          <KGPathExplain open={pathExplainOpen} onClose={() => setPathExplainOpen(false)}
+            path={(pathResult && pathResult.nodeIds ? pathResult.nodeIds : []).map(id => {
+              const n = (graphData.nodes || []).find(x => x.id === id);
+              return n ? (n.label || n.id) : id;
+            })} />
 
           {hoveredLong && !selectedNode && !dragging && !contextMenu && (
             <HoverPopup key={hoveredLong.id} node={hoveredLong} position={hoverPopupPos} connections={hoveredConnCount} />

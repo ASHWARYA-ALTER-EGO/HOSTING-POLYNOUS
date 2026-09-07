@@ -278,14 +278,30 @@ export default function DebateChamberSection() {
       <div ref={ref} className="dc-reveal">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 0.55fr", gap: "48px", alignItems: "end", marginBottom: "40px" }} className="dc-grid">
           <div>
-            <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "11px", color: C.crimson, letterSpacing: "0.2em", marginBottom: "16px", opacity: 0.8 }}>↓ Debate Chamber</p>
+            <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "11px", color: C.crimson, letterSpacing: "0.2em", marginBottom: "16px", opacity: 0.8 }}>↓ Debate Chamber &middot; Judge separation system</p>
             <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 900, fontSize: "clamp(2.2rem,4.8vw,3.9rem)", lineHeight: 0.95, letterSpacing: "-0.055em", color: "#fff", margin: 0 }}>
-              Two sides.<br />One rubric-scored verdict.
+              Judged by a different model.<br />Scored on outcomes, not vibes.
             </h2>
           </div>
           <p style={{ fontFamily: "'Hanken Grotesk',sans-serif", fontSize: "16px", color: "rgba(130,148,168,0.82)", lineHeight: 1.7, margin: 0, paddingBottom: "4px" }}>
-            FOR and AGAINST build evidence-backed cases; a Judge scores each 1 to 10 and delivers a ruling with reasoning.
+            Advocates argue on the stronger model, the judge scores on the smaller one, same API key. Blind Team A / Team B labels. Opt-in agentic mode with a real point ledger; agents can PIVOT off a losing point mid-debate.
           </p>
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "32px" }}>
+          {[
+            ["Judge on different model", "gpt-4o advocates → gpt-4o-mini judge, one key"],
+            ["Blind A/B labels", "judge never sees FOR or AGAINST"],
+            ["Agentic mode", "assert → rebut → defend / concede / PIVOT"],
+            ["Point ledger", "outcomes: DEFENDED, CONCEDED, UNRESOLVED"],
+            ["Live streaming (SSE)", "watch every turn land in real time"],
+            ["Rejudge with any provider", "flip Claude → Gemini in one click"],
+            ["Cross-examination", "ask both sides your own question"],
+            ["Steelman first", "strongest form of each side, above the rubric"],
+          ].map(([k, v]) => (
+            <div key={k} title={v} style={{ padding: "5px 10px 5px 8px", borderRadius: "999px", border: "1px solid rgba(255,32,64,0.28)", background: "rgba(255,32,64,0.05)", fontFamily: "'JetBrains Mono',monospace", fontSize: "10px", letterSpacing: "0.06em", color: "rgba(240,220,225,0.9)", cursor: "help" }}>
+              <span style={{ color: C.crimson, marginRight: "6px" }}>◆</span>{k}
+            </div>
+          ))}
         </div>
 
         <div key={epoch} ref={wrapRef} className="chamber-card-premium dc-card" style={{

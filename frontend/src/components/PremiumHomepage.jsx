@@ -224,14 +224,15 @@ const NAV_SECTIONS = [
   {label:"How It Works", id:"how-it-works"},
   {label:"Features",     id:"features"},
   {label:"Pipeline",     id:"pipeline"},
+  {label:"Judge system", id:"credibility"},
   {label:"Agents",       id:"playground"},
 ];
 
 const STEPS = [
-  {n:"01", title:"Ask anything", body:"POLYNOUS activates its 7-agent neural mesh instantly. No waiting, no setup - just intent, translated into structured inquiry.", accent:C.green,   icon:"search"},
-  {n:"02", title:"Search & synthesize", body:"Dedicated agents scan, retrieve, and distill sources with automatic citation tracking. Every fact traced to origin.", accent:C.cyan,    icon:"manage_search"},
-  {n:"03", title:"Challenge & critique", body:"A dedicated Critic agent stress-tests every claim. Contradictions get flagged before they reach you - rigorous by default.", accent:C.amber,   icon:"balance"},
-  {n:"04", title:"Deliver structured truth", body:"The Writer synthesizes everything into polished, cited, confidence-scored output. Not a response - a document.", accent:C.purple,  icon:"auto_stories"},
+  {n:"01", title:"Ask anything", body:"Type a question. The pipeline activates instantly, no setup, no chat-history juggling. Your intent, translated into structured inquiry with a live progress strip.", accent:C.green,   icon:"search"},
+  {n:"02", title:"Search & synthesize", body:"Search + Summarise agents scan, retrieve, and distill real sources with automatic citation tracking. Grounded-sentence count is measured, not claimed.", accent:C.cyan,    icon:"manage_search"},
+  {n:"03", title:"Challenge & critique", body:"A dedicated Critic stress-tests every claim. Contradictions surface as their own section; ungrounded sentences get flagged in orange before you read the report.", accent:C.amber,   icon:"balance"},
+  {n:"04", title:"TL;DR first, dossier on demand", body:"The answer opens as a 3-sentence card with a heuristic score chip and a source strip. Full editorial dossier is one click away. Debate the report, view from another lens, or chain into a follow-up query.", accent:C.purple,  icon:"auto_stories"},
 ];
 
 // The SEVEN core pages/surfaces of POLYNOUS (one card per real page/route).
@@ -1854,9 +1855,9 @@ function FeaturesSection(){
           <PDFDropZone/>
         </div>
         <div style={{borderRadius:"20px",padding:"30px 32px",background:"rgba(10,10,22,0.85)",border:"1px solid rgba(255,255,255,0.055)",backdropFilter:"blur(16px)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"16px",textAlign:"center"}}>
-          <p style={{fontFamily:"JetBrains Mono,monospace",fontSize:"10px",color:C.green,letterSpacing:"0.12em",opacity:0.85}}>SCORED OUTPUT</p>
+          <p style={{fontFamily:"JetBrains Mono,monospace",fontSize:"10px",color:C.green,letterSpacing:"0.12em",opacity:0.85}}>HEURISTIC SCORE</p>
           <ConfidenceRing/>
-          <p style={{fontFamily:"Hanken Grotesk,sans-serif",fontSize:"12.5px",color:"rgba(130,148,168,0.6)",lineHeight:1.6,margin:0,maxWidth:"200px"}}>Every answer ships with a calibrated confidence score, not just a citation.</p>
+          <p style={{fontFamily:"Hanken Grotesk,sans-serif",fontSize:"12.5px",color:"rgba(130,148,168,0.6)",lineHeight:1.6,margin:0,maxWidth:"200px"}}>Rubric-derived: 30% source agreement + 20% domain diversity + 20% recency + 30% citation grounding. Not evaluated against ground truth.</p>
         </div>
       </div>
     </section>
@@ -2922,6 +2923,122 @@ function PDFLabSection(){
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   CREDIBILITY SECTION - the differentiator, landing-page front-and-centre.
+   Same content the /benchmarks page carries, condensed into three cards
+   sized to sit between the two chambers so nobody misses it.
+══════════════════════════════════════════════════════════════════════════ */
+function CredibilitySection(){
+  const ref = useReveal(0.08);
+  const cards = [
+    {
+      n: "A",
+      tag: "MODEL SEPARATION",
+      title: "Judged by a different model, same API key.",
+      body: "Advocates run on the stronger model in the provider's line-up; the judge runs on the smaller one on the same key. gpt-4o vs gpt-4o-mini. Claude Opus vs Haiku. Gemini Pro vs Flash. Different training data, different capacity, different reasoning. One key, meaningful separation.",
+      pairs: [
+        ["OpenAI", "gpt-4o → gpt-4o-mini"],
+        ["Anthropic", "opus-4 → haiku-4.5"],
+        ["Google", "gemini-pro → flash"],
+        ["Groq", "llama-70b → llama-8b"],
+      ],
+    },
+    {
+      n: "B",
+      tag: "BLIND JUDGING",
+      title: "The judge never sees FOR or AGAINST.",
+      body: "Sides are randomly relabelled Team A / Team B before the judge reads a single word, then remapped after scoring. The judge cannot bias by side name because it does not know which side is which. Every debate report proves it with a BLIND A/B badge on the masthead.",
+      pairs: [
+        ["Prompt to judge", "Team A / Team B only"],
+        ["Randomised", "coin flip per debate"],
+        ["Remapped", "after the score lands"],
+        ["Verifiable", "chip on every verdict"],
+      ],
+    },
+    {
+      n: "C",
+      tag: "AGENTIC POINT LEDGER",
+      title: "Agents argue point-by-point. Judge scores outcomes.",
+      body: "Opt-in agentic mode runs a real state machine: assert, rebut, defend, concede, or PIVOT to a new point mid-debate. Each point resolves as DEFENDED, CONCEDED, or UNRESOLVED. The judge scores from the resolved ledger (60%) plus LLM quality (40%). Every turn streams live via SSE.",
+      pairs: [
+        ["Turn types", "assert · rebut · defend · concede · PIVOT"],
+        ["Outcome scoring", "60% ledger + 40% quality"],
+        ["Guardrails", "3 rounds · 20 turns · cap enforced"],
+        ["Live streaming", "SSE, every turn as it lands"],
+      ],
+    },
+  ];
+  return(
+    <section id="credibility" style={{padding:"60px 0 80px", position:"relative"}}>
+      <SectionDivider/>
+      <div ref={ref} className="reveal">
+        <div style={{display:"grid",gridTemplateColumns:"1fr 0.55fr",gap:"48px",alignItems:"end",marginBottom:"40px"}} className="hiw-grid">
+          <div>
+            <p style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"11px",color:"#a855f7",letterSpacing:"0.24em",marginBottom:"18px",opacity:0.9,textTransform:"uppercase"}}>↓ Judge independence system</p>
+            <h2 style={{fontFamily:"'Sora',sans-serif",fontWeight:900,fontSize:"clamp(2.2rem,4.8vw,3.9rem)",lineHeight:0.95,letterSpacing:"-0.055em",color:"#fff",margin:0}}>
+              Nobody else does this.<br/>Here is exactly what we do.
+            </h2>
+          </div>
+          <p style={{fontFamily:"'Hanken Grotesk',sans-serif",fontSize:"16px",color:"rgba(210,220,235,0.75)",lineHeight:1.7,margin:0,paddingBottom:"4px"}}>
+            The debate-judge problem in every AI tool: the same model that argued the case scores it. We separate the models, blind the labels, and score objective outcomes. Every claim below is provable on the debate report itself.
+          </p>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3, 1fr)",gap:"14px"}} className="cred-grid">
+          {cards.map(card => (
+            <div key={card.n} style={{
+              position:"relative",
+              padding:"28px 26px 24px",
+              borderRadius:"20px",
+              background:"linear-gradient(180deg, rgba(168,85,247,0.06), rgba(10,10,22,0.9))",
+              border:"1px solid rgba(168,85,247,0.16)",
+              borderLeft:"3px solid #a855f7",
+              backdropFilter:"blur(18px)",
+              display:"flex",
+              flexDirection:"column",
+              gap:"14px",
+              minHeight:"320px",
+            }}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:"10px",letterSpacing:"0.22em",color:"rgba(214,196,255,0.55)"}}>{card.tag}</span>
+                <span style={{fontFamily:"'DM Serif Display',serif",fontSize:"32px",lineHeight:1,color:"rgba(168,85,247,0.55)"}}>{card.n}</span>
+              </div>
+              <h3 style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:"17px",lineHeight:1.28,color:"#fff",margin:0,letterSpacing:"-0.01em"}}>
+                {card.title}
+              </h3>
+              <p style={{fontFamily:"'Hanken Grotesk',sans-serif",fontSize:"13px",lineHeight:1.6,color:"rgba(210,220,235,0.72)",margin:0}}>
+                {card.body}
+              </p>
+              <div style={{marginTop:"auto",paddingTop:"14px",borderTop:"1px solid rgba(255,255,255,0.05)",display:"flex",flexDirection:"column",gap:"6px"}}>
+                {card.pairs.map(([k,v]) => (
+                  <div key={k} style={{display:"flex",justifyContent:"space-between",gap:"10px",fontFamily:"'JetBrains Mono',monospace",fontSize:"10.5px",letterSpacing:"0.02em"}}>
+                    <span style={{color:"rgba(214,196,255,0.5)"}}>{k}</span>
+                    <span style={{color:"#d8b4fe",textAlign:"right"}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{marginTop:"20px",display:"flex",gap:"12px",flexWrap:"wrap",justifyContent:"center"}}>
+          <a href="/benchmarks" style={{padding:"10px 22px",borderRadius:"999px",border:"1px solid rgba(168,85,247,0.4)",background:"rgba(168,85,247,0.10)",color:"#d8b4fe",textDecoration:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:"11px",letterSpacing:"0.12em",fontWeight:600}}>
+            SEE THE BENCHMARKS →
+          </a>
+          <a href="/settings" style={{padding:"10px 22px",borderRadius:"999px",border:"1px solid rgba(255,255,255,0.10)",background:"rgba(255,255,255,0.03)",color:"rgba(210,220,235,0.75)",textDecoration:"none",fontFamily:"'JetBrains Mono',monospace",fontSize:"11px",letterSpacing:"0.12em",fontWeight:500}}>
+            CONFIGURE MODEL TIERS
+          </a>
+        </div>
+      </div>
+      <style>{`
+        @media (max-width: 900px) {
+          .cred-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    WHY POLYNOUS - ORIGIN STORY SECTION
 ══════════════════════════════════════════════════════════════════════════ */
 function StorySection(){
@@ -3123,6 +3240,7 @@ export default function LandingPage(){
           <TechHighlights/>
           <AgentPlayground/>
           <ResearchChamberSection/>
+          <CredibilitySection/>
           <DebateChamberSection/>
           <KnowledgeGraphSection/>
           <MemoryBankSection/>

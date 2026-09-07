@@ -435,12 +435,27 @@ export default function ResearchChamberSection() {
           <div>
             <p style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "11px", color: C.green, letterSpacing: "0.2em", marginBottom: "16px", opacity: 0.8 }}>↓ Research Chamber</p>
             <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 900, fontSize: "clamp(2.2rem,4.8vw,3.9rem)", lineHeight: 0.95, letterSpacing: "-0.055em", color: "#fff", margin: 0 }}>
-              Ask once.<br />Get a report, not a guess.
+              Cited answers.<br />Faithfulness-scored, not guessed.
             </h2>
           </div>
           <p style={{ fontFamily: "'Hanken Grotesk',sans-serif", fontSize: "16px", color: "rgba(130,148,168,0.82)", lineHeight: 1.7, margin: 0, paddingBottom: "4px" }}>
-            Five specialized agents stream your answer in real time. Each stage visible, each source traceable, each contradiction flagged.
+            Every sentence traces to a fetched source. A heuristic score blends agreement, diversity, recency and citation grounding. Reads in 3 seconds; full editorial dossier on demand.
           </p>
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "32px" }}>
+          {[
+            ["TL;DR-first", "answer in 3 sentences, full dossier one click away"],
+            ["Heuristic score", "not a fake confidence number"],
+            ["Grounded sentences", "N of M sentences cite a source"],
+            ["Live pipeline strip", "search / summarise / critic / writer, per step"],
+            ["Chain-of-research", "one-click follow-ups from findings + gaps"],
+            ["Debate this report", "devil's-advocate rebuttal grounded in your sources"],
+            ["See in graph", "jump to the concept in your knowledge graph"],
+          ].map(([k, v]) => (
+            <div key={k} title={v} style={{ padding: "5px 10px 5px 8px", borderRadius: "999px", border: "1px solid rgba(0,255,15,0.28)", background: "rgba(0,255,15,0.05)", fontFamily: "'JetBrains Mono',monospace", fontSize: "10px", letterSpacing: "0.06em", color: "rgba(210,240,220,0.9)", cursor: "help" }}>
+              <span style={{ color: C.green, marginRight: "6px" }}>◆</span>{k}
+            </div>
+          ))}
         </div>
 
         <div key={epoch} ref={wrapRef} className="chamber-card-premium rc-card" style={{

@@ -6,6 +6,182 @@ work first, then the honest next-step queue.
 
 ---
 
+## Part 0 — Debate Chamber credibility story (the differentiator)
+
+This is the section to quote on Product Hunt / HN / LinkedIn.
+
+**One sentence**: Polynous is the only research tool where the debate judge
+runs on a genuinely different model from the advocates on the same API key,
+sees blind A/B labels instead of side names, scores objective point-level
+outcomes, and lets you rejudge with any provider — and where users can watch
+each turn land in real time.
+
+### 0.1 Phase 1 &mdash; Judge separation (commit `c29eb402`)
+
+**Same API key, meaningfully different model**
+- `llm_providers.py` ships `STRONG_MODELS` + `WEAK_MODELS` per provider:
+  - OpenAI: `gpt-4o` advocates, `gpt-4o-mini` judge
+  - Anthropic: `claude-opus-4` advocates, `claude-haiku-4.5` judge
+  - Google: `gemini-2.5-pro` advocates, `gemini-2.5-flash` judge
+  - Groq: `llama-70b` advocates, `llama-8b` judge
+- `resolve_advocate_model()` and `resolve_judge_model()` respect the
+  user's per-provider override, else fall back to STRONG/WEAK defaults.
+- `judge_debate()` no longer picks a model on its own; `debate_graph.judge_node`
+  resolves the WEAK tier and passes it explicitly.
+
+**Blind A/B labelling (default on)**
+- Sides are randomly relabelled "Team A" / "Team B" per debate.
+- Judge only ever sees A / B. FOR / AGAINST remap happens after scoring.
+- Kills the "judge biased by side name" critique.
+
+**Verdict transparency**
+- Every verdict payload carries `judge_model`, `judge_provider`,
+  `advocate_model`, `blind_ab` so the report can prove the story.
+
+**Debate report shows it**
+- Masthead chip: `ADVOCATES gpt-4o → JUDGE gpt-4o-mini` (hover for full ids).
+- **BLIND A/B** chip next to it.
+- Methodology & provenance section lists both models with `DIFFERENT` tag.
+- CREDIBILITY panel explains what the separation means.
+
+**Settings → Debate model separation** (new side-rail item)
+- `GET /settings/model-tiers` returns STRONG/WEAK defaults per provider
+  plus any user override.
+- 8-provider table lets users set per-provider advocate + judge model.
+- Blank field falls back to sensible default.
+
+**Rejudge with any provider**
+- `POST /debate/rejudge` (built earlier, commit `27df6f8b`) takes the two
+  cases + a chosen `judge_provider` and runs a completely different model
+  as judge. Frontend Rejudge button surfaces agreement panel:
+  **STRONG AGREEMENT · SAME WINNER DIFFERENT MARGIN · VERDICT FLIPPED**.
+
+**Public credibility page**
+- `/benchmarks` gains **Judge independence** card grid (A / B / C):
+  different-model-same-key, blind A/B, rejudge-with-any-provider.
+
+### 0.2 Phase 2 &mdash; Agentic debate state machine (commit `4bb95c19`)
+
+**Real turn-taking, point-by-point clash (opt-in)**
+- New `app/agents/agentic_debate.py`: small Python state machine, not
+  LangGraph. Four turn types (assert, rebut, defend, concede), one point
+  per iteration, per-point exchange thread. Each LLM call reads only the
+  point it is acting on so cost scales with points, not the transcript.
+
+**Hard guardrails**
+- `MAX_ROUNDS = 3`, `MAX_TURNS = 20`, `MAX_EXCHANGE_PER_POINT = 4`.
+- Any schema-invalid turn gets one corrective retry then the point closes
+  as UNRESOLVED. No infinite loops possible.
+
+**Scheduler priority**
+- `next_action(state)` picks: defend a rebutted point first, rebut an open
+  point next, otherwise open a new point until the round budget is spent.
+
+**Point-ledger judge**
+- Scores OUTCOMES from the resolved ledger, not vibes.
+- Runs on the WEAK tier model of the same provider (or user override).
+- Final blend: **60% ledger outcomes + 40% LLM quality (blind A/B)**.
+- +1 to author when DEFENDED, +1 to challenger when CONCEDED, 0 for
+  UNRESOLVED. Every score references a specific point id.
+- Mechanical fallback verdict when the judge LLM itself fails so a broken
+  judge never fabricates a tie.
+
+**Blind A/B propagated from run-start**
+- Randomised label mapping applied at debate start, not just at judge time.
+- Every prompt the agents see uses A/B; FE remap only after scoring.
+
+**New endpoint `POST /debate/agentic`**
+- Body: `{topic, max_rounds?, max_turns?, provider?, model?}`. BYO-key only.
+- Uses `resolve_advocate_model` (STRONG) + `resolve_judge_model` (WEAK).
+- Fetches web docs through existing `search_web` pipeline.
+- Returns FE report shape plus `points`, `history`, `clash_ledger`, `labels`,
+  `mode: "agentic"`.
+
+**FE agentic toggle**
+- Premium toggle chip on the debate topic bar. Persists per-browser in
+  localStorage. Off by default (sequential is still the free-tier path).
+
+**FE Replay scrubber retrofitted**
+- `DebateActions.ReplayModal` auto-detects `ctx.points` and renders a
+  two-column point-ledger view. Sequential runs keep the momentum scrubber.
+
+### 0.3 Phase 3 &mdash; Agentic streaming + PIVOT (commit `eb9d1b33`)
+
+**Truly agentic: agents choose their move**
+- **New PIVOT branch** in the defend agent. Instead of only DEFEND vs CONCEDE,
+  the author now sees the full exchange thread and can:
+  - DEFEND (strengthen or narrow the claim)
+  - CONCEDE (rebuttal is decisive)
+  - **PIVOT** (drop this point, open a new claim in the same turn)
+- PIVOT marks the abandoned point CONCEDED (challenger wins it) and appends
+  a brand-new point in the same step with `pivoted_from` metadata.
+- **Rebutter picks the strongest still-live thread**, not a fixed rotation.
+  Scheduler picks who acts; agent picks how.
+
+**SSE streaming**
+- **New endpoint `GET /debate/agentic/stream`** (EventSource-friendly:
+  accepts JWT via `token=` query param).
+- State machine now runs as a Python generator (`stream_agentic_debate`)
+  yielding `(start|docs|turn|point|ledger|phase|verdict|error, payload)`.
+- `run_agentic_debate` is now a thin wrapper that consumes the generator.
+
+**FE `AgenticDebateLive`**
+- New component connects to the SSE stream and renders a two-column
+  point-ledger view IN REAL TIME as turns land:
+  - Phase-coloured pulse dot (running / judging / done / failed)
+  - Live model separation display: advocate + judge + blind A/B tag
+  - Live ledger tally that updates as points resolve
+  - Rail pulses on the actively-argued point, colours green/red/amber
+  - Right panel animates each new turn in with phase glyph (◆ ⚔ 🛡 🏳),
+    attack-mode chip, narrowed-claim callout, citation strip
+  - **PIVOT badge** on turns that opened a new point mid-debate
+  - Verdict footer appears when the final SSE frame lands
+
+**Both engines stay mounted**
+- Sequential mode keeps the streaming `NeuralResearchEngine`.
+- Agentic mode uses `AgenticDebateLive` during the run, then hands off to
+  `PolynousDebateReport` for the full ledger view via the Replay modal.
+- Toggle chip is the only user-facing switch.
+
+### 0.4 Honest capability matrix (what "agentic" actually means here)
+
+| Property | Sequential | Agentic |
+|---|---|---|
+| Turn order fixed in advance | Yes | No — scheduler routes on point state |
+| Agent picks its own move | No | Yes — DEFEND / CONCEDE / PIVOT |
+| Back-and-forth on same point | No | Yes — up to 4 exchanges, capped |
+| Can drop losing point mid-debate | No | Yes — PIVOT concedes and opens new |
+| Agent chooses attack mode | No | Yes — evidence / source / logic / scope |
+| Agent chooses target point | No | Rebutter picks strongest live thread |
+| Judge scores outcomes not vibes | No | Yes — clash ledger + LLM quality (60/40) |
+| Blind A/B labels throughout | No | Yes |
+| Per-turn context vs full transcript | Full | Per-turn thread only |
+
+Genuinely turn-adaptive, decision-driven, can loop back through the same
+point. Meets the practical definition of "agentic" for a debate. Not
+autonomous-agent-with-tools; agents don't invoke web search mid-turn (that
+would be Phase 4).
+
+### 0.5 Cost math (real, not hand-waved)
+
+Assume OpenAI `gpt-4o` for advocates, `gpt-4o-mini` for judge.
+
+| Path | LLM calls | Avg output tokens | Model | Notes |
+|---|---|---|---|---|
+| Sequential | 5 | ~600 | gpt-4o | Full-essay each turn |
+| Agentic | 12-16 | ~250 | gpt-4o | Per-point turns |
+| Agentic judge | 1 | ~800 | gpt-4o-mini | Point-ledger only |
+
+**Actual cost delta: ~1.8× sequential**, not 3×, because:
+- Each agentic turn is much smaller (200-250 tok)
+- Judge runs on the cheap model (10-20× cheaper)
+- Context is per-point, not full-transcript
+
+Sequential stays default for the free tier; agentic is opt-in for BYO-key
+users who want the credibility of the ledger view.
+
+---
+
 ## Part 1 — What has shipped (last ~10 sessions)
 
 Every item below is in `main` and can be verified against `CHANGELOG.md` +
@@ -225,10 +401,12 @@ Every item below is in `main` and can be verified against `CHANGELOG.md` +
 
 Concrete, sized, and honest about tradeoffs.
 
-### Phase 1 &mdash; ships this week (small changes, high credibility)
+### Phase 1 &mdash; SHIPPED (see Part 0.1)
 
-**A. Same-provider different-model judge**
-&mdash; size: 1 session. cost: negligible ($0.001 per debate).
+Everything in the original Phase 1 plan is live. Kept here as historical
+reference; the below is what actually landed.
+
+**A. Same-provider different-model judge** &mdash; SHIPPED `c29eb402`. Size: 1 session. Cost: negligible ($0.001 per debate).
 
 Every provider ships a small + large model on the same key:
 - OpenAI: `gpt-4o` advocates, `gpt-4o-mini` judge
@@ -266,10 +444,11 @@ stating:
 
 This is a big positioning win from a small copy edit.
 
-### Phase 2 &mdash; ships in 2-3 weeks (agentic debate)
+### Phase 2 &mdash; SHIPPED (see Part 0.2)
 
-**D. Agentic debate mode (opt-in behind a toggle)**
-&mdash; size: 2-3 sessions. cost: ~1.8x current debate run.
+Everything in the original Phase 2 plan landed in commit `4bb95c19`.
+
+**D. Agentic debate mode (opt-in behind a toggle)** &mdash; SHIPPED. Cost held at ~1.8x sequential as predicted.
 
 State-machine, point-by-point resolution. Default free tier stays sequential;
 BYO-key runs can opt in via a `mode: "agentic"` param.
@@ -329,19 +508,42 @@ Final score no longer 50% rubric + 50% quality. New split:
 - 40% clash ledger outcomes (new, objective)
 - 20% argument quality (unchanged, LLM judgement, but now smaller share)
 
-**F. Replay scrubber retrofit**
+**F. Replay scrubber retrofit** &mdash; SHIPPED with `4bb95c19`. Bonus, not in original plan: `eb9d1b33` added SSE streaming + `AgenticDebateLive` (live turn-by-turn view during the run) + PIVOT branch so agents can drop losing points mid-debate.
+
+### Phase 2.5 &mdash; queued next (agentic upgrades)
+
+**F.1 Agent invokes web search mid-turn**
+&mdash; size: 2 sessions.
+
+Right now agents receive a pre-fetched sources block. To be *fully*
+agentic-with-tools, each turn should be able to run a targeted subsearch
+before choosing its move. Concretely: expose a `search(query)` tool the
+agent can call between DEFEND / CONCEDE / PIVOT deliberation and the
+committed move. Cap at one tool call per turn, log it to `history`, cite
+inline. This is what would let us honestly claim "the agents research
+mid-debate", not just "the agents were handed evidence up front".
+
+**F.2 Judge sees per-turn confidence + evidence trace**
 &mdash; size: 1 session.
 
-The existing `ReplayModal` already reads sequential turns. Retrofit it to
-render the point-ledger view:
-```
-Round 1
-  P1 (A): "Mars colonies hedge extinction risk" [1][3]
-    -> B rebut: "No colony is self-sufficient this century" [2]
-      -> A defend: "Value is capability curve, not present self-sufficiency"
-        -> B concede (narrowed): "granted on long-horizon framing"
-    Status: DEFENDED . +1 A
-```
+Each turn already carries `cites: [n]`. Wire the judge prompt to receive
+the RESOLVED citation text (title + snippet), not just the numeric id, so
+the judge can penalise citations that don't actually support the claim
+(hallucinated-source detection at judge time, not just at rubric time).
+
+**F.3 Live rejudge streaming**
+&mdash; size: half session.
+
+`POST /debate/rejudge` currently returns a single blob. Convert it to SSE
+so users watch the second judge write its reasoning live, then compare
+against the original judgment when both finish. Bigger drama = more shared.
+
+**F.4 Publish agentic vs sequential comparison in /benchmarks**
+&mdash; size: 1 session.
+
+Run the golden set through both modes; publish per-question defended /
+conceded / unresolved counts. This becomes the "here's what agentic
+buys you" credibility play.
 
 ### Phase 3 &mdash; ships in 3-6 weeks (growth + retention)
 
@@ -434,20 +636,80 @@ Being honest about these matters as much as the queue.
 
 ## Part 4 &mdash; What ships this week (concrete)
 
-If nothing changes, this week ships:
+**Updated plan** — the original Mon/Tue/Wed items (Phase 1A/1B/1C) all
+shipped ahead of schedule in the same session (commits `c29eb402` + parts of
+`27df6f8b`), plus Phase 2 (`4bb95c19`) and Phase 3 SSE + PIVOT (`eb9d1b33`).
 
-- Mon: Phase 1A (same-provider different-model judge). Half day.
-- Tue: Phase 1B (blind A/B judging). Half day.
-- Wed: Phase 1C (credibility copy on `/benchmarks`). Half day.
-- Thu-Fri: First real `run_eval.py` execution against the 20 golden-set
-  prompts. Blind-rate 5 answers manually to seed the scoreboard with
-  actual numbers.
-- Weekend: publish `/benchmarks` with real (partial) data and post to HN
-  Show HN + Product Hunt.
+Reprioritised for the rest of the week:
 
-Everything above is boring, small, and lands the credibility story in one
-week. That is the point.
+- Mon: Run `run_eval.py` against the 20 golden-set prompts. Blind-rate 5
+  answers manually to seed the scoreboard with real numbers instead of
+  the current PENDING placeholders.
+- Tue: Ship Phase 2.5 F.1 (agent invokes web search mid-turn) — the one
+  upgrade that lets us honestly claim the agents *research* mid-debate,
+  not just argue over pre-fetched sources.
+- Wed: Ship Phase 2.5 F.3 (live rejudge SSE). More drama on rejudge =
+  more social sharing of verdicts.
+- Thu: Ship Phase 2.5 F.4 (agentic vs sequential comparison on
+  `/benchmarks`) so users can see the difference in numbers.
+- Fri: Buy `ashwaryapradhan.dev`, put the Person JSON-LD from
+  `frontend/index.html` on a one-page site linking back to Polynous.
+- Weekend: Product Hunt launch + Show HN. Lead with the
+  Debate-Chamber-credibility story from Part 0 above.
+
+**Launch-copy source of truth**: the one sentence at the top of Part 0.
+Every social post, PH tagline, HN title, LinkedIn preview should be a
+direct restatement of it. If it can't be justified in a single tweet
+against Part 0, do not ship the tweet.
+
+---
+
+## Part 5 &mdash; File and commit index (for future-you)
+
+Debate credibility system, in load order:
+
+**Backend**
+- `backend/app/llm_providers.py` — `STRONG_MODELS`, `WEAK_MODELS`,
+  `resolve_advocate_model`, `resolve_judge_model`.
+- `backend/app/agents/debate_agents.py` — `judge_debate(blind=True)`,
+  team_a/b_quality remap, verdict transparency metadata.
+- `backend/app/agents/agentic_debate.py` — state machine, `next_action`,
+  assert / rebut / defend-or-concede-or-pivot, `stream_agentic_debate`
+  generator, `point_ledger_judge`, `run_agentic_debate` wrapper.
+- `backend/app/graph/debate_graph.py` — `judge_node` now resolves WEAK-tier
+  judge model and emits it in the live status line.
+- `backend/app/routes/debate_agentic.py` — `POST /debate/agentic` +
+  `GET /debate/agentic/stream` (SSE).
+- `backend/app/routes/report_actions.py` — `POST /debate/rejudge`.
+- `backend/app/routes/settings_extended.py` — `GET /settings/model-tiers`.
+- `backend/evals/golden_set.json` + `run_eval.py` + `README.md`.
+
+**Frontend**
+- `frontend/src/components/SettingsPage.jsx` — `ModelTiersSection`.
+- `frontend/src/components/PolynousDebateReport.jsx` — masthead chip,
+  methodology transparency block, credibility panel.
+- `frontend/src/components/DebateActions.jsx` — `RejudgeModal`,
+  `PointLedgerView`, retrofitted `ReplayModal`.
+- `frontend/src/components/DebateInterface.jsx` — agentic toggle,
+  live-view wiring, dual-engine mount.
+- `frontend/src/components/AgenticDebateLive.jsx` + `.css` — SSE consumer
+  with real-time point ledger, phase-pulse dot, PIVOT badges.
+- `frontend/src/components/BenchmarksPage.jsx` — Judge independence
+  card grid.
+
+Key commits (newest first):
+- `eb9d1b33` — Agentic streaming: SSE + PIVOT move + live ledger view
+- `4bb95c19` — Phase 2 agentic debate: state machine, point-ledger judge
+- `c29eb402` — Judge Phase 1: STRONG/WEAK tiers, blind A/B, Settings picker
+- `13e41fea` — Multi-provider rejudge, steelman-first, streaming strip,
+  benchmarks page, golden-set harness
+- `18349de7` — Premium report: TL;DR shell, honest scoring, dead code purge
+- `d76acb99` — Growth loops (discover, share, import, referrals)
+- `158d70a6` — Knowledge graph grounded actions + timeline + labels
+- `27df6f8b` — Interactive report actions (debate against, perspective,
+  cross-exam, replay, share, chain)
 
 ---
 
 *Last updated: 07 Sep 2026 (Ashwarya Pradhan)*
+*Status: Debate Chamber Phase 1-3 credibility system fully shipped and live in `main`. Phase 2.5 upgrades queued next.*

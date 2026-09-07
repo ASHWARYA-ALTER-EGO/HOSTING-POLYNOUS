@@ -132,6 +132,37 @@ export default function BenchmarksPage() {
         </div>
       </section>
 
+      <section className="bp-cred">
+        <div className="bp-eyebrow">Judge independence</div>
+        <h2>How Polynous keeps the judge honest.</h2>
+        <div className="bp-cred-grid">
+          <div className="bp-cred-card">
+            <span className="bp-cred-num">A</span>
+            <h3>Different model, same API key</h3>
+            <p>Advocates run on the stronger model in the provider's line-up. The judge runs on the smaller, cheaper model in the same provider. One key, meaningfully different models.</p>
+            <ul className="bp-cred-list">
+              <li><b>OpenAI</b> — <code>gpt-4o</code> advocates, <code>gpt-4o-mini</code> judge</li>
+              <li><b>Anthropic</b> — <code>claude-opus-4</code> advocates, <code>claude-haiku-4.5</code> judge</li>
+              <li><b>Google</b> — <code>gemini-2.5-pro</code> advocates, <code>gemini-2.5-flash</code> judge</li>
+              <li><b>Groq</b> — <code>llama-70b</code> advocates, <code>llama-8b</code> judge</li>
+            </ul>
+            <p className="bp-cred-note">Users can override either tier per-provider in Settings &rarr; Debate model separation.</p>
+          </div>
+          <div className="bp-cred-card">
+            <span className="bp-cred-num">B</span>
+            <h3>Blind A/B labelling</h3>
+            <p>The judge never sees "FOR" or "AGAINST". Sides are randomly relabelled as <b>Team A</b> and <b>Team B</b> per debate, then remapped back after scoring. The judge cannot bias by side name because it does not know which side is which.</p>
+            <p className="bp-cred-note">Every debate report shows the actual judge model and a BLIND A/B badge, so you can verify without taking our word.</p>
+          </div>
+          <div className="bp-cred-card">
+            <span className="bp-cred-num">C</span>
+            <h3>Rejudge with any provider</h3>
+            <p>One click asks a completely different provider (Claude &rarr; Gemini, or vice versa) to reread the same two cases. Same-winner AND small-margin flip both surface as VERDICT AGREEMENT status. If verdicts diverge, the original is marked tentative.</p>
+            <p className="bp-cred-note">Requires a key for the second provider. Optional.</p>
+          </div>
+        </div>
+      </section>
+
       <section className="bp-honest">
         <div className="bp-honest-inner">
           <div className="bp-eyebrow">Where Polynous is expected to lose</div>

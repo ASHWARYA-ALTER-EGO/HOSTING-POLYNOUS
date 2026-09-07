@@ -71,6 +71,39 @@ async def save_preferences(
         raise HTTPException(500, "Internal error saving preferences")
 
 # ============================================================
+# MODEL TIERS — advocate / judge separation per provider
+# ============================================================
+@router.get("/model-tiers")
+async def get_model_tiers(user: User = Depends(get_current_user)):
+    """Return the STRONG (advocate) and WEAK (judge) model defaults per
+    provider, plus any explicit override the current user has saved.
+
+    Powers the Settings > Debate model separation card so users can pick a
+    stronger model for the advocates and a genuinely different, cheaper
+    model for the judge. Same API key, meaningful model separation."""
+    from app.llm_providers import (
+        LLM_PROVIDERS, STRONG_MODELS, WEAK_MODELS,
+        provider_label, resolve_advocate_model, resolve_judge_model,
+    )
+    prefs = user.preferences or {}
+    ov_adv = (prefs.get("advocate_models") or {})
+    ov_jud = (prefs.get("judge_models") or {})
+    out = []
+    for p in LLM_PROVIDERS:
+        out.append({
+            "provider": p,
+            "label": provider_label(p),
+            "strong_default": STRONG_MODELS.get(p, ""),
+            "weak_default":   WEAK_MODELS.get(p, ""),
+            "advocate": ov_adv.get(p) or "",
+            "judge":    ov_jud.get(p) or "",
+            "effective_advocate": resolve_advocate_model(user, p),
+            "effective_judge":    resolve_judge_model(user, p),
+        })
+    return {"providers": out}
+
+
+# ============================================================
 # NOTIFICATIONS
 # ============================================================
 @router.get("/notifications")

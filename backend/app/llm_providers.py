@@ -48,6 +48,86 @@ DEFAULT_MODELS = {
     "zhipu":     "glm-4.7",
 }
 
+# ============================================================
+# MODEL TIERS  —  small + large on the same API key
+# ============================================================
+# The credibility play: advocates run on the "strong" model, the judge runs
+# on a genuinely different "weak" model from the SAME provider. Same API key,
+# different training-data footprint, different capacity, meaningfully
+# different instruction-following. Publishing this is more defensible than
+# any single-model debate tool on the market.
+#
+# Users can override either tier per-provider through Settings; these are
+# just the sensible defaults.
+STRONG_MODELS = {
+    "anthropic": "claude-opus-4-1-20250805",
+    "openai":    "gpt-4o",
+    "google":    "gemini-2.5-pro",
+    "mistral":   "mistral-large-latest",
+    "groq":      "llama-3.3-70b-versatile",
+    "nvidia":    "meta/llama-3.3-70b-instruct",
+    "deepseek":  "deepseek-chat",
+    "zhipu":     "glm-4.7",
+}
+
+WEAK_MODELS = {
+    "anthropic": "claude-haiku-4-5",
+    "openai":    "gpt-4o-mini",
+    "google":    "gemini-2.5-flash",
+    "mistral":   "mistral-small-latest",
+    "groq":      "llama-3.1-8b-instant",
+    "nvidia":    "meta/llama-3.1-8b-instruct",
+    "deepseek":  "deepseek-chat",  # DeepSeek does not ship a small tier we trust
+    "zhipu":     "glm-4-flash",
+}
+
+
+def strong_model(provider: str) -> str:
+    return STRONG_MODELS.get(provider, DEFAULT_MODELS.get(provider, DEFAULT_MODELS["anthropic"]))
+
+
+def weak_model(provider: str) -> str:
+    return WEAK_MODELS.get(provider, DEFAULT_MODELS.get(provider, DEFAULT_MODELS["anthropic"]))
+
+
+def resolve_judge_model(user, provider: str) -> str:
+    """Which model should judge a debate for this user + provider?
+
+    Precedence:
+      1. explicit per-provider override in `preferences.judge_models[<provider>]`
+      2. the WEAK tier for this provider (default: same key, cheaper, different training)
+    """
+    try:
+        prefs = getattr(user, "preferences", None) or {}
+        chosen = (prefs.get("judge_models") or {}).get(provider)
+        if chosen:
+            return chosen
+    except Exception:
+        pass
+    return weak_model(provider)
+
+
+def resolve_advocate_model(user, provider: str) -> str:
+    """Which model should ADVOCATES use for this user + provider?
+
+    Precedence:
+      1. explicit per-provider override in `preferences.advocate_models[<provider>]`
+      2. the user's existing model choice in `preferences.models[<provider>]`
+         (kept for backwards compatibility with the pre-tier UI)
+      3. the STRONG tier default
+    """
+    try:
+        prefs = getattr(user, "preferences", None) or {}
+        chosen = (prefs.get("advocate_models") or {}).get(provider)
+        if chosen:
+            return chosen
+        legacy = (prefs.get("models") or {}).get(provider)
+        if legacy:
+            return legacy
+    except Exception:
+        pass
+    return strong_model(provider)
+
 # Key-format prefixes for quick client-side-style validation
 KEY_PREFIXES = {
     "anthropic": "sk-ant",

@@ -165,6 +165,13 @@ function deriveDebate(p) {
     tokens: Number(pick(tel.total_tokens, 0)) || 0,
     cost: Number(pick(tel.estimated_cost && (tel.estimated_cost.usd != null ? tel.estimated_cost.usd : tel.estimated_cost.total), tel.cost, 0)) || 0,
     ci: { low: Math.max(0, cert - ciMargin), high: Math.min(100, cert + ciMargin), margin: ciMargin },
+    // Model transparency: judge_model / advocate_model / blind_ab surface the
+    // credibility story on the report itself. If the caller didn't set them,
+    // we degrade to the legacy single-model display.
+    advocateModel: pick(v.advocate_model, model),
+    judgeModel: pick(v.judge_model, model),
+    judgeProvider: pick(v.judge_provider, ""),
+    blindAB: v.blind_ab !== false,
     date: fmtDate(new Date()),
     winnerLabel: winner === "FOR" ? "Supporting arguments prevail" : winner === "AGAINST" ? "Counter arguments prevail" : winner === "UNSCORED" ? "Verdict unscored" : "Both sides are balanced",
     winnerTone: winner === "FOR" ? "pos" : winner === "AGAINST" ? "neg" : "warn",
@@ -174,8 +181,19 @@ function deriveDebate(p) {
 
 /* ---------- section builders ---------- */
 function sMast(d) {
+  // Credibility badge: advocates ran on one model, the judge ran on another
+  // (typically the smaller tier on the same provider). Blind A/B labelling
+  // is stated inline so nobody has to trust us on it. This is Phase 1 of the
+  // Rejudge-credibility story showing up on every debate, not just on demand.
+  const sameModel = String(d.advocateModel || "").toLowerCase() === String(d.judgeModel || "").toLowerCase();
+  const sepChip = sameModel
+    ? `<span class="rp-dim">JUDGED · ${esc(d.judgeModel || d.model).toUpperCase()}</span>`
+    : `<span class="dbr-modelchip" title="Same provider, different model. Advocates: ${escAttr(d.advocateModel || d.model)}. Judge: ${escAttr(d.judgeModel || d.model)}."><span class="dbr-modelchip-k">ADVOCATES</span><b>${esc((d.advocateModel || d.model).toUpperCase())}</b><span class="dbr-modelchip-sep">→</span><span class="dbr-modelchip-k">JUDGE</span><b>${esc((d.judgeModel || d.model).toUpperCase())}</b></span>`;
+  const blindChip = d.blindAB
+    ? `<span class="dbr-blindchip" title="The judge saw Team A / Team B labels only; FOR / AGAINST identities were stripped before scoring and remapped after.">BLIND A/B</span>`
+    : "";
   return `<header class="rp-masthead rp-rev">
-    <div class="rp-brandline"><span class="rp-mark">◆ POLYNOUS</span><span class="rp-dim">DEBATE DOSSIER</span><span class="rp-dim rp-right">${d.date} · JUDGED · ${esc(d.model).toUpperCase()}</span></div>
+    <div class="rp-brandline"><span class="rp-mark">◆ POLYNOUS</span><span class="rp-dim">DEBATE DOSSIER</span><span class="rp-dim rp-right">${d.date} · ${sepChip}${blindChip ? " · " + blindChip : ""}</span></div>
     <div class="rp-actions">
       <button class="rp-act" onclick="pnbShare()"><span class="rp-act-i">⧉</span> Copy link</button>
       <button class="rp-act rp-act-p" onclick="pnbPdf()"><span class="rp-act-i">⭳</span> Save PDF</button>
@@ -418,13 +436,26 @@ function sSources(d) {
 
 function sMethod(d) {
   const a = d.analytics || {};
-  const kpis = [["Model", esc(d.model)], ["Tokens", d.tokens ? d.tokens.toLocaleString() : "n/a"], ["Est. cost", d.cost ? "$" + d.cost.toFixed(4) : "n/a"], ["Rounds", pick(a.rounds, 3)], ["Distinct sources", pick(a.distinct_sources, d.sources.length)]];
+  const sameModel = String(d.advocateModel || "").toLowerCase() === String(d.judgeModel || "").toLowerCase();
+  const kpis = [
+    ["Advocate model", esc(d.advocateModel || d.model)],
+    ["Judge model", esc(d.judgeModel || d.model) + (sameModel ? "" : ' <span class="rp-tag pos" style="transform:scale(0.85);margin-left:6px">DIFFERENT</span>')],
+    ["Blind labelling", d.blindAB ? '<span class="rp-tag pos" style="transform:scale(0.85)">TEAM A / TEAM B</span>' : '<span class="rp-tag warn" style="transform:scale(0.85)">FOR / AGAINST (legacy)</span>'],
+    ["Tokens", d.tokens ? d.tokens.toLocaleString() : "n/a"],
+    ["Est. cost", d.cost ? "$" + d.cost.toFixed(4) : "n/a"],
+    ["Rounds", pick(a.rounds, 3)],
+    ["Distinct sources", pick(a.distinct_sources, d.sources.length)],
+  ];
   const cells = kpis.map(([l, v]) => `<div class="rp-tel"><span class="rp-dim">${l}</span><span class="rp-mono rp-tel-v">${v}</span></div>`).join("");
   const pipe = ["Proposition", "Search", "FOR case", "AGAINST case", "Rebuttals", "Judge", "Verdict"].map((s, i, ar) => `<span class="rp-step">${s}</span>${i < ar.length - 1 ? '<span class="rp-steprule"></span>' : ""}`).join("");
+  const credibility = sameModel
+    ? `The judge ran on the SAME model as the advocates on this run. To make the verdict more independent, set a smaller "judge" model for this provider in Settings > Debate model separation.`
+    : `The judge ran on a genuinely different model (<b>${esc(d.judgeModel)}</b>) than the advocates (<b>${esc(d.advocateModel)}</b>), on the same API key. Meaningful model separation without second-key friction.`;
   return `<section class="rp-sec rp-rev">${eye("08", "Methodology &amp; provenance")}
     <div class="rp-pipe">${pipe}</div>
     <div class="rp-subh" style="margin-top:30px">Run telemetry</div>
     <div class="rp-tels">${cells}</div>
+    <div class="dbr-credibility"><span class="rp-tag pos" style="transform:scale(0.85);margin-right:8px">CREDIBILITY</span>${credibility}${d.blindAB ? ' The judge only saw "Team A" and "Team B" labels; FOR / AGAINST identities were stripped before scoring and remapped afterwards, so the judge could not bias by side name.' : ""}</div>
     <p class="rp-method" style="margin-top:18px">A two-advocate pipeline built independent FOR and AGAINST cases, exchanged rebuttals, then a rubric-scored judge weighed measured evidence (sources, grounding, hallucination checks) against argument quality to reach the verdict. Every figure is derived from the run; cost is an estimate.</p></section>`;
 }
 
@@ -711,6 +742,45 @@ const DBR_CSS = `
 /* --- Per-rubric row hover cue for the "why" title tooltip -------------- */
 .dbr-rub-row[title] { cursor: help; }
 .dbr-rub-row[title]:hover { background: color-mix(in srgb, currentColor 3%, transparent); }
+
+/* --- Model separation chip in the masthead ---------------------------- */
+.dbr-modelchip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  background: rgba(168, 85, 247, 0.08);
+  border-radius: 999px;
+  font: 500 9.5px/1 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.12em;
+  cursor: help;
+}
+.dbr-modelchip-k { color: rgba(214, 196, 255, 0.55); font-weight: 500; }
+.dbr-modelchip b { color: #d8b4fe; font-weight: 700; }
+.dbr-modelchip-sep { color: rgba(214, 196, 255, 0.4); margin: 0 2px; }
+
+.dbr-blindchip {
+  display: inline-block;
+  padding: 3px 8px;
+  margin-left: 6px;
+  border: 1px solid rgba(10, 125, 99, 0.4);
+  background: rgba(10, 125, 99, 0.10);
+  color: #5db696;
+  border-radius: 3px;
+  font: 700 9px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.2em;
+  cursor: help;
+}
+
+.dbr-credibility {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-left: 3px solid #0a7d63;
+  background: color-mix(in srgb, #0a7d63 6%, transparent);
+  border-radius: 0 6px 6px 0;
+  font: 400 12.5px/1.6 'Hanken Grotesk', -apple-system, sans-serif;
+  color: rgba(232, 226, 248, 0.85);
+}
+.dbr-credibility b { color: #d8b4fe; }
 `;
 let dbrInjected = false;
 function injectDbr() { if (dbrInjected || typeof document === "undefined") return; dbrInjected = true; const st = document.createElement("style"); st.id = "dbr-style"; st.textContent = DBR_CSS; document.head.appendChild(st); }

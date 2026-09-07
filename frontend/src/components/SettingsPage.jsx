@@ -7,6 +7,7 @@ import SideRail from './react-bits/SideRail';
 const SETTINGS_RAIL = [
   { label: "Profile", id: "set-profile" },
   { label: "API Keys", id: "set-keys" },
+  { label: "Debate models", id: "set-tiers" },
   { label: "Usage", id: "set-usage" },
   { label: "Preferences", id: "set-preferences" },
   { label: "Integrations", id: "set-integrations" },
@@ -89,6 +90,8 @@ const api = {
 
   getPreferences:  ()      => safeFetch('/settings/preferences'),
   savePreferences: (prefs) => safeFetch('/settings/preferences', { method: "PUT", body: JSON.stringify(prefs) }),
+
+  getModelTiers:   ()      => safeFetch('/settings/model-tiers'),
 
   getUsage:        ()      => safeFetch('/settings/usage'),
   getAdminUsers:   ()      => safeFetch('/admin/users'),
@@ -1989,6 +1992,140 @@ function CustomKeyTester({ push }) {
   );
 }
 
+// -------------------------------------------------------------------------
+// ModelTiersSection — advocate / judge model separation per provider.
+// This is the credibility play: users pick a STRONGER model for the advocates
+// and a genuinely DIFFERENT, CHEAPER model for the judge, on the same key.
+// Same provider, different model = independent adjudication without the
+// "second-key friction" that kills adoption. Backed by GET /settings/model-tiers
+// + the standard PUT /settings/preferences merge.
+// -------------------------------------------------------------------------
+function ModelTierRow({ tier, onChange, push }) {
+  const [advocate, setAdvocate] = useState(tier.advocate || "");
+  const [judge, setJudge] = useState(tier.judge || "");
+  const [saving, setSaving] = useState(false);
+  const dirty = (advocate || "") !== (tier.advocate || "") || (judge || "") !== (tier.judge || "");
+  const save = async () => {
+    setSaving(true);
+    try {
+      const nextAdv = { ...(tier._prefsAdv || {}), [tier.provider]: advocate || undefined };
+      const nextJud = { ...(tier._prefsJud || {}), [tier.provider]: judge || undefined };
+      Object.keys(nextAdv).forEach(k => { if (!nextAdv[k]) delete nextAdv[k]; });
+      Object.keys(nextJud).forEach(k => { if (!nextJud[k]) delete nextJud[k]; });
+      await api.savePreferences({ advocate_models: nextAdv, judge_models: nextJud });
+      push("Model tiers saved for " + tier.label);
+      onChange && onChange(tier.provider, { advocate, judge });
+    } catch (e) {
+      push("Could not save · " + (e.message || "network error"), true);
+    }
+    setSaving(false);
+  };
+  const restore = () => { setAdvocate(""); setJudge(""); };
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "160px 1fr 1fr auto",
+      gap: 14,
+      alignItems: "center",
+      padding: "14px 16px",
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+    }}>
+      <div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: "#f2eee4" }}>{tier.label}</div>
+        <div style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em", color: "rgba(196,196,196,0.55)", marginTop: 3 }}>{tier.provider}</div>
+      </div>
+      <div>
+        <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(196,196,196,0.55)", marginBottom: 5 }}>Advocate (STRONG)</div>
+        <input value={advocate} onChange={(e) => setAdvocate(e.target.value)}
+          placeholder={tier.strong_default}
+          style={{ width: "100%", padding: "8px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, color: "#f2eee4", fontSize: 12.5, fontFamily: "'JetBrains Mono',monospace" }} />
+        <div style={{ fontSize: 10, color: "rgba(196,196,196,0.4)", marginTop: 4 }}>default: <code>{tier.strong_default || "—"}</code></div>
+      </div>
+      <div>
+        <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(196,196,196,0.55)", marginBottom: 5 }}>Judge (WEAK / different)</div>
+        <input value={judge} onChange={(e) => setJudge(e.target.value)}
+          placeholder={tier.weak_default}
+          style={{ width: "100%", padding: "8px 10px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, color: "#f2eee4", fontSize: 12.5, fontFamily: "'JetBrains Mono',monospace" }} />
+        <div style={{ fontSize: 10, color: "rgba(196,196,196,0.4)", marginTop: 4 }}>default: <code>{tier.weak_default || "—"}</code></div>
+      </div>
+      <div style={{ display: "flex", gap: 6, alignSelf: "end", paddingBottom: 3 }}>
+        {dirty && (
+          <>
+            <button onClick={restore} style={{ padding: "8px 12px", background: "transparent", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: "rgba(196,196,196,0.7)", fontSize: 11.5, cursor: "pointer" }}>Reset</button>
+            <button onClick={save} disabled={saving} style={{ padding: "8px 14px", background: "#a855f7", border: "1px solid #a855f7", borderRadius: 6, color: "#0e0616", fontSize: 11.5, fontWeight: 600, cursor: saving ? "wait" : "pointer" }}>{saving ? "Saving..." : "Save"}</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModelTiersSection({ push }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState("");
+  const load = async () => {
+    setLoading(true); setLoadErr("");
+    try {
+      const j = await api.getModelTiers();
+      const adv = {}, jud = {};
+      (j.providers || []).forEach(p => { if (p.advocate) adv[p.provider] = p.advocate; if (p.judge) jud[p.provider] = p.judge; });
+      setRows((j.providers || []).map(p => ({ ...p, _prefsAdv: adv, _prefsJud: jud })));
+    } catch (e) { setLoadErr(e.message || "Could not load tiers"); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <Card><SectionHead icon="balance" title="Debate model separation" subtitle="Same API key. Advocates on the stronger model, judge on a different, cheaper one." /><Spinner /></Card>;
+  if (loadErr) return <Card><SectionHead icon="balance" title="Debate model separation" subtitle="Same API key. Advocates on the stronger model, judge on a different, cheaper one." /><ErrorBanner msg={loadErr} onRetry={load} /></Card>;
+
+  return (
+    <Card>
+      <SectionHead icon="balance" title="Debate model separation" subtitle="Same API key. Advocates on the stronger model, judge on a different, cheaper one. Kills the &quot;judge grades its own homework&quot; critique." />
+
+      <div style={{
+        margin: "6px 4px 18px",
+        padding: "14px 16px",
+        background: "linear-gradient(135deg, rgba(168,85,247,0.08), rgba(27,77,122,0.06))",
+        border: "1px solid rgba(168,85,247,0.16)",
+        borderRadius: 10,
+        fontSize: 12.5,
+        color: "rgba(232,236,243,0.85)",
+        lineHeight: 1.55,
+      }}>
+        <div style={{ fontSize: 9.5, letterSpacing: "0.24em", textTransform: "uppercase", color: "#c58bff", marginBottom: 6, fontWeight: 600 }}>Why this matters</div>
+        Every serious provider ships a small + large model on the same API. Running the advocates on <b>gpt-4o</b> and the judge on <b>gpt-4o-mini</b> (or Claude Opus vs Haiku, or Gemini Pro vs Flash) uses one key, adds essentially zero cost, and gives you genuine model separation. The judge cannot bias toward its own arguments because a different model produced them.
+        <br /><br />
+        <span style={{ color: "rgba(196,196,196,0.6)" }}>Blind A/B labelling is <b>always on</b>: the judge sees "Team A" and "Team B", never FOR/AGAINST, so it cannot bias by side name either.</span>
+      </div>
+
+      <div style={{ border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{
+          display: "grid", gridTemplateColumns: "160px 1fr 1fr auto", gap: 14,
+          padding: "12px 16px",
+          background: "rgba(255,255,255,0.02)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          fontSize: 9.5, letterSpacing: "0.22em", textTransform: "uppercase",
+          color: "rgba(196,196,196,0.55)", fontWeight: 600,
+        }}>
+          <div>Provider</div>
+          <div>Advocate model</div>
+          <div>Judge model</div>
+          <div />
+        </div>
+        {rows.map(r => (
+          <ModelTierRow key={r.provider} tier={r} push={push}
+            onChange={(prov, next) => setRows(rs => rs.map(x => x.provider === prov ? { ...x, ...next, _prefsAdv: { ...x._prefsAdv, [prov]: next.advocate || undefined }, _prefsJud: { ...x._prefsJud, [prov]: next.judge || undefined } } : x))} />
+        ))}
+      </div>
+
+      <p style={{ fontSize: 11, color: "rgba(196,196,196,0.45)", marginTop: 12, lineHeight: 1.6 }}>
+        Leave a field blank to use the default. Enter a full model id (for example <code>gpt-4o-mini</code>) to override. The judge model is used automatically the next time you start a debate with that provider active.
+      </p>
+    </Card>
+  );
+}
+
 function PreferencesSection({ push }) {
   const [mode,      setMode]      = useState("research");
   const [style,     setStyle]     = useState("academic");
@@ -2666,6 +2803,7 @@ export default function SettingsPage({ user, onNavigate, onLogout }) {
           />
         </div>
         <div id="set-keys"         style={{ scrollMarginTop: 24 }}><ApiKeysSection      push={push} /></div>
+        <div id="set-tiers"        style={{ scrollMarginTop: 24 }}><ModelTiersSection   push={push} /></div>
         <div id="set-usage"        style={{ scrollMarginTop: 24 }}><UsageSection        push={push} /></div>
         <div id="set-preferences"  style={{ scrollMarginTop: 24 }}><PreferencesSection  push={push} /></div>
         <div id="set-integrations" style={{ scrollMarginTop: 24 }}><IntegrationsSection push={push} /></div>

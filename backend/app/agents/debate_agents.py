@@ -385,11 +385,26 @@ def judge_debate(
     model: Optional[str] = None,
     usage_sink: Optional[dict] = None,
     persona: str = "impartial",
+    blind: bool = True,
 ) -> dict:
     """
     Judge the debate. Final score per side =
       50% computed rubric (opening + rebuttal evidence metrics)
     + 50% LLM quality score.
+
+    Judge separation (credibility play): if `model` is passed, it is used
+    verbatim; if omitted, the caller (debate_graph.judge_node) is expected
+    to pass the WEAK tier of `provider` so advocates and judge run on the
+    same API key but genuinely different models. This function never picks
+    a model on its own — that decision belongs upstream where user
+    preferences are resolved.
+
+    Blind labelling (`blind=True`, default): the judge sees "Team A" and
+    "Team B" only, in a randomised orientation. FOR / AGAINST labels are
+    remapped back after scoring. This kills 90% of the "the judge grades
+    its own homework" critique because the judge cannot bias toward the
+    side whose name it prefers.
+
     On LLM failure: verdict is explicitly 'UNSCORED' with computed metrics
     only — never a fabricated tie.
     """
@@ -400,17 +415,40 @@ def judge_debate(
     rubric_for = compute_argument_rubric(for_full, total_sources)
     rubric_against = compute_argument_rubric(against_full, total_sources)
 
+    # Blind labelling: randomise which side is Team A. Everything downstream
+    # from here works in A/B terms; we remap to FOR/AGAINST when we build the
+    # verdict payload.
+    import random as _random
+    a_is_for = (not blind) or _random.random() < 0.5
+
+    def _side(a_flag):
+        return ("FOR", "AGAINST") if (a_is_for == a_flag) else ("AGAINST", "FOR")
+
+    team_a_name, team_b_name = "Team A", "Team B"
+    if a_is_for:
+        a_open, a_reb, a_rub = for_arg, for_rebuttal, rubric_for
+        b_open, b_reb, b_rub = against_arg, against_rebuttal, rubric_against
+    else:
+        a_open, a_reb, a_rub = against_arg, against_rebuttal, rubric_against
+        b_open, b_reb, b_rub = for_arg, for_rebuttal, rubric_for
+
     user_prompt = f"""Topic: {query}
 
-FOR OPENING:\n{for_arg[:1600]}
-FOR REBUTTAL:\n{(for_rebuttal or 'None')[:1400]}
-FOR COMPUTED EVIDENCE: {json.dumps(rubric_for)}
+{team_a_name} OPENING:\n{a_open[:1600]}
+{team_a_name} REBUTTAL:\n{(a_reb or 'None')[:1400]}
+{team_a_name} COMPUTED EVIDENCE: {json.dumps(a_rub)}
 
-AGAINST OPENING:\n{against_arg[:1600]}
-AGAINST REBUTTAL:\n{(against_rebuttal or 'None')[:1400]}
-AGAINST COMPUTED EVIDENCE: {json.dumps(rubric_against)}
+{team_b_name} OPENING:\n{b_open[:1600]}
+{team_b_name} REBUTTAL:\n{(b_reb or 'None')[:1400]}
+{team_b_name} COMPUTED EVIDENCE: {json.dumps(b_rub)}
 
-Judge and return JSON:"""
+Score BOTH teams on the same rubric. You do not know which team argued FOR
+or AGAINST the proposition; do not guess. Judge only what is written.
+
+Return JSON with keys team_a_quality, team_b_quality (0-10 each), plus
+reasoning, strongest_point, best_rebuttal, framing_check, minority_report,
+follow_up_questions, and certainty (0-100). Do not use the labels "FOR" or
+"AGAINST" anywhere in your response."""
 
     verdict = {
         "rubric_for": rubric_for,
@@ -450,8 +488,18 @@ Judge and return JSON:"""
                 + (" (empty response — check the provider/API key)" if not (raw or "").strip() else "")
             )
 
-        for_quality = float(llm.get("for_quality", 0))
-        against_quality = float(llm.get("against_quality", 0))
+        # Accept both blind (team_a_quality / team_b_quality) and legacy
+        # (for_quality / against_quality) responses. In blind mode the A/B
+        # scores are remapped back to FOR/AGAINST here so nothing downstream
+        # needs to know how the labelling was randomised.
+        if "team_a_quality" in llm or "team_b_quality" in llm:
+            a_q = float(llm.get("team_a_quality", 0) or 0)
+            b_q = float(llm.get("team_b_quality", 0) or 0)
+            for_quality = a_q if a_is_for else b_q
+            against_quality = b_q if a_is_for else a_q
+        else:
+            for_quality = float(llm.get("for_quality", 0) or 0)
+            against_quality = float(llm.get("against_quality", 0) or 0)
         for_score = round(0.5 * rubric_for["computed_score"] + 0.5 * for_quality, 1)
         against_score = round(0.5 * rubric_against["computed_score"] + 0.5 * against_quality, 1)
 
@@ -500,6 +548,13 @@ Judge and return JSON:"""
             "best_rebuttal": llm.get("best_rebuttal", ""),
             "scoring": "50% computed evidence rubric + 50% judge quality score",
             "persona": (persona or "impartial").lower(),
+            # Transparency: report which model actually judged, and whether
+            # the judge saw blind A/B labels instead of FOR/AGAINST. These
+            # surface in the report so users can verify the credibility
+            # story without taking anyone's word for it.
+            "judge_model": model or "",
+            "judge_provider": provider,
+            "blind_ab": bool(blind),
         })
         print(f"  ✅ Winner: {winner} (FOR {for_score} / AGAINST {against_score})")
         return verdict

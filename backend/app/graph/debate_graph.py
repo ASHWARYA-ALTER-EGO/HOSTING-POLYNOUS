@@ -173,7 +173,23 @@ def judge_node(state: AgentState) -> AgentState:
     total_sources = len(state.get('retrieved_docs', []))
 
     emit = make_emitter(state, "Judge")
-    emit(f"Weighing openings and rebuttals against {total_sources} sources…")
+
+    # Judge separation (credibility play): resolve which model actually judges
+    # this debate. If the user has an explicit judge-model override we honour
+    # it; otherwise we fall back to the WEAK tier of the current provider so
+    # the judge is genuinely a different model from the advocates, on the
+    # same API key. See llm_providers.resolve_judge_model.
+    from app.llm_providers import resolve_judge_model, provider_label
+    advocate_model = state.get('model')
+    try:
+        judge_model = resolve_judge_model(user, provider)
+    except Exception:
+        judge_model = None
+    if not judge_model:
+        judge_model = advocate_model
+
+    emit(f"Judge model: {judge_model or 'default'} ({provider_label(provider)}) — "
+         f"blind A/B labelling on. Weighing openings and rebuttals against {total_sources} sources…")
 
     verdict = judge_debate(
         for_arg, against_arg, state['query'],
@@ -182,9 +198,12 @@ def judge_node(state: AgentState) -> AgentState:
         for_rebuttal=for_rebuttal,
         against_rebuttal=against_rebuttal,
         total_sources=total_sources,
-        model=state.get('model'),
+        model=judge_model,
         usage_sink=_debate_usage_sink(state),
+        blind=True,
     )
+    # Surface the advocate model too so the report can show model separation.
+    verdict['advocate_model'] = advocate_model or ""
     state['judge_verdict'] = verdict
     if verdict.get('parse_failed'):
         emit("Judge could not score — verdict UNSCORED (computed rubric only)")

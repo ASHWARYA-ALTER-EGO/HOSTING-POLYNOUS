@@ -7,6 +7,66 @@ and compile-verified but not yet exercised end-to-end in production).
 
 ---
 
+## [Unreleased] — Judge separation Phase 1: model tiers, blind A/B, credibility badges
+
+### Same API key, meaningfully different model
+- `llm_providers.py` gains `STRONG_MODELS`, `WEAK_MODELS`, `strong_model()`,
+  `weak_model()`, `resolve_advocate_model()`, `resolve_judge_model()`.
+- Defaults are opinionated and honest: `gpt-4o` vs `gpt-4o-mini`, Claude Opus
+  vs Haiku, Gemini Pro vs Flash, Llama-70B vs Llama-8B.
+- `judge_debate()` no longer picks a model on its own. The caller
+  (`debate_graph.judge_node`) resolves the WEAK tier (or the user's per-provider
+  override) and passes it explicitly. Advocate and judge run on the same API
+  key but on genuinely different models.
+
+### Blind A/B labelling (default on)
+- `judge_debate(blind=True, ...)` randomises which side is called "Team A"
+  vs "Team B" per debate. The judge prompt only ever sees A/B; the FOR /
+  AGAINST mapping happens after scoring.
+- Kills the "the judge is biased toward the side whose name it prefers"
+  critique regardless of which model is running.
+- `team_a_quality` / `team_b_quality` accepted from the judge, remapped
+  back to `for_quality` / `against_quality`. Legacy responses still work.
+
+### Verdict now carries transparency metadata
+- Every verdict payload includes `judge_model`, `judge_provider`,
+  `advocate_model`, and `blind_ab` so the report can display the
+  separation story without taking anyone's word for it.
+
+### Debate report shows the credibility story
+- **Masthead badge**: `ADVOCATES gpt-4o -> JUDGE gpt-4o-mini` chip
+  replaces the single-model tag when the two differ. Hover reveals the
+  exact model ids.
+- **BLIND A/B chip** next to the model chip.
+- **Methodology &amp; provenance section** now lists advocate model, judge
+  model with a DIFFERENT tag when they differ, and blind labelling status.
+- New **CREDIBILITY** panel underneath explaining what the model separation
+  actually means and how blind labelling stops name-based bias.
+
+### Settings > Debate model separation
+- New **/settings/model-tiers** endpoint returns STRONG/WEAK defaults per
+  provider plus any override the current user has saved.
+- New `ModelTiersSection` on the Settings page. Users pick their own
+  advocate model and judge model per provider; leaving a field blank
+  falls back to the sensible default. Includes a plain-English "why this
+  matters" panel.
+- Wired into the Settings side rail as `Debate models`.
+
+### /benchmarks: "Judge independence" card
+- Three-card **Judge independence** section between methodology and the
+  scoreboard. Cards A / B / C: different-model-same-key, blind A/B,
+  rejudge-with-any-provider. Each card lists the per-provider model
+  pairings and links back to Settings for user overrides.
+
+### Caveats
+- Overrides only take effect on NEW debates, not on already-completed runs
+  (they hit the debate graph at the judge node).
+- If a provider does not ship a smaller tier we trust (currently DeepSeek),
+  the weak model is the same as the strong. The Methodology panel prompts
+  the user to set an override when this is the case.
+
+---
+
 ## [Unreleased] — Positioning, streaming visibility, multi-judge, steelman-first, /benchmarks
 
 ### Debate chamber (the differentiator)

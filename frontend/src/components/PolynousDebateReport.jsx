@@ -29,6 +29,7 @@ const flat = (s) => {
   return String(s);
 };
 const esc = (s) => flat(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escAttr = (s) => flat(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{200D}\u{2300}-\u{23FF}]/gu;
 const stripEmoji = (s) => flat(s).replace(EMOJI_RE, "").replace(/—/g, ", ").replace(/[ \t]{2,}/g, " ").trim();
 const cite = (s) => esc(s).replace(/\[(\d+)\]/g, '<a class="rp-cite" role="button" tabindex="0" onclick="pnbCite(this)" data-n="$1">[$1]</a>');
@@ -116,7 +117,11 @@ function toPoints(text, cap = 6) {
 function deriveDebate(p) {
   const r = p.result || {};
   const v = r.verdict || {};
-  const topic = stripEmoji(pick(p.activeTopic, p.topic, DEMO.activeTopic));
+  // Only fall back to the DEMO topic on the /debate-preview route where the
+  // caller passes no result at all. Real runs with a missing topic render an
+  // empty string so the honest empty-state kicks in.
+  const isDemo = !(p && p.result && p.result.verdict);
+  const topic = stripEmoji(pick(p.activeTopic, p.topic, isDemo ? DEMO.activeTopic : ""));
   const forScore = Number(pick(v.for_score, 0)) || 0;
   const againstScore = Number(pick(v.against_score, 0)) || 0;
   const winner = String(pick(v.winner, forScore >= againstScore ? "FOR" : "AGAINST")).toUpperCase();
@@ -212,6 +217,29 @@ function sCases(d) {
     <div class="dbr-cases">${col("Supporting", "pos", d.forScore, d.forPts, d.forRebuttal)}${col("Counter", "neg", d.againstScore, d.againstPts, d.againstRebuttal)}</div></section>`;
 }
 
+/* Steelman is now a first-class section, ABOVE the rubric. Steelmanning is the
+   intellectual move that separates a serious debate tool from AI slop, so it
+   deserves the eye kicker "02" and its own visual card. Silently omitted when
+   the judge did not emit a steelman. */
+function sSteelmanFirst(d) {
+  if (!d.steelman) return "";
+  const forS = stripEmoji(d.steelman.for || d.steelman.FOR || "");
+  const againstS = stripEmoji(d.steelman.against || d.steelman.AGAINST || "");
+  if (!forS && !againstS) return "";
+  return `<section class="rp-sec rp-rev">${eye("02", "The strongest form of each side")}
+    <p class="rp-sublede">Before scoring, the judge writes each side's case at its most persuasive. If either steelman would move the reader more than the actual debate did, treat the verdict with extra caution.</p>
+    <div class="dbr-steel2">
+      <div class="dbr-steel2-side pos">
+        <div class="dbr-steel2-tag"><span class="rp-tag pos">SUPPORTING</span><span class="rp-dim">at its strongest</span></div>
+        <p>${esc(forS)}</p>
+      </div>
+      <div class="dbr-steel2-side neg">
+        <div class="dbr-steel2-tag"><span class="rp-tag neg">COUNTER</span><span class="rp-dim">at its strongest</span></div>
+        <p>${esc(againstS)}</p>
+      </div>
+    </div></section>`;
+}
+
 function sRubric(d) {
   // Real, computed per-advocate metrics rendered as a visual head-to-head so
   // the reader can SEE who wins each dimension. Percentages, bars, and a
@@ -227,8 +255,14 @@ function sRubric(d) {
     const fWins = higherWins ? fVal > aVal : fVal < aVal;
     return `<span class="dbr-rub-win ${fWins ? "pos" : "neg"}">${fWins ? "SUPPORTING" : "COUNTER"} ↑</span>`;
   };
+  const why = (label, fVal, aVal, higherWins) => {
+    const f = Number(fVal) || 0, a = Number(aVal) || 0;
+    const lead = f === a ? "tied" : ((higherWins ? f > a : f < a) ? "SUPPORTING ahead" : "COUNTER ahead");
+    const gap = Math.abs(f - a);
+    return `${label}. ${lead}${gap ? ` by ${gap.toFixed ? gap.toFixed(2).replace(/\.?0+$/,'') : gap}` : ""}. Higher ${higherWins ? "wins" : "loses"} — this metric is measured directly from the arguments and their citations.`;
+  };
   const row = (label, hint, fVal, fDisp, aVal, aDisp, higherWins, max) => `
-    <div class="dbr-rub-row">
+    <div class="dbr-rub-row" title="${escAttr(why(label, fVal, aVal, higherWins))}">
       <div class="dbr-rub-metric"><b>${label}</b><span class="rp-dim">${hint}</span></div>
       <div class="dbr-rub-side pos"><span class="dbr-rub-val">${fDisp}</span>${halfBar(fVal, max, "pos")}</div>
       <div class="dbr-rub-verdict">${winnerTag(fVal, aVal, higherWins)}</div>
@@ -428,7 +462,7 @@ function sTrackRecord(d) {
 }
 
 function buildDebateReport(d) {
-  const raw = [sMast(d), sVerdict(d), sCases(d), sRubric(d), sSensitivity(d), sIntegrity(d), sDissent(d), sCrossExam(d), sFallacies(d), sTrackRecord(d), sSources(d), sMethod(d), sFollow(d)].filter((h) => h && h.trim());
+  const raw = [sMast(d), sVerdict(d), sSteelmanFirst(d), sCases(d), sRubric(d), sSensitivity(d), sIntegrity(d), sDissent(d), sCrossExam(d), sFallacies(d), sTrackRecord(d), sSources(d), sMethod(d), sFollow(d)].filter((h) => h && h.trim());
   let n = 0; const rail = [];
   const parts = raw.map((h) => {
     if (!/class="rp-shead"/.test(h)) return h;
@@ -646,6 +680,37 @@ const DBR_CSS = `
   .dbr-scorepair, .dbr-qa, .dbr-fal, .dbr-tr { break-inside: avoid; page-break-inside: avoid; }
   .dbr-follow-a, .dbr-vote { display: none !important; }
 }
+
+/* --- Steelman first-class panel (new, above the rubric) ---------------- */
+.dbr-steel2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+@media (max-width: 720px) { .dbr-steel2 { grid-template-columns: 1fr; } }
+.dbr-steel2-side {
+  padding: 18px 20px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--rp-ink, #f2f6fb) 3%, transparent);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-left-width: 3px;
+}
+.dbr-steel2-side.pos { border-left-color: var(--pos, #0a7d63); }
+.dbr-steel2-side.neg { border-left-color: var(--neg, #b8320e); }
+.dbr-steel2-tag {
+  display: flex; gap: 8px; align-items: baseline;
+  margin-bottom: 10px;
+}
+.dbr-steel2-side p {
+  margin: 0;
+  font: italic 500 15px/1.6 'DM Serif Display', 'Playfair Display', serif;
+  color: var(--rp-ink, #f2f6fb);
+}
+
+/* --- Per-rubric row hover cue for the "why" title tooltip -------------- */
+.dbr-rub-row[title] { cursor: help; }
+.dbr-rub-row[title]:hover { background: color-mix(in srgb, currentColor 3%, transparent); }
 `;
 let dbrInjected = false;
 function injectDbr() { if (dbrInjected || typeof document === "undefined") return; dbrInjected = true; const st = document.createElement("style"); st.id = "dbr-style"; st.textContent = DBR_CSS; document.head.appendChild(st); }
@@ -829,6 +894,18 @@ export default function PolynousDebateReport(props) {
     cost: d.cost,
     tokens: d.tokens,
     model: d.model,
+    forArg: d.forPts.join("\n"),
+    againstArg: d.againstPts.join("\n"),
+    forRebuttal: d.forRebuttal,
+    againstRebuttal: d.againstRebuttal,
+    originalVerdict: {
+      winner: d.winner,
+      for_score: d.forScore,
+      against_score: d.againstScore,
+      certainty: d.certainty,
+      model: d.model,
+    },
+    totalSources: (d.sources || []).length,
   };
   return (
     <>

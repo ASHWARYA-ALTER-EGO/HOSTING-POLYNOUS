@@ -186,3 +186,66 @@
   background: color-mix(in srgb, var(--ra-ink) 2%, var(--ra-surface));
 }
 .dba-share-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* -------- Rejudge modal ---------------------------------------------- */
+.dba-rj-picker { margin-bottom: 16px; }
+.dba-rj-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 8px 0 8px;
+}
+@media (max-width: 620px) { .dba-rj-choices { grid-template-columns: 1fr 1fr; } }
+.dba-rj-choice {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ra-line);
+  background: var(--ra-surface);
+  color: var(--ra-ink);
+  font: 500 12px/1 'Inter', ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.dba-rj-choice:hover:not(:disabled) { transform: translateY(-1px); border-color: color-mix(in srgb, var(--ra-cool) 40%, var(--ra-line)); }
+.dba-rj-choice.on { border-color: var(--ra-cool); background: color-mix(in srgb, var(--ra-cool) 10%, var(--ra-surface)); }
+
+.dba-rj-agree {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border-left: 3px solid var(--ra-mut);
+  background: color-mix(in srgb, var(--ra-ink) 3%, var(--ra-surface));
+}
+.dba-rj-agree.tone-pro { border-left-color: #0a7d63; }
+.dba-rj-agree.tone-con { border-left-color: #b8320e; }
+.dba-rj-agree.tone-warn { border-left-color: #b8790e; }
+.dba-rj-agree-label {
+  font: 700 20px/1.15 'DM Serif Display', 'Playfair Display', serif;
+  color: var(--ra-ink);
+  margin-top: 2px;
+}
+
+.dba-rj-pair {
+  display: grid;
+  grid-template-columns: 1fr 32px 1fr;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0;
+}
+@media (max-width: 620px) { .dba-rj-pair { grid-template-columns: 1fr; }
+  .dba-rj-arrow { display: none; }
+}
+.dba-rj-card {
+  padding: 12px 14px;
+  border: 1px solid var(--ra-line);
+  border-radius: 8px;
+  background: var(--ra-surface);
+}
+.dba-rj-verdict {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin: 6px 0 6px;
+}
+.dba-rj-verdict b { font: 700 22px/1 'DM Serif Display', serif; color: var(--ra-ink); }
+.dba-rj-verdict span { font: 500 12px/1 'JetBrains Mono', monospace; color: var(--ra-mut); letter-spacing: 0.04em; }
+.dba-rj-verdict span i { font-style: normal; margin: 0 4px; color: color-mix(in srgb, var(--ra-mut) 50%, transparent); }
+.dba-rj-arrow { text-align: center; font: 500 20px/1 'DM Serif Display', serif; color: var(--ra-mut); }

@@ -630,7 +630,7 @@ function NeuralPipeline(){
               {RESEARCH_NODES.map(n=><AgentNode key={n.id} data={n} isActive={isActive(n.id)} isCompleted={isDone(n.id)}/>)}
             </div>
           </div>
-          <p style={{fontFamily:"Hanken Grotesk,sans-serif",fontSize:"13px",color:"rgba(210,220,235,0.55)",marginTop:"24px",textAlign:"center",lineHeight:1.65}}>Linear multi-agent processing for structured<br/>data extraction and contextual summarization.</p>
+          <p style={{fontFamily:"Hanken Grotesk,sans-serif",fontSize:"13px",color:"rgba(210,220,235,0.55)",marginTop:"24px",textAlign:"center",lineHeight:1.65}}>Sequential pipeline for cited retrieval and<br/>rubric-scored synthesis.</p>
           <div style={{display:"flex",flexWrap:"wrap",gap:"7px",justifyContent:"center",marginTop:"16px",maxWidth:"320px"}}>
             {[
               {icon:"tune",label:"Style: Technical"},
@@ -1591,7 +1591,7 @@ function HeroSection(){
 
       <div className="reveal" ref={useReveal(0.05)} style={{fontFamily:"Hanken Grotesk,sans-serif",fontSize:"clamp(16px,1.9vw,20px)",color:"rgba(130,148,168,0.88)",maxWidth:"580px",lineHeight:1.75,marginBottom:"24px",fontWeight:400,transitionDelay:"0.14s"}}>
         <BlurText
-          text="Seven specialized AI agents that search, analyze, debate, and synthesize - delivering comprehensive research, not just responses."
+          text="Cited answers with faithfulness scores and rubric-judged debates. Every sentence traces to a fetched source; every verdict is graded against measurable evidence."
           animateBy="words" direction="top" delay={55} className="blur-center"
         />
       </div>
@@ -1872,7 +1872,7 @@ function PipelineSection(){
       <div ref={hRef} className="reveal" style={{textAlign:"center",marginBottom:"52px"}}>
         <p style={{fontFamily:"JetBrains Mono,monospace",fontSize:"11px",color:C.green,letterSpacing:"0.2em",marginBottom:"14px",opacity:0.8}}>↓ Architecture</p>
         <h2 style={{fontFamily:"Sora,sans-serif",fontWeight:900,fontSize:"clamp(2.8rem,6.5vw,5.2rem)",letterSpacing:"-0.055em",marginBottom:"12px",color:"#fff",display:"flex",justifyContent:"center"}}><ScrollFloat containerClassName="pipeline-float" stagger={0.04}>Neural Pipeline</ScrollFloat></h2>
-        <p style={{fontFamily:"Hanken Grotesk,sans-serif",fontSize:"17px",color:"rgba(130,148,168,0.78)",maxWidth:"420px",margin:"0 auto",lineHeight:1.7}}>Real-time multi-agent synthesis, visualized live.</p>
+        <p style={{fontFamily:"Hanken Grotesk,sans-serif",fontSize:"17px",color:"rgba(130,148,168,0.78)",maxWidth:"420px",margin:"0 auto",lineHeight:1.7}}>Cited, faithfulness-scored synthesis in real time.</p>
       </div>
       <div ref={bRef} className="reveal corner-brackets" style={{width:"100%",maxWidth:"1440px",margin:"0 auto",borderRadius:"32px",overflow:"hidden",background:"radial-gradient(ellipse 130% 80% at 25% 50%,rgba(0,24,8,0.55) 0%,rgba(3,4,16,0.92) 55%),radial-gradient(ellipse 130% 80% at 75% 50%,rgba(24,0,5,0.4) 0%,rgba(3,4,16,0.92) 55%)",border:"1px solid rgba(255,255,255,0.05)",position:"relative",boxShadow:"0 40px 80px rgba(0,0,0,0.5)",color:C.green}}>
         <div style={{position:"absolute",inset:0,opacity:0.03,pointerEvents:"none",zIndex:1}}>
@@ -2819,7 +2819,7 @@ function DeveloperCard(){
           <div>
             <h3 style={{fontFamily:"Sora,sans-serif",fontWeight:800,fontSize:"20px",marginBottom:"5px",color:"#fff"}}>Ashwarya Pradhan</h3>
             <p style={{fontFamily:"JetBrains Mono,monospace",fontSize:"11px",color:C.cyan,marginBottom:"12px",letterSpacing:"0.06em"}}>AI/ML Engineer · MUJ · Polynous Architect</p>
-            <p style={{fontFamily:"Hanken Grotesk,sans-serif",fontSize:"14px",color:"rgba(130,148,168,0.75)",lineHeight:1.7,maxWidth:"300px",margin:"0 auto 20px"}}>Building multi-agent AI systems that reason, debate, and synthesize knowledge at scale.</p>
+            <p style={{fontFamily:"Hanken Grotesk,sans-serif",fontSize:"14px",color:"rgba(130,148,168,0.75)",lineHeight:1.7,maxWidth:"300px",margin:"0 auto 20px"}}>Building research tools where every claim cites a source and every verdict is graded against rubric evidence.</p>
             <div style={{display:"flex",justifyContent:"center",gap:"12px"}}>
               {[{icon:"alternate_email",href:"mailto:pradhanashwarya2122@gmail.com",color:C.green},{icon:"code",href:"https://github.com/pradhanashwarya2122",color:C.cyan},{icon:"share",href:"https://linkedin.com/in/ashwarya-pradhan",color:C.purple}].map(({icon,href,color})=>(
                 <a key={icon} href={href} target="_blank" rel="noreferrer" style={{width:"38px",height:"38px",borderRadius:"50%",border:`1px solid ${color}28`,display:"flex",alignItems:"center",justifyContent:"center",color,textDecoration:"none",fontFamily:"Material Symbols Outlined",fontSize:"16px",transition:"all 0.25s"}} onMouseOver={e=>{e.currentTarget.style.background=`${color}12`;e.currentTarget.style.borderColor=`${color}60`;e.currentTarget.style.boxShadow=`0 0 14px ${color}30`;}} onMouseOut={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor=`${color}28`;e.currentTarget.style.boxShadow="none";}}>

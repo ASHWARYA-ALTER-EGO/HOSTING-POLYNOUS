@@ -27,6 +27,7 @@ const PolynousDebateReport = lazy(() => import('./components/PolynousDebateRepor
 const SharedReportView = lazy(() => import('./components/SharedReportView'))
 const SharedGraphView = lazy(() => import('./components/SharedGraphView'))
 const DiscoverPage = lazy(() => import('./components/DiscoverPage'))
+const BenchmarksPage = lazy(() => import('./components/BenchmarksPage'))
 const PrivacyPage = lazy(() => import('./components/StaticPages').then(m => ({ default: m.PrivacyPage })))
 const TermsPage = lazy(() => import('./components/StaticPages').then(m => ({ default: m.TermsPage })))
 const DocsPage = lazy(() => import('./components/StaticPages').then(m => ({ default: m.DocsPage })))
@@ -51,6 +52,7 @@ const ROUTE_TITLES = {
   '/pdf-lab': 'PDF Lab — Polynous',
   '/analytics': 'Analytics — Polynous',
   '/discover': 'Discover — Polynous',
+  '/benchmarks': 'Public benchmarks — Polynous',
 };
 
 function RouteTitles() {
@@ -433,6 +435,7 @@ export default function App() {
         <Route path="/d/:id" element={<SharedReportView kind="debate" />} />
         <Route path="/g/:id" element={<SharedGraphView />} />
         <Route path="/discover" element={<DiscoverPage />} />
+        <Route path="/benchmarks" element={<BenchmarksPage />} />
         <Route path="/debate-preview" element={<DebateInterface preview onNavigate={navigateTo} onLogout={handleLogout} user={{ username: 'Preview' }} />} />
 
         {/* ── CATCH-ALL: themed 404 page ────────────────── */}

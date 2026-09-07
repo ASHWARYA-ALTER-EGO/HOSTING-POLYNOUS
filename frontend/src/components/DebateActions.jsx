@@ -327,6 +327,124 @@ function ShareModal({ open, onClose, ctx }) {
   );
 }
 
+/* ---------------- Rejudge with different model ---------------- */
+const REJUDGE_PROVIDERS = [
+  { key: "anthropic", label: "Claude (Anthropic)" },
+  { key: "openai",    label: "GPT (OpenAI)" },
+  { key: "google",    label: "Gemini (Google)" },
+  { key: "groq",      label: "Groq" },
+  { key: "mistral",   label: "Mistral" },
+  { key: "deepseek",  label: "DeepSeek" },
+];
+
+function agreementLabel(a, b) {
+  if (!a || !b) return { label: "PENDING", tone: "tie" };
+  if (a.winner === b.winner) {
+    const gap = Math.abs((a.for_score - a.against_score) - (b.for_score - b.against_score));
+    if (gap < 1.2) return { label: "STRONG AGREEMENT", tone: "pro" };
+    return { label: "SAME WINNER · DIFFERENT MARGIN", tone: "warn" };
+  }
+  return { label: "VERDICT FLIPPED", tone: "con" };
+}
+
+function RejudgeModal({ open, onClose, ctx }) {
+  const [provider, setProvider] = useState("google");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [second, setSecond] = useState(null);
+  useEffect(() => { if (!open) { setSecond(null); setErr(""); } }, [open]);
+  const run = async () => {
+    setBusy(true); setErr(""); setSecond(null);
+    try {
+      const res = await fetch(API_BASE_URL + "/debate/rejudge", {
+        method: "POST", headers: apiHeaders(),
+        body: JSON.stringify({
+          topic: ctx.topic || "",
+          for_arg: ctx.forArg || ctx.proCase || "",
+          against_arg: ctx.againstArg || ctx.conCase || "",
+          for_rebuttal: ctx.forRebuttal || "",
+          against_rebuttal: ctx.againstRebuttal || "",
+          total_sources: ctx.totalSources || 0,
+          judge_provider: provider,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail || (res.status === 401 ? "Sign in to run this action." :
+          res.status === 400 ? "Add an API key for that provider in Settings first." :
+          "Rejudge unavailable right now."));
+      }
+      const j = await res.json();
+      setSecond(j.verdict);
+    } catch (e) { setErr(String(e.message || e)); }
+    setBusy(false);
+  };
+  const orig = ctx.originalVerdict || {};
+  const cmp = second ? agreementLabel(
+    { winner: orig.winner, for_score: orig.for_score, against_score: orig.against_score },
+    { winner: (second.winner || "").toUpperCase(), for_score: second.for_score, against_score: second.against_score },
+  ) : null;
+  return (
+    <Modal open={open} onClose={onClose} tone="prism" wide
+      title="Rejudge with a different model"
+      subtitle="The core credibility play. A different model reads the same two cases. If verdicts agree, the debate is robust; if they flip, treat the original as tentative.">
+      <div className="dba-rj-picker">
+        <span className="ra-kicker">Choose a judge</span>
+        <div className="dba-rj-choices">
+          {REJUDGE_PROVIDERS.map((p) => (
+            <button key={p.key}
+              className={"dba-rj-choice" + (provider === p.key ? " on" : "")}
+              onClick={() => setProvider(p.key)} disabled={busy}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="ra-hint">Needs an API key for that provider in Settings. Original judge: <b>{orig.model || "the same model"}</b>.</p>
+      </div>
+      <div className="ra-inputrow">
+        <div style={{ flex: 1 }} />
+        <button className="ra-btn ra-btn-primary" disabled={busy} onClick={run}>
+          {busy ? "Second judge is reading..." : second ? "Try another judge" : "Run second judge"}
+        </button>
+      </div>
+      {err && <div className="ra-err">{err}</div>}
+      {second && (
+        <div className="ra-out ra-fade">
+          <div className={"dba-rj-agree tone-" + cmp.tone}>
+            <span className="ra-kicker">Second opinion</span>
+            <div className="dba-rj-agree-label">{cmp.label}</div>
+          </div>
+          <div className="dba-rj-pair">
+            <div className="dba-rj-card">
+              <span className="ra-kicker">Original judge</span>
+              <div className="dba-rj-verdict tone-{orig.winner}">
+                <b>{orig.winner}</b>
+                <span>{orig.for_score}<i>vs</i>{orig.against_score}</span>
+              </div>
+              <p className="ra-hint">Certainty {orig.certainty}%</p>
+            </div>
+            <div className="dba-rj-arrow">→</div>
+            <div className="dba-rj-card">
+              <span className="ra-kicker">Second judge</span>
+              <div className="dba-rj-verdict">
+                <b>{(second.winner || "TIE").toUpperCase()}</b>
+                <span>{second.for_score}<i>vs</i>{second.against_score}</span>
+              </div>
+              <p className="ra-hint">Certainty {second.judge_certainty || "?"}%</p>
+            </div>
+          </div>
+          {second.reasoning && (
+            <div className="ra-lead">
+              <span className="ra-kicker">Second judge's reasoning</span>
+              <p style={{ margin: "4px 0 0", fontFamily: "'Inter',sans-serif", fontSize: 13.5, lineHeight: 1.55 }}>{second.reasoning}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 /* ---------------- Dock ---------------- */
 export default function DebateActions({ ctx }) {
   const [which, setWhich] = useState(null);
@@ -356,6 +474,10 @@ export default function DebateActions({ ctx }) {
           <span className="ra-dock-glyph">▶</span>
           <span className="ra-dock-lbl">Replay debate</span>
         </button>
+        <button className="ra-dock-btn" onClick={() => setWhich("rj")}>
+          <span className="ra-dock-glyph">⟳</span>
+          <span className="ra-dock-lbl">Rejudge</span>
+        </button>
         <button className="ra-dock-btn" onClick={() => setWhich("sh")}>
           <span className="ra-dock-glyph">↗</span>
           <span className="ra-dock-lbl">Share verdict</span>
@@ -363,6 +485,7 @@ export default function DebateActions({ ctx }) {
       </div>
       <CrossExamModal open={which === "cx"} onClose={() => setWhich(null)} ctx={ctx} />
       <ReplayModal open={which === "rp"} onClose={() => setWhich(null)} ctx={ctx} />
+      <RejudgeModal open={which === "rj"} onClose={() => setWhich(null)} ctx={ctx} />
       <ShareModal open={which === "sh"} onClose={() => setWhich(null)} ctx={ctx} />
     </>
   );

@@ -39,6 +39,48 @@ function copyToClipboard(text) {
   catch { return false; }
 }
 
+/* --------- Streaming pipeline strip ---------
+   Renders while a run is in flight (partial answer or no answer, but telemetry
+   steps arriving). Four canonical stages, each read from real per-step
+   telemetry. Kills the "watch a spinner" problem without shipping new backend. */
+const PIPE_STAGES = ["Search", "Summarise", "Critic", "Writer"];
+function PipelineStrip({ steps, running }) {
+  const map = {};
+  (steps || []).forEach((s) => {
+    const key = String(s.name || "").toLowerCase();
+    const target = PIPE_STAGES.find((k) => key.includes(k.toLowerCase()));
+    if (target) map[target] = { ...s, done: (s.status || "").toLowerCase() === "complete" || (s.output_tokens || 0) > 0 };
+  });
+  return (
+    <div className="rs-pipe" role="status" aria-live="polite">
+      {PIPE_STAGES.map((name, i) => {
+        const s = map[name];
+        const state = s ? (s.done ? "done" : "run") : (running ? "pending" : "idle");
+        const tok = s && ((s.input_tokens || 0) + (s.output_tokens || 0));
+        return (
+          <div key={name} className={"rs-pipe-cell state-" + state}>
+            <span className="rs-pipe-idx">{String(i + 1).padStart(2, "0")}</span>
+            <div className="rs-pipe-body">
+              <div className="rs-pipe-name">
+                {name}
+                <span className="rs-pipe-dot" aria-hidden />
+              </div>
+              <div className="rs-pipe-bar">
+                <span style={{ width: state === "done" ? "100%" : state === "run" ? "62%" : "0%" }} />
+              </div>
+              <div className="rs-pipe-meta">
+                {state === "done" ? (tok ? tok.toLocaleString() + " tok" : "done") :
+                 state === "run" ? "running..." :
+                 state === "pending" ? "queued" : "idle"}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* --------- Source chip row --------- */
 function SourceStrip({ sources }) {
   if (!sources || sources.length === 0) return null;
@@ -164,8 +206,14 @@ export default function ReportShell(props) {
     }
   };
 
+  const running = !view.tldr && !!(props.telemetry && Array.isArray(props.telemetry.steps));
+  const streamSteps = props.telemetry && Array.isArray(props.telemetry.steps) ? props.telemetry.steps : null;
+
   return (
     <div className="rs-shell">
+      {streamSteps && (running || streamSteps.some((s) => (s.status || "").toLowerCase() !== "complete")) && (
+        <PipelineStrip steps={streamSteps} running={running} />
+      )}
       {/* --- TL;DR card ---------------------------------------------------- */}
       <section className="rs-tldr rs-fade">
         <header className="rs-tldr-head">

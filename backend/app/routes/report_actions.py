@@ -181,6 +181,74 @@ async def perspective(request: Request, db: Session = Depends(get_db)):
     return {"result": out, "provider": provider}
 
 
+@router.post("/debate/rejudge")
+async def rejudge_debate(request: Request, db: Session = Depends(get_db)):
+    """Re-run the judge on an existing debate with a different provider/model.
+
+    This is the core credibility play: if the verdict holds when a different
+    model judges the same cases, the debate is robust; if the verdict flips,
+    the user knows to treat it as tentative.
+
+    Body:
+      {"topic": str, "for_arg": str, "against_arg": str,
+       "for_rebuttal": str, "against_rebuttal": str, "total_sources": int,
+       "judge_provider": "anthropic"|"openai"|"google"|"groq"|"mistral"|...,
+       "judge_model": str (optional)}
+    """
+    body = await request.json()
+    topic = str(body.get("topic") or "").strip()
+    for_arg = str(body.get("for_arg") or "").strip()
+    against_arg = str(body.get("against_arg") or "").strip()
+    for_rebuttal = str(body.get("for_rebuttal") or "").strip()
+    against_rebuttal = str(body.get("against_rebuttal") or "").strip()
+    total_sources = int(body.get("total_sources") or 0)
+    judge_provider = str(body.get("judge_provider") or "").strip().lower()
+    judge_model = str(body.get("judge_model") or "").strip() or None
+
+    if not (topic and (for_arg or against_arg)):
+        raise HTTPException(400, "topic + at least one advocate case are required")
+    if not judge_provider:
+        raise HTTPException(400, "judge_provider is required")
+
+    user, _current_provider, _current_key = _resolve_user_key(request, db)
+    if user is None:
+        raise HTTPException(401, "Sign in to rejudge a debate.")
+
+    # Look up the user's key for the chosen alternate judge provider.
+    from app.utils.encryption import decrypt_api_key
+    key_field = f"{judge_provider}_api_key"
+    enc = getattr(user, key_field, None)
+    api_key = None
+    if enc:
+        try:
+            api_key = decrypt_api_key(enc, user.encryption_key)
+        except Exception:
+            api_key = None
+    if not api_key:
+        raise HTTPException(
+            400,
+            f"No API key configured for {judge_provider}. Add one in Settings so a "
+            "different model can judge this debate independently.",
+        )
+
+    try:
+        from app.agents.debate_agents import judge_debate
+        verdict = judge_debate(
+            for_arg, against_arg, topic,
+            api_key=api_key,
+            provider=judge_provider,
+            for_rebuttal=for_rebuttal,
+            against_rebuttal=against_rebuttal,
+            total_sources=total_sources,
+            model=judge_model,
+        )
+    except Exception as e:
+        raise HTTPException(502, f"Rejudge failed: {e}")
+
+    return {"verdict": verdict, "judge_provider": judge_provider,
+            "judge_model": judge_model or verdict.get("model") or ""}
+
+
 @router.post("/debate/cross-exam")
 async def cross_exam(request: Request, db: Session = Depends(get_db)):
     """User poses a question to both advocates; judge scores their answers."""

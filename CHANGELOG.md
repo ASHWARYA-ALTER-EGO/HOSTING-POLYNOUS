@@ -7,6 +7,77 @@ and compile-verified but not yet exercised end-to-end in production).
 
 ---
 
+## [Unreleased] — Positioning, streaming visibility, multi-judge, steelman-first, /benchmarks
+
+### Debate chamber (the differentiator)
+- **Multi-provider judge**: new `POST /debate/rejudge` endpoint takes the two
+  advocate cases + a chosen `judge_provider` (anthropic / openai / google /
+  groq / mistral / deepseek) and runs the judge on a completely different
+  model. Uses the user's stored key for that provider.
+- **"Rejudge with different model" button** added to the debate report action
+  dock. Opens a picker + side-by-side agreement panel: STRONG AGREEMENT (same
+  winner, similar margin), SAME WINNER · DIFFERENT MARGIN, or VERDICT FLIPPED.
+  This is the core credibility play, exactly as called out in the audit.
+- **Steelman promoted to first-class result** (`sSteelmanFirst`, eye number
+  02) rendering ABOVE the rubric with each side's strongest case in a serif
+  editorial card. Copy tells the reader that if either steelman would move
+  them more than the actual debate did, the verdict deserves extra caution.
+- **Per-rubric-row "why" tooltip**: each row in the Evidence rubric now
+  carries a `title` attribute stating exactly why it scored that way
+  ("Grounded sentences. SUPPORTING ahead by 3. Higher wins — measured
+  directly from the arguments and their citations.").
+- **DEMO topic no longer leaks into real runs**: `deriveDebate` now only
+  falls back to the Mars-colonisation demo topic when the caller passes no
+  `result` at all (the `/debate-preview` route). Real runs with a missing
+  topic render an honest empty string.
+
+### Research chamber
+- **Streaming pipeline strip** inside `ReportShell`. Renders as a 4-cell
+  bar (Search / Summarise / Critic / Writer) driven by real per-step
+  telemetry. Done cells show green + token count; running cells pulse cool;
+  pending cells sit muted. Kills the "watch a spinner" problem without any
+  backend changes.
+
+### Landing / positioning
+- Hero copy no longer leads with "Seven specialized AI agents". Now:
+  "Cited answers with faithfulness scores and rubric-judged debates. Every
+  sentence traces to a fetched source; every verdict is graded against
+  measurable evidence."
+- Meta description rewritten for the same positioning: cited + faithfulness-
+  scored + judged debates.
+- Two additional in-page copy blocks realigned to the same message.
+
+### /benchmarks page (public credibility)
+- New `/benchmarks` route with a full methodology page: four numbered
+  method cards, a Polynous vs Perplexity vs ChatGPT vs NotebookLM
+  scoreboard (rendered with placeholder rows until the first real run
+  completes), and an explicit "PENDING FIRST RUN" banner so nobody
+  mistakes the placeholders for published results.
+- **Honest losses section**: a whole panel dedicated to where Polynous is
+  expected to lose (speed vs Perplexity, prose polish vs ChatGPT, general
+  trivia vs any LLM). We publish the losses too.
+
+### Golden-set eval harness
+- New `backend/evals/golden_set.json` — 20 held-out prompts across STEM,
+  history, current events, open-ended, adversarial. Categories, metric
+  definitions and tool list all inline.
+- New `backend/evals/run_eval.py` runner: reads the golden set, calls the
+  local Polynous backend for each prompt, records answer + automated
+  citation ratio + latency to `results.json`. Perplexity / ChatGPT /
+  NotebookLM answers are entered manually to keep the human-blind-rating
+  methodology honest.
+- New `backend/evals/README.md` documents the pipeline and what the
+  project deliberately does NOT do (rerun losses, weight results, hide
+  prompts).
+
+### Caveats
+- Rejudge needs the user to have a second-provider key configured; the
+  endpoint returns a helpful 400 if not.
+- The /benchmarks scoreboard uses placeholder numbers with a visible
+  PENDING flag; real numbers ship after the first eval run.
+
+---
+
 ## [Unreleased] — Premium report: TL;DR shell, honest scoring, dead code purge
 
 ### New: ReportShell (TL;DR first)

@@ -1,0 +1,42 @@
+{
+  "version": "0.1",
+  "description": "Held-out prompt set for Polynous public benchmarks. Same prompt is sent to every tool, no cherry-picking, no retries. Ratings are done blind (tool identity stripped). Add prompts sparingly; keep the set small enough to rate manually.",
+  "categories": {
+    "stem": "Technical / scientific questions where citations should be easy.",
+    "history": "Historical questions with a settled record.",
+    "current": "Current-events questions where recency matters.",
+    "open": "Open-ended argument prompts where a single right answer does not exist.",
+    "adversarial": "Prompts designed to trip up bad retrieval or overconfident answers."
+  },
+  "prompts": [
+    { "id": "stem-01", "category": "stem",      "prompt": "How do mRNA vaccines produce immunity? Cite the mechanism and the key steps." },
+    { "id": "stem-02", "category": "stem",      "prompt": "What is the strongest evidence that dark matter exists?" },
+    { "id": "stem-03", "category": "stem",      "prompt": "What role does the microbiome play in immune development, per recent studies?" },
+    { "id": "stem-04", "category": "stem",      "prompt": "What are the leading approaches to alignment in large language models, and what are the empirical results so far?" },
+    { "id": "hist-01", "category": "history",   "prompt": "What caused the collapse of the Bronze Age civilizations around 1200 BCE?" },
+    { "id": "hist-02", "category": "history",   "prompt": "What was the actual role of the East India Company in the Bengal famine of 1770?" },
+    { "id": "hist-03", "category": "history",   "prompt": "How reliable are the earliest historical accounts of the Battle of Kadesh?" },
+    { "id": "hist-04", "category": "history",   "prompt": "What do we actually know about the origins of the Etruscan language?" },
+    { "id": "curr-01", "category": "current",   "prompt": "What are the latest published results on room-temperature superconductors?" },
+    { "id": "curr-02", "category": "current",   "prompt": "What is the current scientific consensus on the effects of GLP-1 drugs beyond weight loss?" },
+    { "id": "curr-03", "category": "current",   "prompt": "What has changed in EU AI regulation in the past twelve months?" },
+    { "id": "curr-04", "category": "current",   "prompt": "How reliable are the latest quantum-computing benchmarks against classical simulation?" },
+    { "id": "open-01", "category": "open",      "prompt": "Should universities require humanities students to study statistics?" },
+    { "id": "open-02", "category": "open",      "prompt": "Is remote-first work better for junior engineers or worse for them?" },
+    { "id": "open-03", "category": "open",      "prompt": "Are creativity and productivity in tension for knowledge workers?" },
+    { "id": "open-04", "category": "open",      "prompt": "Should news organizations pay for exclusive access to public records?" },
+    { "id": "adv-01",  "category": "adversarial","prompt": "What was Turing's response to Wittgenstein's argument about mathematical certainty in 1939?" },
+    { "id": "adv-02",  "category": "adversarial","prompt": "Which country invented Bluetooth and in what year?" },
+    { "id": "adv-03",  "category": "adversarial","prompt": "What did Ada Lovelace say about the Analytical Engine that Babbage disagreed with?" },
+    { "id": "adv-04",  "category": "adversarial","prompt": "What are the three known limits of Reciprocal Rank Fusion in hybrid retrieval?" }
+  ],
+  "metrics": {
+    "citations":   { "range": [0, 1],   "note": "share of answer sentences that resolve to a fetched source (automated)" },
+    "correctness": { "range": [0, 10],  "note": "blind human rating, three raters, median" },
+    "coverage":    { "range": [0, 10],  "note": "share of the question actually answered, blind rated" },
+    "usefulness":  { "range": [0, 10],  "note": "did the reader learn something they could use, blind rated" }
+  },
+  "tools": [
+    "polynous", "perplexity", "chatgpt", "notebook"
+  ]
+}

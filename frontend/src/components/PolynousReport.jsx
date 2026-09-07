@@ -43,7 +43,7 @@ function ConfTip({ active, payload, label }) {
   return (
     <div style={{ background: "#0e1434", border: "1px solid rgba(0,255,71,0.28)", borderRadius: 10, padding: "10px 14px", boxShadow: "0 18px 40px -20px rgba(0,0,10,0.9)", fontFamily: "'JetBrains Mono', monospace" }}>
       <div style={{ color: "#6c7a97", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
-      <div style={{ color: "#f2f6fb", fontSize: 16, fontWeight: 600 }}>{p.value}% <span style={{ color: RP_ACC, fontSize: 11 }}>confidence</span></div>
+      <div style={{ color: "#f2f6fb", fontSize: 16, fontWeight: 600 }}>{p.value}<span style={{ color: RP_ACC, fontSize: 11, marginLeft: 4 }}>avg source trust</span></div>
       {p.payload && p.payload.title ? <div style={{ color: "#c3d2e6", fontSize: 11.5, marginTop: 5, fontFamily: "'Hanken Grotesk', sans-serif", maxWidth: 190, lineHeight: 1.4 }}>{p.payload.title}</div> : null}
     </div>
   );
@@ -269,7 +269,7 @@ function deriveReport(p) {
 
   const cc = ca.critic_consensus || {};
   let cs = Number(cc.score); if (cs <= 1) cs *= 100; cs = Math.round(cs || 75);
-  const critic = { pct: cs, agree: pick(cc.agree, 3), total: pick(cc.total, 4), position: pick(cc.explanation, typeof report.consensus_map === "string" ? report.consensus_map : undefined, real ? "" : "Human activity is the dominant driver of recent rapid warming.") };
+  const critic = { pct: cs, agree: pick(cc.agree, 3), total: pick(cc.total, 4), position: pick(cc.explanation, typeof report.consensus_map === "string" ? report.consensus_map : undefined, real ? "" : "") };
 
   const kf = Array.isArray(report.key_findings) ? report.key_findings : [];
   const findings = (kf.length ? kf.slice(0, 6).map((f) => stripEmoji(typeof f === "string" ? f : (f.text || f.finding || ""))) : (real ? [] : DEMO_FINDINGS)).filter(Boolean);
@@ -422,7 +422,7 @@ function sMasthead(d) {
     <h1 class="rp-query">${esc(d.query)}</h1>
     ${d.verdict ? `<p class="rp-verdict">${cite(d.verdict)}</p>` : ""}
     <div class="rp-headrow">
-      <div class="rp-conf"><span class="rp-fig rp-count" data-target="${d.conf}" data-suffix="%">${d.conf}%</span><span class="rp-conf-meta"><span class="rp-band">${esc(d.band)} CONFIDENCE</span>${ciBand}</span></div>
+      <div class="rp-conf"><span class="rp-fig rp-count" data-target="${d.conf}" data-suffix="%">${d.conf}%</span><span class="rp-conf-meta"><span class="rp-band">${esc(d.band)} SCORE</span>${ciBand}</span></div>
       ${d.critic.position ? `<div class="rp-critic"><span class="rp-dim">CRITIC CONSENSUS</span><span><b>${d.critic.pct}%</b>, ${d.critic.agree}/${d.critic.total} sources agree</span><span class="rp-mut">${esc(d.critic.position)}</span></div>` : ""}
     </div>
     <div class="rp-asof">
@@ -524,7 +524,7 @@ function sConfidence(d) {
   // Only surface the sub-score breakdown when it comes from a real confidence
   // analysis. Never invent agreement/diversity/recency numbers.
   const facBlock = d.breakdownReal
-    ? `<div class="rp-subh">How the score is built</div>${Object.entries(d.breakdown).map(([k, v]) => `<div class="rp-fac"><span>${k} <span class="rp-dim">(${CONF_WEIGHTS[k] != null ? CONF_WEIGHTS[k] + "%" : "weight"})</span></span><span class="rp-mono">${v}%</span>${bar(v)}</div>`).join("")}<p class="rp-cap" style="margin-top:14px;font-style:normal">Confidence = 30% source agreement + 20% domain diversity + 20% recency + 30% citation grounding.</p>`
+    ? `<div class="rp-subh">How the heuristic score is built</div>${Object.entries(d.breakdown).map(([k, v]) => `<div class="rp-fac"><span>${k} <span class="rp-dim">(${CONF_WEIGHTS[k] != null ? CONF_WEIGHTS[k] + "%" : "weight"})</span></span><span class="rp-mono">${v}%</span>${bar(v)}</div>`).join("")}<p class="rp-cap" style="margin-top:14px;font-style:normal">Heuristic score = 30% source agreement + 20% domain diversity + 20% recency + 30% citation grounding. This is a rubric-derived signal, not an evaluation against ground truth. Verify important claims against the sources.</p>`
     : "";
   const faithBlock = d.faithful
     ? `<div class="rp-subh">Sentence-level grounding</div>
@@ -538,7 +538,7 @@ function sConfidence(d) {
   }).join("");
   const claimBlock = d.claims.length ? `<div><div class="rp-subh">Claims &amp; grounding</div><div class="rp-claims">${cl}</div><p class="rp-cap"><span class="rp-tag pos" style="transform:scale(.85)">GROUNDED</span> cites a source directly · <span class="rp-tag warn" style="transform:scale(.85)">SYNTHESISED</span> inferred across sources</p></div>` : "";
   if (!facBlock && !faithBlock && !claimBlock) return "";
-  return `<section class="rp-sec rp-rev">${eye("07", "Confidence &amp; grounding")}<div class="rp-split">
+  return `<section class="rp-sec rp-rev">${eye("07", "Heuristic score &amp; grounding")}<div class="rp-split">
     <div>${facBlock}${faithBlock}</div>
     ${claimBlock}
   </div></section>`;
@@ -676,7 +676,7 @@ function sTakeaways(d) { if (!d.takeaways.length) return "";
     </li>`;
   }).join("");
   return `<section class="rp-sec rp-rev rp-lead" id="rp-sec-00" style="scroll-margin-top:20px">
-    <div class="rp-lead-eye"><span class="rp-mono rp-acc-t">◆ KEY TAKEAWAYS</span><span class="rp-dim rp-mono">${esc(d.band)} CONFIDENCE${d.ci ? ` · BAND ${d.ci.low} TO ${d.ci.high}%` : ""}</span></div>
+    <div class="rp-lead-eye"><span class="rp-mono rp-acc-t">◆ KEY TAKEAWAYS</span><span class="rp-dim rp-mono">${esc(d.band)} SCORE${d.ci ? ` · BAND ${d.ci.low} TO ${d.ci.high}%` : ""}</span></div>
     <ol class="rp-takes">${rows}</ol>
   </section>`;
 }

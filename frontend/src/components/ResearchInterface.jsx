@@ -3,8 +3,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { getPersonalizedSuggestions } from "../personalize";
 import { C } from "../design/researchColors";
 import { Icon } from "./shared/Icon";
-import { NeuralSynthesisReport } from "./report/NeuralSynthesisReport";
 import PolynousReport from "./PolynousReport";
+import ReportShell from "./ReportShell";
 import { isDevPreview } from "../devPreview";
 import ScrapeCountControl from "./ScrapeCountControl";
 import { API_BASE_URL } from '../config'
@@ -1302,9 +1302,9 @@ export default function PolynousResearch({ user, onNavigate, onLogout }) {
               );
             })()}
 
-            {/* Report — the PolynousReport (editorial "dossier") is now the report
-                everyone sees, wired to the real research data. */}
-            <PolynousReport query={query} answer={answer} report={report} sources={sources} confidence={confidence} telemetry={telemetry} sourceSummaries={sourceSummaries} />
+            {/* Report - ReportShell leads with a TL;DR + honest score, then
+                lets the reader expand into the full editorial dossier. */}
+            <ReportShell query={query} answer={answer} report={report} sources={sources} confidence={confidence} telemetry={telemetry} sourceSummaries={sourceSummaries} />
 
             {/* History */}
             {history.length>0 && (

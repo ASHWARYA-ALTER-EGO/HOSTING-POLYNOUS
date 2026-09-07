@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config";
-import PolynousReport from "./PolynousReport";
+import ReportShell from "./ReportShell";
 import PolynousDebateReport from "./PolynousDebateReport";
 
 const WRAP = { minHeight: "100vh", background: "#0a0a1e", color: "#c3d2e6", fontFamily: "'Hanken Grotesk',-apple-system,sans-serif" };
@@ -55,7 +55,7 @@ export default function SharedReportView({ kind }) {
       <div style={{ paddingTop: 8 }}>
         {isDebate
           ? <PolynousDebateReport result={payload.result} activeTopic={payload.activeTopic || payload.topic} showRail={false} />
-          : <PolynousReport {...payload} />}
+          : <ReportShell {...payload} />}
       </div>
     </div>
   );

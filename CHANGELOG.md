@@ -7,6 +7,58 @@ and compile-verified but not yet exercised end-to-end in production).
 
 ---
 
+## [Unreleased] — Premium report: TL;DR shell, honest scoring, dead code purge
+
+### New: ReportShell (TL;DR first)
+- New `ReportShell` component wraps the existing `PolynousReport` and leads
+  with a real-JSX, editorial answer card: query, 2-3 sentence executive
+  answer, heuristic-score chip (with methodology tooltip), grounded-sentence
+  count, source count, cited source strip, and up to three key findings.
+- **Progressive disclosure**: the full editorial dossier is one click away
+  ("See full analysis"), no longer the default surface. Fixes the "12-scroll
+  magazine" bounce problem without rebuilding the 1634-line dossier.
+- Empty-run state is honest: "This run finished without returning grounded
+  evidence" instead of falling back to placeholder content.
+- **Copy summary** button lifts the answer + numbered source list to the
+  clipboard, so users share the takeaway without shipping the whole report.
+
+### Honest scoring
+- Every "Confidence" label in the dossier is now labelled **"Heuristic score"**,
+  with tooltip copy stating plainly that the number is a rubric-derived signal,
+  not an evaluation against ground truth, and that important claims should be
+  verified against the sources.
+- The `ConfidenceChart` tooltip no longer claims a "% confidence" per citation
+  year (that was descriptive dressed as analytical). It now reads "avg source
+  trust" for that year bucket.
+
+### Empty state / demo purge
+- Removed the "Human activity is the dominant driver of recent rapid warming"
+  climate-demo string from the critic-consensus fallback, so a real run with
+  a missing consensus_map no longer produces made-up placeholder content.
+- (DEMO_* fallbacks remain for the `/report-preview` route where `real === false`;
+  they are correctly gated and never surface on live runs.)
+
+### Dead code
+- Deleted `src/components/report/NeuralSynthesisReport.jsx` (imported but
+  never rendered).
+- Removed the stale `NeuralSynthesisReport` import from `ResearchInterface.jsx`.
+- Directory `src/components/report/` removed.
+
+### Rendering sites
+- `ResearchInterface`, `SharedReportView` now render via `ReportShell` instead
+  of `PolynousReport` directly. `AdminDashboard`'s demo view keeps the raw
+  `PolynousReport` (that page is a design showcase, so it correctly wants the
+  full dossier).
+
+### Caveats
+- The 1634-line `dangerouslySetInnerHTML` dossier is still there; ReportShell
+  wraps it rather than replacing it. Full migration to composed React
+  components remains the biggest tech-debt target for the report subsystem.
+- Fake confidence chart is honestly relabelled, not deleted; deleting it would
+  need a separate pass on `sConfidence`.
+
+---
+
 ## [Unreleased] — Growth loops: /discover, KG share, ChatGPT import, referrals, cost transparency, share pill, cookie-gated intro, Person schema
 
 ### /discover public gallery

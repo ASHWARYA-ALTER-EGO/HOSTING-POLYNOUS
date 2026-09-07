@@ -976,6 +976,12 @@ export default function PolynousDebateReport(props) {
       model: d.model,
     },
     totalSources: (d.sources || []).length,
+    // Agentic point-ledger data (only present when the debate ran through
+    // /debate/agentic). Replay scrubber routes to the ledger view when set.
+    points: (props.result && props.result.points) || null,
+    ledger: (props.result && (props.result.clash_ledger || (props.result.verdict && props.result.verdict.clash_ledger))) || null,
+    labels: (props.result && props.result.labels) || null,
+    mode: (props.result && props.result.mode) || "sequential",
   };
   return (
     <>

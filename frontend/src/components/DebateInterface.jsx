@@ -1740,6 +1740,14 @@ const DEMO_DEBATE_RESULT = {
 
 export default function DebateChamber({ user, onNavigate, onLogout, preview = false }) {
   const [topic, setTopic] = useState("");
+  // Agentic mode toggle (default off, per Phase 2 plan). Persisted per-browser
+  // so power users don't have to re-check it every visit.
+  const [agenticMode, setAgenticMode] = useState(() => {
+    try { return localStorage.getItem("polynous_debate_agentic") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("polynous_debate_agentic", agenticMode ? "1" : "0"); } catch (_) {}
+  }, [agenticMode]);
   const [answerLength, setAnswerLength] = useState("detailed");
   const [loading, setLoading] = useState(false);
   const [agentStatus, setAgentStatus] = useState("");
@@ -1773,7 +1781,7 @@ export default function DebateChamber({ user, onNavigate, onLogout, preview = fa
   const sidebarW = sidebarCollapsed ? 56 : 320;
 
   // The DebateEngine streams the real pipeline; this just opens the arena.
-  const fireDebate = useCallback((q) => {
+  const fireDebate = useCallback(async (q) => {
     if (!q.trim() || loading) return;
     setLoading(true);
     setResult(null);
@@ -1781,7 +1789,37 @@ export default function DebateChamber({ user, onNavigate, onLogout, preview = fa
     setView("report");
     setActiveTopic(q.trim());
     setAgentStatus("");
-  }, [loading]);
+    if (!agenticMode) return; // sequential path is driven by NeuralResearchEngine
+
+    // Agentic path: opt-in, BYO-key only. One request/response (no SSE) that
+    // returns a point-ledger view the retrofitted Replay scrubber renders.
+    setAgentStatus("Agentic debate: state-machine + point ledger...");
+    try {
+      const tok = localStorage.getItem("polynous_token") || "";
+      const res = await fetch(`${API_BASE_URL}/debate/agentic`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(tok ? { Authorization: "Bearer " + tok } : {}) },
+        body: JSON.stringify({ topic: q.trim(), max_rounds: 3, max_turns: 20 }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail || (res.status === 401 ? "Sign in to run agentic mode." :
+          res.status === 400 ? "Add an API key in Settings first." :
+          "Agentic debate failed."));
+      }
+      const j = await res.json();
+      setResult({
+        ...(j.result || {}),
+        mode: "agentic",
+      });
+      setAgentStatus("");
+    } catch (e) {
+      setError(String(e.message || e));
+      setAgentStatus("");
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, agenticMode]);
 
   // Toggle between the finished live Engine and the Report, with a smooth
   // scroll to the top so the transition reads as "sliding up to the engine".
@@ -1900,6 +1938,33 @@ export default function DebateChamber({ user, onNavigate, onLogout, preview = fa
                       ))}
                     </div>
                   </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+                    <button onClick={() => setAgenticMode(m => !m)} disabled={loading}
+                      title={agenticMode ? "Agentic mode: real turn-taking, point-by-point clash. Uses BYO key. ~1.8x cost." : "Sequential mode: streaming openings + rebuttals + judge. Fast, free-tier default."}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 8,
+                        padding: "6px 12px 6px 8px", borderRadius: 999,
+                        border: `1px solid ${agenticMode ? "rgba(168,85,247,0.55)" : "rgba(255,255,255,0.10)"}`,
+                        background: agenticMode ? "rgba(168,85,247,0.14)" : "rgba(255,255,255,0.03)",
+                        color: agenticMode ? "#d8b4fe" : "rgba(210,220,235,0.65)",
+                        fontFamily: "'JetBrains Mono',monospace", fontSize: 10.5, letterSpacing: "0.12em",
+                        cursor: loading ? "wait" : "pointer", transition: "all 0.2s",
+                      }}>
+                      <span style={{
+                        width: 22, height: 12, borderRadius: 999,
+                        background: agenticMode ? "#a855f7" : "rgba(255,255,255,0.12)",
+                        position: "relative", transition: "background 0.24s",
+                      }}>
+                        <span style={{
+                          position: "absolute", top: 1, left: agenticMode ? 11 : 1,
+                          width: 10, height: 10, borderRadius: 999, background: "#fff",
+                          transition: "left 0.24s cubic-bezier(0.22,1,0.36,1)",
+                        }} />
+                      </span>
+                      AGENTIC {agenticMode ? "ON" : "OFF"}
+                      <span style={{ opacity: 0.55, fontSize: 9 }}>· POINT LEDGER</span>
+                    </button>
+                  </div>
                   <div style={{ display: "flex", gap: 14 }}>
                     <div style={{ flex: 1, position: "relative" }}>
                       <input ref={inputRef} type="text" value={topic} onChange={e => setTopic(e.target.value)} onKeyDown={handleKeyDown} disabled={loading} placeholder="e.g., Should AI be regulated by international treaties?"
@@ -1954,13 +2019,22 @@ export default function DebateChamber({ user, onNavigate, onLogout, preview = fa
                     </button>
                   </div>
                 )}
-                <DebateEngine
-                  apiUrl={`${API_BASE_URL}/debate-visual`}
-                  query={activeTopic}
-                  responseStyle={answerLength}
-                  onComplete={handleEngineComplete}
-                  onError={handleEngineError}
-                />
+                {agenticMode ? (
+                  <div style={{ padding: "80px 20px", textAlign: "center", color: "rgba(210,220,235,0.6)", fontFamily: "'Hanken Grotesk',sans-serif" }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, letterSpacing: "0.18em", color: "#d8b4fe", marginBottom: 12 }}>AGENTIC MODE</div>
+                    <div style={{ fontSize: 15, maxWidth: 520, margin: "0 auto", lineHeight: 1.55 }}>
+                      Agentic debates run without the live streaming engine: the state machine drives asserts, rebuttals and defends in the background, then jumps you straight to the report with the full point ledger and Replay scrubber.
+                    </div>
+                  </div>
+                ) : (
+                  <DebateEngine
+                    apiUrl={`${API_BASE_URL}/debate-visual`}
+                    query={activeTopic}
+                    responseStyle={answerLength}
+                    onComplete={handleEngineComplete}
+                    onError={handleEngineError}
+                  />
+                )}
               </div>
             )}
 

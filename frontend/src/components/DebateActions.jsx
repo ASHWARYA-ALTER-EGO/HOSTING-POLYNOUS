@@ -129,6 +129,115 @@ function CrossExamModal({ open, onClose, ctx }) {
   );
 }
 
+/* ---------------- Point Ledger (agentic mode) ---------------- */
+function outcomeTone(status) {
+  return status === "defended" ? "pro" : status === "conceded" ? "con" : status === "unresolved" ? "tie" : "pro";
+}
+function phaseGlyph(phase) {
+  return phase === "assert" ? "◆" : phase === "rebut" ? "⚔" : phase === "defend" ? "🛡" : phase === "concede" ? "🏳" : "·";
+}
+function PointLedgerView({ ctx }) {
+  const points = ctx.points || [];
+  const labels = ctx.labels || { A: "FOR", B: "AGAINST" };
+  const ledger = ctx.ledger || {};
+  const [openId, setOpenId] = useState(points[0] ? points[0].id : null);
+  const active = points.find((p) => p.id === openId) || points[0];
+
+  const badgeFor = (side) => (
+    <span className={"dba-pl-badge side-" + (labels[side] === "FOR" ? "pro" : "con")}>
+      {side} · {labels[side]}
+    </span>
+  );
+
+  const winnerFor = (p) => {
+    if (p.status === "defended") return "AUTHOR (" + p.author + ")";
+    if (p.status === "conceded") return "CHALLENGER (" + (p.author === "A" ? "B" : "A") + ")";
+    return "UNRESOLVED";
+  };
+
+  return (
+    <div className="dba-pl">
+      <div className="dba-pl-ledger">
+        <div className="dba-pl-ledger-h">
+          <span className="ra-kicker">Clash ledger</span>
+          <span className="dba-pl-mode">Point-by-point</span>
+        </div>
+        <div className="dba-pl-ledger-grid">
+          <div className="dba-pl-ledger-cell">
+            <div className="dba-pl-num">{ledger.A_ledger_points || 0}</div>
+            <div className="dba-pl-lab">Team A ({labels.A})</div>
+            <div className="dba-pl-sub">
+              {ledger.A_defended || 0} defended &middot; {ledger.B_conceded_wins_for_A || 0} rebuttals landed
+            </div>
+          </div>
+          <div className="dba-pl-vs">vs</div>
+          <div className="dba-pl-ledger-cell">
+            <div className="dba-pl-num">{ledger.B_ledger_points || 0}</div>
+            <div className="dba-pl-lab">Team B ({labels.B})</div>
+            <div className="dba-pl-sub">
+              {ledger.B_defended || 0} defended &middot; {ledger.A_conceded_wins_for_B || 0} rebuttals landed
+            </div>
+          </div>
+        </div>
+        {(ledger.unresolved || 0) > 0 && (
+          <p className="dba-pl-un">{ledger.unresolved} point{ledger.unresolved > 1 ? "s" : ""} closed as UNRESOLVED (exchange cap reached).</p>
+        )}
+      </div>
+
+      <div className="dba-pl-body">
+        <div className="dba-pl-rail">
+          {points.map((p) => (
+            <button key={p.id}
+              className={"dba-pl-railbtn tone-" + outcomeTone(p.status) + (active && active.id === p.id ? " on" : "")}
+              onClick={() => setOpenId(p.id)}>
+              <span className="dba-pl-railid">{p.id}</span>
+              {badgeFor(p.author)}
+              <span className="dba-pl-railstatus">{p.status.toUpperCase()}</span>
+            </button>
+          ))}
+        </div>
+        {active && (
+          <div className="dba-pl-panel" key={active.id}>
+            <div className="dba-pl-panel-h">
+              <div>
+                <span className="ra-kicker">{active.id} &middot; raised by {active.author}</span>
+                <p className="dba-pl-claim">{active.claim}</p>
+              </div>
+              <span className={"dba-pl-status tone-" + outcomeTone(active.status)}>
+                {active.status.toUpperCase()}
+              </span>
+            </div>
+            <div className="dba-pl-thread">
+              {(active.exchange || []).map((t, i) => (
+                <div key={i} className={"dba-pl-turn phase-" + t.phase + " side-" + t.side}>
+                  <div className="dba-pl-turn-h">
+                    <span className="dba-pl-turn-g">{phaseGlyph(t.phase)}</span>
+                    {badgeFor(t.side)}
+                    <span className="dba-pl-turn-p">{t.phase.toUpperCase()}</span>
+                    {t.attack_mode && <span className="dba-pl-attack">via {t.attack_mode}</span>}
+                  </div>
+                  <p>{t.text}</p>
+                  {t.narrowed_claim && (
+                    <p className="dba-pl-narrow"><b>Narrowed to:</b> {t.narrowed_claim}</p>
+                  )}
+                  {(t.cites || []).length > 0 && (
+                    <div className="dba-pl-cites">
+                      {(t.cites || []).map((n) => <span key={n} className="dba-pl-cite">[{n}]</span>)}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="dba-pl-panel-f">
+              Winner of this point: <b>{winnerFor(active)}</b>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Replay time-scrubber ---------------- */
 function ReplayModal({ open, onClose, ctx }) {
   const stages = useMemo(() => {
@@ -144,10 +253,15 @@ function ReplayModal({ open, onClose, ctx }) {
   useEffect(() => { if (open) setIdx(0); }, [open]);
   const stage = stages[idx] || {};
   const proHistory = useMemo(() => stages.map((s) => s.momentum), [stages]);
+  // If the debate ran in agentic mode, hand off to the point-ledger view.
+  const isAgentic = !!(ctx && Array.isArray(ctx.points) && ctx.points.length);
   return (
     <Modal open={open} onClose={onClose} tone="prism" wide
-      title="Debate replay"
-      subtitle="Scrub through the exchanges. The clash meter shows momentum turn by turn.">
+      title={isAgentic ? "Debate replay · point ledger" : "Debate replay"}
+      subtitle={isAgentic
+        ? "One panel per point. Each point resolved as DEFENDED, CONCEDED, or UNRESOLVED. The judge scored outcomes, not vibes."
+        : "Scrub through the exchanges. The clash meter shows momentum turn by turn."}>
+      {isAgentic ? <PointLedgerView ctx={ctx} /> : (
       <div className="dba-rp">
         {stages.length === 0 && <p className="ra-hint">No turns recorded for this debate.</p>}
         {stages.length > 0 && (
@@ -187,6 +301,7 @@ function ReplayModal({ open, onClose, ctx }) {
           </>
         )}
       </div>
+      )}
     </Modal>
   );
 }

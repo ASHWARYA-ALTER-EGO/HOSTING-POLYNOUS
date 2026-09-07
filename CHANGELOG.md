@@ -7,6 +7,83 @@ and compile-verified but not yet exercised end-to-end in production).
 
 ---
 
+## [Unreleased] — Judge separation Phase 2: agentic debate mode + point ledger
+
+### Real turn-taking, point-by-point clash (opt-in)
+- New `app/agents/agentic_debate.py`: a small Python state machine, not
+  LangGraph. Four turn types (assert, rebut, defend, concede), one point
+  per iteration, per-point exchange thread. Each LLM call reads only the
+  point it is acting on, not the whole transcript, so cost scales with
+  points, not squared.
+- Guardrails are hard-coded: `MAX_ROUNDS=3`, `MAX_TURNS=20`,
+  `MAX_EXCHANGE_PER_POINT=4`. Any turn that fails schema validation gets
+  one corrective retry, then the point is closed as UNRESOLVED. No infinite
+  loops possible.
+- `next_action(state)` scheduler picks the next verb in priority order:
+  defend a rebutted point first, rebut an open point next, otherwise open
+  a new point until the round budget is spent.
+
+### Point-ledger judge
+- Judge scores OUTCOMES from the resolved ledger, not vibes. Uses the WEAK
+  tier model of the same provider (or the user's per-provider override).
+- Final blend: 60% ledger outcomes + 40% LLM-quality (blind A/B).
+- Objective ledger:
+  - +1 to author when a point was DEFENDED
+  - +1 to challenger when the author CONCEDED
+  - 0 for UNRESOLVED (still counted as "did not close")
+- LLM cannot handwave; every score references a specific point id.
+- Mechanical fallback verdict when the judge LLM itself fails, so a broken
+  judge never fabricates a tie.
+
+### Blind A/B propagated through
+- Randomised label mapping (A/B <-> FOR/AGAINST) is applied at debate start,
+  not just at judge time. Every prompt the agents see uses A/B; the FE
+  remap happens only after scoring.
+
+### New endpoint: POST /debate/agentic
+- Body: `{topic, max_rounds?, max_turns?, provider?, model?}`.
+- BYO-key only. Resolves user's advocate model via
+  `resolve_advocate_model` (STRONG-tier default) and judge model via
+  `resolve_judge_model` (WEAK-tier default), same as sequential mode.
+- Fetches web docs through the existing `search_web` pipeline.
+- Returns the FE report shape plus `points`, `history`, `clash_ledger`,
+  `labels`, `mode: "agentic"` so the retrofitted Replay scrubber renders
+  the point ledger without any FE plumbing.
+
+### FE: Agentic toggle
+- New premium toggle chip on the debate topic bar. Persists per-browser
+  in localStorage. Off by default (sequential is still the free-tier path).
+- When on, the streaming NeuralResearchEngine is replaced with a small
+  status card explaining that the state machine runs headless; the user
+  is jumped straight to the report on completion.
+
+### FE: Replay scrubber retrofitted to point ledger
+- `DebateActions.ReplayModal` detects `ctx.points` and switches to a
+  two-column point-ledger view:
+  - Top: clash ledger with per-side ledger points, per-side defended,
+    per-side rebuttals-that-landed, and a subtle UNRESOLVED note.
+  - Left rail: one row per point (`P1`, `P2`, ...) colour-coded by outcome.
+  - Right panel: the full exchange thread for the selected point with
+    per-turn phase glyph (◆ assert / ⚔ rebut / 🛡 defend / 🏳 concede),
+    attack mode tag, citations, and a "narrowed to" callout when the
+    author defended with a narrowed claim.
+- Old momentum scrubber remains the fallback for sequential runs.
+
+### Report ctx expanded
+- `PolynousDebateReport` passes `points`, `ledger`, `labels`, `mode`
+  through to `DebateActions`. Legacy sequential fields still populate,
+  so `sMast`, `sVerdict`, `sRubric` render the same for agentic verdicts.
+
+### Caveats
+- Agentic runs one LLM call per turn, so latency scales with rounds. A
+  3-round / 20-turn debate on `gpt-4o` typically finishes in 30-60s.
+- No SSE progress streaming yet; the FE shows a status card during the
+  run. Phase 3 will retrofit the neural engine to consume agentic turns.
+- Real cost delta observed at roughly 1.8x sequential, matching the
+  earlier estimate.
+
+---
+
 ## [Unreleased] — Judge separation Phase 1: model tiers, blind A/B, credibility badges
 
 ### Same API key, meaningfully different model

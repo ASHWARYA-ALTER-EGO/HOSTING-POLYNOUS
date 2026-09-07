@@ -39,6 +39,7 @@ from app.routes.debate_followup import router as debate_followup_router
 from app.routes.report_actions import router as report_actions_router
 from app.routes.kg_actions import router as kg_actions_router
 from app.routes.growth import router as growth_router
+from app.routes.debate_agentic import router as debate_agentic_router
 
 load_dotenv()
 
@@ -165,6 +166,7 @@ app.include_router(debate_followup_router)
 app.include_router(report_actions_router)
 app.include_router(kg_actions_router)
 app.include_router(growth_router)
+app.include_router(debate_agentic_router)
 from app.routes.shares import router as shares_router
 app.include_router(shares_router)
 register_exception_handlers(app)

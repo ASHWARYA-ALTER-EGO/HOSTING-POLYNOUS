@@ -249,3 +249,195 @@
 .dba-rj-verdict span { font: 500 12px/1 'JetBrains Mono', monospace; color: var(--ra-mut); letter-spacing: 0.04em; }
 .dba-rj-verdict span i { font-style: normal; margin: 0 4px; color: color-mix(in srgb, var(--ra-mut) 50%, transparent); }
 .dba-rj-arrow { text-align: center; font: 500 20px/1 'DM Serif Display', serif; color: var(--ra-mut); }
+
+/* ================================================================
+   POINT LEDGER VIEW (agentic mode) — retrofit of the Replay modal.
+   Two-column layout: point rail on the left, active point thread
+   on the right. Objective clash ledger at the top so the reader
+   sees the score before the story.
+   ================================================================ */
+.dba-pl { display: flex; flex-direction: column; gap: 16px; }
+
+.dba-pl-ledger {
+  padding: 14px 16px;
+  border: 1px solid var(--ra-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ra-ink) 2.5%, var(--ra-surface));
+}
+.dba-pl-ledger-h {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 12px;
+}
+.dba-pl-mode {
+  font: 500 10px/1 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ra-accent);
+}
+.dba-pl-ledger-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+}
+.dba-pl-ledger-cell { text-align: center; }
+.dba-pl-num {
+  font: 700 40px/1 'DM Serif Display', 'Playfair Display', serif;
+  color: var(--ra-ink);
+  letter-spacing: -0.01em;
+}
+.dba-pl-lab {
+  margin-top: 2px;
+  font: 500 10.5px/1 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.18em;
+  color: var(--ra-mut);
+  text-transform: uppercase;
+}
+.dba-pl-sub {
+  margin-top: 6px;
+  font: 400 11px/1.4 'Inter', ui-sans-serif, system-ui, sans-serif;
+  color: var(--ra-mut);
+}
+.dba-pl-vs {
+  font: italic 500 22px/1 'DM Serif Display', serif;
+  color: var(--ra-mut);
+}
+.dba-pl-un {
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  font: 400 11.5px/1.5 'Inter', ui-sans-serif, system-ui, sans-serif;
+  color: var(--ra-mut);
+  border-left: 2px solid #b8790e;
+  background: color-mix(in srgb, #b8790e 6%, transparent);
+  border-radius: 0 4px 4px 0;
+}
+
+.dba-pl-body {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 14px;
+  min-height: 340px;
+}
+@media (max-width: 720px) { .dba-pl-body { grid-template-columns: 1fr; } }
+
+.dba-pl-rail { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; padding-right: 4px; }
+.dba-pl-railbtn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ra-line);
+  background: var(--ra-surface);
+  color: var(--ra-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  border-left-width: 3px;
+}
+.dba-pl-railbtn:hover { transform: translateX(2px); }
+.dba-pl-railbtn.on { border-color: var(--ra-cool); background: color-mix(in srgb, var(--ra-cool) 6%, var(--ra-surface)); border-left-color: var(--ra-cool); }
+.dba-pl-railbtn.tone-pro { border-left-color: #0a7d63; }
+.dba-pl-railbtn.tone-con { border-left-color: #b8320e; }
+.dba-pl-railbtn.tone-tie { border-left-color: #b8790e; }
+.dba-pl-railid { font: 700 11px/1 'JetBrains Mono', monospace; color: var(--ra-mut); letter-spacing: 0.08em; }
+.dba-pl-railstatus {
+  font: 700 9.5px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.16em;
+  color: var(--ra-ink);
+}
+
+.dba-pl-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font: 500 9.5px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.14em;
+}
+.dba-pl-badge.side-pro { color: #0a7d63; background: rgba(10,125,99,0.10); }
+.dba-pl-badge.side-con { color: #b8320e; background: rgba(184,50,14,0.10); }
+[data-theme="dark"] .dba-pl-badge.side-pro { color: #5db696; background: rgba(93,182,150,0.12); }
+[data-theme="dark"] .dba-pl-badge.side-con { color: #f0a06a; background: rgba(240,160,106,0.12); }
+
+.dba-pl-panel {
+  padding: 16px 18px;
+  border: 1px solid var(--ra-line);
+  border-radius: 10px;
+  background: var(--ra-surface);
+  animation: ra-fade-up 0.36s cubic-bezier(0.22,1,0.36,1) both;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.dba-pl-panel-h {
+  display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ra-line);
+}
+.dba-pl-claim {
+  margin: 4px 0 0;
+  font: 500 16px/1.4 'DM Serif Display', 'Playfair Display', serif;
+  color: var(--ra-ink);
+}
+.dba-pl-status {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font: 700 10.5px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.18em;
+  flex-shrink: 0;
+}
+.dba-pl-status.tone-pro { color: #0a7d63; background: rgba(10,125,99,0.10); }
+.dba-pl-status.tone-con { color: #b8320e; background: rgba(184,50,14,0.10); }
+.dba-pl-status.tone-tie { color: #b8790e; background: rgba(184,121,14,0.10); }
+
+.dba-pl-thread { display: flex; flex-direction: column; gap: 8px; max-height: 34vh; overflow-y: auto; padding-right: 4px; }
+.dba-pl-turn {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ra-ink) 2%, var(--ra-surface));
+  border-left: 2px solid var(--ra-line);
+}
+.dba-pl-turn.side-A { border-left-color: color-mix(in srgb, #0a7d63 60%, var(--ra-line)); }
+.dba-pl-turn.side-B { border-left-color: color-mix(in srgb, #b8320e 60%, var(--ra-line)); }
+.dba-pl-turn-h { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.dba-pl-turn-g { font-size: 12px; }
+.dba-pl-turn-p {
+  font: 700 9.5px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.14em;
+  color: var(--ra-mut);
+}
+.dba-pl-attack {
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(184,50,14,0.25);
+  background: rgba(184,50,14,0.06);
+  color: #b8320e;
+  font: 500 9px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.14em;
+}
+[data-theme="dark"] .dba-pl-attack { color: #f0a06a; border-color: rgba(240,160,106,0.3); background: rgba(240,160,106,0.08); }
+.dba-pl-turn p {
+  margin: 0;
+  font: 400 13px/1.55 'Inter', ui-sans-serif, system-ui, sans-serif;
+  color: var(--ra-ink);
+}
+.dba-pl-narrow {
+  margin-top: 6px !important;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ra-cool) 6%, transparent);
+  font-size: 12px !important;
+}
+.dba-pl-cites {
+  display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px;
+}
+.dba-pl-cite {
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ra-cool) 8%, transparent);
+  color: var(--ra-cool);
+  font: 500 10px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.04em;
+}
+.dba-pl-panel-f {
+  padding-top: 10px;
+  border-top: 1px solid var(--ra-line);
+  font: 500 12px/1 'Inter', ui-sans-serif, system-ui, sans-serif;
+  color: var(--ra-mut);
+}
+.dba-pl-panel-f b { color: var(--ra-ink); font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.06em; }

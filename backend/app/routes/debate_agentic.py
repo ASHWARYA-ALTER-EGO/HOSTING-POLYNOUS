@@ -15,11 +15,13 @@ Response contract matches the PolynousDebateReport's `props.result` shape so
 the existing report renders it without changes; the new `points` + `history`
 + `clash_ledger` fields power the retrofitted ledger view.
 """
+import json
 import logging
 import time
 from typing import Optional
 
 from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -172,3 +174,89 @@ async def run_agentic(request: Request, db: Session = Depends(get_db)):
             },
         },
     }
+
+
+@router.get("/debate/agentic/stream")
+async def stream_agentic(request: Request, db: Session = Depends(get_db),
+                          topic: str = "", max_rounds: int = 3, max_turns: int = 20,
+                          provider: str = "", model: str = "",
+                          token: str = ""):
+    """SSE stream: emits every state transition of the agentic state machine
+    so the frontend can render turns into the report as they happen.
+
+    Auth: we accept the JWT either in the standard `Authorization` header
+    (fine when the client calls `fetch`) or, for `EventSource` which does
+    not let you set headers, in the `token=` query param.
+    """
+    # Manual token resolution because EventSource can't set Authorization.
+    class _R:
+        def __init__(self, headers):
+            self.headers = headers
+    hdrs = dict(request.headers)
+    if token and "authorization" not in {k.lower() for k in hdrs}:
+        hdrs["Authorization"] = "Bearer " + token
+    proxy_req = _R(hdrs)
+
+    user, resolved_provider, api_key = _resolve_user_key_and_provider(proxy_req, db, provider or None)
+    if user is None:
+        raise HTTPException(401, "Sign in to run an agentic debate.")
+    if not api_key:
+        raise HTTPException(400, "No API key configured for your account. Add one in Settings first.")
+
+    topic = (topic or "").strip()
+    if not topic:
+        raise HTTPException(400, "topic is required")
+    max_rounds = min(4, max(1, int(max_rounds or 3)))
+    max_turns = min(24, max(5, int(max_turns or 20)))
+
+    advocate_model = (model or "").strip() or None
+    if not advocate_model:
+        try:
+            advocate_model = resolve_advocate_model(user, resolved_provider)
+        except Exception:
+            advocate_model = None
+
+    # Fetch docs synchronously before opening the stream (small, quick).
+    docs = []
+    try:
+        from app.search_agent import search_web
+        docs = search_web(topic, max_results=8) or []
+    except Exception as e:
+        logger.warning("Search failed for stream: %s", e)
+
+    docs_text = "\n\n".join(
+        f"[{i + 1}] {d.get('title', 'Untitled')}\n{(d.get('content') or '')[:800]}"
+        for i, d in enumerate(docs[:12])
+    ) or "(no web sources were retrieved.)"
+
+    def _sse(kind: str, data) -> bytes:
+        payload = json.dumps({"kind": kind, "data": data}, default=str)
+        return f"event: {kind}\ndata: {payload}\n\n".encode("utf-8")
+
+    def _generate():
+        usage_sink = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "estimated_cost": 0.0, "steps": []}
+        # Initial docs frame so the FE can render the citation strip immediately.
+        yield _sse("docs", [{"n": i + 1, "title": d.get("title"), "url": d.get("url", "")} for i, d in enumerate(docs[:12])])
+        try:
+            from app.agents.agentic_debate import stream_agentic_debate
+            for kind, payload in stream_agentic_debate(
+                topic=topic, docs_text=docs_text, user=user,
+                provider=resolved_provider, api_key=api_key,
+                advocate_model=advocate_model,
+                total_sources=len(docs),
+                usage_sink=usage_sink,
+                max_rounds=max_rounds, max_turns=max_turns,
+            ):
+                yield _sse(kind, payload)
+        except Exception as e:
+            logger.exception("Agentic stream failed")
+            yield _sse("error", {"message": str(e)})
+        finally:
+            yield _sse("end", {"usage": usage_sink})
+
+    return StreamingResponse(_generate(), media_type="text/event-stream",
+                             headers={
+                                 "Cache-Control": "no-cache, no-transform",
+                                 "X-Accel-Buffering": "no",
+                                 "Connection": "keep-alive",
+                             })

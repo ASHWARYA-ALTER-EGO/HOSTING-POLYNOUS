@@ -5,6 +5,7 @@ import ScrapeCountControl from './ScrapeCountControl';
 import DebateEngine from './DebateEngine';
 import SideRail from './react-bits/SideRail';
 import PolynousDebateReport from './PolynousDebateReport';
+import AgenticDebateLive from './AgenticDebateLive';
 import { getPersonalizedSuggestions } from '../personalize';
 import { ThemeToggle } from '../theme/ThemeContext';
 
@@ -1780,46 +1781,47 @@ export default function DebateChamber({ user, onNavigate, onLogout, preview = fa
 
   const sidebarW = sidebarCollapsed ? 56 : 320;
 
-  // The DebateEngine streams the real pipeline; this just opens the arena.
-  const fireDebate = useCallback(async (q) => {
+  // Both engines stay mounted. Sequential mode uses the streaming
+  // NeuralResearchEngine (SSE from /debate-visual). Agentic mode uses the
+  // AgenticDebateLive component (SSE from /debate/agentic/stream). Either
+  // way the report populates in real time; fireDebate just flips the arena
+  // into loading state and hands off to the appropriate stream consumer.
+  const fireDebate = useCallback((q) => {
     if (!q.trim() || loading) return;
     setLoading(true);
     setResult(null);
     setError("");
     setView("report");
     setActiveTopic(q.trim());
-    setAgentStatus("");
-    if (!agenticMode) return; // sequential path is driven by NeuralResearchEngine
-
-    // Agentic path: opt-in, BYO-key only. One request/response (no SSE) that
-    // returns a point-ledger view the retrofitted Replay scrubber renders.
-    setAgentStatus("Agentic debate: state-machine + point ledger...");
-    try {
-      const tok = localStorage.getItem("polynous_token") || "";
-      const res = await fetch(`${API_BASE_URL}/debate/agentic`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(tok ? { Authorization: "Bearer " + tok } : {}) },
-        body: JSON.stringify({ topic: q.trim(), max_rounds: 3, max_turns: 20 }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.detail || (res.status === 401 ? "Sign in to run agentic mode." :
-          res.status === 400 ? "Add an API key in Settings first." :
-          "Agentic debate failed."));
-      }
-      const j = await res.json();
-      setResult({
-        ...(j.result || {}),
-        mode: "agentic",
-      });
-      setAgentStatus("");
-    } catch (e) {
-      setError(String(e.message || e));
-      setAgentStatus("");
-    } finally {
-      setLoading(false);
-    }
+    setAgentStatus(agenticMode ? "Agentic state machine streaming..." : "");
   }, [loading, agenticMode]);
+
+  const handleAgenticComplete = useCallback((verdict) => {
+    // verdict is the final SSE frame. It carries the same shape the sequential
+    // path already produces (verdict.for_score, verdict.against_score, etc.)
+    // plus points, history, clash_ledger for the ledger view.
+    setResult({
+      mode: "agentic",
+      verdict: verdict.verdict,
+      points: verdict.points,
+      history: verdict.history,
+      clash_ledger: verdict.clash_ledger,
+      labels: verdict.labels,
+      advocate_model: verdict.advocate_model,
+      judge_model: verdict.judge_model,
+      judge_provider: verdict.judge_provider,
+      blind_ab: true,
+      citations: [], // filled from the docs SSE frame if needed
+    });
+    setLoading(false);
+    setAgentStatus("");
+  }, []);
+
+  const handleAgenticError = useCallback((msg) => {
+    setError(msg || "Agentic debate stream failed.");
+    setLoading(false);
+    setAgentStatus("");
+  }, []);
 
   // Toggle between the finished live Engine and the Report, with a smooth
   // scroll to the top so the transition reads as "sliding up to the engine".
@@ -2020,12 +2022,11 @@ export default function DebateChamber({ user, onNavigate, onLogout, preview = fa
                   </div>
                 )}
                 {agenticMode ? (
-                  <div style={{ padding: "80px 20px", textAlign: "center", color: "rgba(210,220,235,0.6)", fontFamily: "'Hanken Grotesk',sans-serif" }}>
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, letterSpacing: "0.18em", color: "#d8b4fe", marginBottom: 12 }}>AGENTIC MODE</div>
-                    <div style={{ fontSize: 15, maxWidth: 520, margin: "0 auto", lineHeight: 1.55 }}>
-                      Agentic debates run without the live streaming engine: the state machine drives asserts, rebuttals and defends in the background, then jumps you straight to the report with the full point ledger and Replay scrubber.
-                    </div>
-                  </div>
+                  <AgenticDebateLive
+                    topic={activeTopic}
+                    onComplete={handleAgenticComplete}
+                    onError={handleAgenticError}
+                  />
                 ) : (
                   <DebateEngine
                     apiUrl={`${API_BASE_URL}/debate-visual`}

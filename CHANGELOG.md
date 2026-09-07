@@ -7,6 +7,66 @@ and compile-verified but not yet exercised end-to-end in production).
 
 ---
 
+## [Unreleased] — Agentic streaming: SSE + PIVOT move + live ledger view
+
+### Truly agentic: agents choose their move
+- **New PIVOT branch** in the defend agent. Instead of only DEFEND vs
+  CONCEDE, the author now sees the full exchange thread on the current
+  point and can:
+  - DEFEND (strengthen or narrow the claim)
+  - CONCEDE (rebuttal is decisive)
+  - **PIVOT** (drop this point, open a new claim in the same turn)
+- The PIVOT branch marks the abandoned point as CONCEDED (challenger wins
+  it) and appends a brand-new point to the state in the same step, with
+  `pivoted_from` metadata for the transcript.
+- **Rebutter picks the strongest still-live thread**, not a fixed rotation.
+  Combined with PIVOT, this means the scheduler + the agent share the
+  decision-making load: the scheduler picks who acts, the agent picks how.
+
+### SSE streaming into the report
+- **New endpoint GET /debate/agentic/stream** (EventSource-friendly:
+  accepts JWT via `token=` query param since EventSource can't set
+  headers).
+- The state machine now runs as a Python generator (`stream_agentic_debate`)
+  yielding `("start"|"docs"|"turn"|"point"|"ledger"|"phase"|"verdict"|"error", payload)`
+  events. `run_agentic_debate` is now a thin wrapper that consumes the
+  generator for callers that just want the final dict.
+- Turn events include the full turn payload plus `round`, `turns_used`,
+  `point_id`, `pivoted_from`, `attack_mode`, `narrowed_claim` when
+  applicable. Point events fire when a point resolves. Ledger events fire
+  after every resolution. Phase event announces the switch from arguing
+  to judging.
+
+### FE: AgenticDebateLive (live view)
+- New `AgenticDebateLive.jsx` component connects to the SSE stream,
+  renders a two-column point-ledger view IN REAL TIME as turns land:
+  - **Header**: phase-coloured pulse dot (running / judging / done /
+    failed), advocate model + judge model + blind A/B tag.
+  - **Live ledger**: per-side ledger points update as points resolve.
+  - **Rail**: one row per point, pulses on the actively-argued point,
+    colours to green/red/amber on resolution.
+  - **Panel**: full exchange thread for the active point with animated
+    fade-in per new turn, phase glyph (◆ ⚔ 🛡 🏳), attack-mode chip,
+    narrowed-claim callout, citation strip.
+  - **PIVOT badge** on turns that opened a new point mid-debate.
+  - **Verdict footer** appears when the final SSE frame lands.
+
+### Both engines stay
+- Sequential mode keeps the streaming NeuralResearchEngine (unchanged).
+- Agentic mode now uses AgenticDebateLive during the run, then hands off
+  to PolynousDebateReport (which renders the ledger via the retrofitted
+  Replay modal).
+- The toggle chip is the only user-facing switch. Both paths stream real
+  progress into the debate arena; neither hides behind a spinner.
+
+### Caveats
+- SSE tokens are the same JWT used by fetch calls. Rotating the JWT
+  mid-stream will disconnect the stream (expected).
+- Latency is bounded by the number of turns (~30-60s for a 3-round /
+  20-turn debate on gpt-4o). Cost delta stays ~1.8x sequential.
+
+---
+
 ## [Unreleased] — Judge separation Phase 2: agentic debate mode + point ledger
 
 ### Real turn-taking, point-by-point clash (opt-in)

@@ -82,17 +82,21 @@ _REBUT_SYSTEM = (
 _DEFEND_SYSTEM = (
     "You are advocate {side} in a live debate on: \"{topic}\".\n"
     "Your original claim was:\n  \"{claim}\"\n\n"
-    "Your opponent rebutted it via {attack_mode}:\n  \"{rebuttal}\"\n\n"
-    "You have two honest options:\n"
+    "The exchange on this specific point so far:\n{thread}\n\n"
+    "Your opponent's last move was a rebuttal via {attack_mode}:\n  \"{rebuttal}\"\n\n"
+    "You have three honest options. Pick the one that is actually strongest:\n"
     "  DEFEND    strengthen the claim, refute the attack mode, or narrow the claim.\n"
-    "  CONCEDE   acknowledge the rebuttal is decisive.\n\n"
+    "  CONCEDE   acknowledge the rebuttal is decisive.\n"
+    "  PIVOT     the point is lost, drop it, and open a NEW claim instead.\n\n"
     "You MUST concede if the rebuttal has direct source support you cannot answer.\n"
-    "Do not defend for the sake of defending. Do not restate the claim without new content.\n\n"
+    "You MUST pivot if you would be repeating a defence you already made in the thread above.\n"
+    "Do not defend for the sake of defending.\n\n"
     "Return ONLY raw JSON:\n"
-    "  \"action\": \"defend\"|\"concede\"\n"
-    "  \"text\": string  (<= 55 words)\n"
+    "  \"action\": \"defend\"|\"concede\"|\"pivot\"\n"
+    "  \"text\": string   (defence, concession, or the new claim)  (<= 55 words)\n"
     "  \"cites\": [int, ...]\n"
     "  \"narrowed_claim\": string|null  (only when action=defend and you narrowed)\n"
+    "  \"pivot_reason\": string|null   (only when action=pivot, one line, why you dropped the point)\n"
 )
 
 _JUDGE_SYSTEM = (
@@ -164,11 +168,16 @@ def _defensive_call(client, client_type, system, user, provider, model, usage):
 def next_action(state: dict) -> tuple[str, Optional[str], Optional[str]]:
     """Return (verb, side, point_id).
 
-    Priority:
+    Real-agent priority:
       1. Any point in the "rebutted" state where the AUTHOR owes a defense.
-      2. Any point in the "open" state where the OPPONENT owes a rebuttal.
-      3. If the round budget allows, open a new point by the next side.
-      4. Otherwise, judge.
+         (The author must respond before the debate moves on.)
+      2. Any "open" point where the OPPONENT hasn't yet had their say.
+         Among these, the opponent gets to pick the LOWEST-numbered still-open
+         point (surrogate for "strongest still-live thread") — the model can
+         still pivot within its own turn if it wants to escalate somewhere
+         else, via the PIVOT branch.
+      3. Round budget remaining => open a new point.
+      4. Otherwise => judge.
     """
     budget = state.get("budget", {})
     if budget.get("turns_used", 0) >= budget.get("cap", MAX_TURNS):
@@ -178,9 +187,11 @@ def next_action(state: dict) -> tuple[str, Optional[str], Optional[str]]:
         if p["status"] == "rebutted" and _last_exchange_side(p) != _author_of(p):
             return ("defend", _author_of(p), p["id"])
 
-    for p in state.get("points", []):
-        if p["status"] == "open" and _last_exchange_side(p) == _author_of(p):
-            return ("rebut", _flip(_author_of(p)), p["id"])
+    open_points = [p for p in state.get("points", [])
+                   if p["status"] == "open" and _last_exchange_side(p) == _author_of(p)]
+    if open_points:
+        p = open_points[0]  # ordered by id — earliest still-live thread
+        return ("rebut", _flip(_author_of(p)), p["id"])
 
     if state.get("round", 0) < MAX_ROUNDS:
         # A opens odd-numbered rounds, B opens even. So each side opens roughly
@@ -255,6 +266,13 @@ def _rebut_point(state, side, point_id, client, client_type, provider, model, us
 
 
 def _defend_or_concede(state, side, point_id, client, client_type, provider, model, usage, topic, docs):
+    """The agent's real decision moment: DEFEND, CONCEDE, or PIVOT.
+
+    The full exchange thread on this point is passed in so the model can
+    recognise when it would be repeating itself; the pivot branch drops
+    this point (marks it CONCEDED to the rebutter) and opens a brand new
+    claim in the same turn budget. This is what makes the debate feel
+    "the agent is actually thinking", not "the agent has a script"."""
     p = next((x for x in state["points"] if x["id"] == point_id), None)
     if not p:
         return None
@@ -265,20 +283,66 @@ def _defend_or_concede(state, side, point_id, client, client_type, provider, mod
     if not rebut:
         p["status"] = "unresolved"
         return None
+
+    thread_lines = []
+    for t in p["exchange"]:
+        thread_lines.append(f"  {t['side']} {t['phase'].upper()}: {t['text'][:180]}")
+    thread = "\n".join(thread_lines) or "  (no prior turns on this point)"
+
     system = _DEFEND_SYSTEM.format(
-        side=side, topic=topic, claim=p["claim"],
+        side=side, topic=topic, claim=p["claim"], thread=thread,
         attack_mode=rebut.get("attack_mode", "logic"),
         rebuttal=rebut["text"],
     )
     user = (
         f"Fetched sources you may cite:\n{docs[:2200]}\n\n"
-        "Choose defend or concede honestly. Concede if the rebuttal decisively answers you."
+        "Pick the truly best move. Concede if the rebuttal decisively answers you. "
+        "Pivot only if defending would be a repeat of what you already said."
     )
     data = _defensive_call(client, client_type, system, user, provider, model, usage)
     if not data or not data.get("text"):
         p["status"] = "unresolved"
         return None
     action = str(data.get("action", "defend")).lower()
+
+    # PIVOT: the point is CONCEDED (for scoring purposes: rebutter wins it),
+    # and a new claim is opened in the same turn.
+    if action == "pivot":
+        # Close the abandoned point
+        concede_turn = {
+            "turn": state["budget"]["turns_used"] + 1,
+            "side": side,
+            "phase": "concede",
+            "text": ("Pivoting off this point: " + str(data.get("pivot_reason", ""))[:220])[:400],
+            "cites": [],
+        }
+        p["exchange"].append(concede_turn)
+        p["status"] = "conceded"
+        _append_history(state, concede_turn, point_id)
+        # And in the SAME step, open a new point with the pivot text
+        pid = _mint_point_id(state)
+        new_point = {
+            "id": pid,
+            "author": side,
+            "claim": str(data.get("text", ""))[:400],
+            "cites": [int(x) for x in (data.get("cites") or []) if str(x).isdigit()][:8],
+            "reasoning": "Strategic pivot after " + point_id,
+            "status": "open",
+            "pivoted_from": point_id,
+            "exchange": [{
+                "turn": state["budget"]["turns_used"] + 1,
+                "side": side,
+                "phase": "assert",
+                "text": str(data.get("text", ""))[:400],
+                "cites": [int(x) for x in (data.get("cites") or []) if str(x).isdigit()][:8],
+                "pivoted_from": point_id,
+            }],
+        }
+        state["points"].append(new_point)
+        _append_history(state, new_point["exchange"][-1], pid)
+        return concede_turn
+
+    # DEFEND or CONCEDE (unchanged from before)
     turn = {
         "turn": state["budget"]["turns_used"] + 1,
         "side": side,
@@ -434,6 +498,171 @@ def _mechanical_verdict(ledger, a_pts, b_pts, judge_model):
 
 
 # --------------------------------------------------------------------------- top-level runner
+def stream_agentic_debate(topic: str,
+                          docs_text: str,
+                          user,
+                          provider: str,
+                          api_key: str,
+                          advocate_model: Optional[str],
+                          total_sources: int = 0,
+                          usage_sink: Optional[dict] = None,
+                          max_rounds: int = MAX_ROUNDS,
+                          max_turns: int = MAX_TURNS):
+    """Generator variant: yields (event_type, payload) tuples for SSE.
+
+    Events:
+      ("start",  {topic, labels, advocate_model, judge_model, max_rounds, max_turns})
+      ("turn",   {phase, side, point_id, ...})   whenever a turn completes
+      ("point",  {point})                         whenever a point resolves
+      ("ledger", {clash_ledger})                 after every point resolution
+      ("verdict",{result})                        final
+      ("error",  {message})                       on catastrophic failure
+    """
+    a_is_for = random.random() < 0.5
+    state: dict = {
+        "topic": topic,
+        "round": 0,
+        "points": [],
+        "history": [],
+        "budget": {"turns_used": 0, "cap": max_turns},
+        "labels": {"A": "FOR" if a_is_for else "AGAINST",
+                   "B": "AGAINST" if a_is_for else "FOR"},
+    }
+
+    judge_model = None
+    try:
+        judge_model = resolve_judge_model(user, provider)
+    except Exception:
+        pass
+    if not judge_model or judge_model == advocate_model:
+        judge_model = weak_model(provider)
+    if not judge_model:
+        judge_model = advocate_model
+
+    yield ("start", {
+        "topic": topic,
+        "labels": state["labels"],
+        "advocate_model": advocate_model,
+        "judge_model": judge_model,
+        "judge_provider": provider,
+        "max_rounds": max_rounds,
+        "max_turns": max_turns,
+    })
+
+    client, client_type = _get_client(provider, api_key)
+
+    def _emit_last_turn(pid):
+        h = state["history"][-1] if state["history"] else None
+        if h:
+            yield ("turn", {
+                **h,
+                "point_id": pid,
+                "round": state["round"],
+                "turns_used": state["budget"]["turns_used"],
+            })
+
+    while True:
+        verb, side, pid = next_action(state)
+        if verb == "judge":
+            break
+
+        if verb == "assert":
+            state["round"] += 1
+            if state["round"] > max_rounds:
+                break
+            p = _assert_point(state, side, client, client_type, provider,
+                              advocate_model, usage_sink, topic, docs_text)
+            if not p:
+                yield ("error", {"message": f"Round {state['round']} {side} failed to assert."})
+                break
+            for ev in _emit_last_turn(p["id"]):
+                yield ev
+
+        elif verb == "rebut":
+            t = _rebut_point(state, side, pid, client, client_type, provider,
+                             advocate_model, usage_sink, topic, docs_text)
+            if t:
+                for ev in _emit_last_turn(pid):
+                    yield ev
+
+        elif verb == "defend":
+            snapshot_len = len(state["points"])
+            t = _defend_or_concede(state, side, pid, client, client_type, provider,
+                                   advocate_model, usage_sink, topic, docs_text)
+            if t:
+                # The pivot branch appends both a concede AND a new assertion
+                # to history in one call. Flush every new entry so the FE
+                # sees both events land in order.
+                turns_appended = 1 + (1 if len(state["points"]) > snapshot_len else 0)
+                for h in state["history"][-turns_appended:]:
+                    yield ("turn", {
+                        **h,
+                        "round": state["round"],
+                        "turns_used": state["budget"]["turns_used"],
+                    })
+                # If this point just resolved, notify the FE so it can badge it.
+                p = next((x for x in state["points"] if x["id"] == pid), None)
+                if p and p["status"] in ("conceded", "defended"):
+                    yield ("point", {"point": p})
+
+        if state["budget"]["turns_used"] >= max_turns:
+            yield ("error", {"message": f"Turn cap {max_turns} hit; closing open points as UNRESOLVED."})
+            break
+
+    _finalise_ledger(state)
+    yield ("ledger", {"clash_ledger": state["clash_ledger"]})
+
+    yield ("phase", {"phase": "judging", "judge_model": judge_model, "provider": provider})
+    verdict = point_ledger_judge(state, provider=provider, api_key=api_key,
+                                 judge_model=judge_model,
+                                 total_sources=total_sources,
+                                 usage_sink=usage_sink)
+
+    labels = state["labels"]
+    winner_ab = verdict.get("winner_ab", "TIE")
+    winner = "TIE" if winner_ab == "TIE" else labels[winner_ab]
+    for_score = verdict["team_a_score"] if labels["A"] == "FOR" else verdict["team_b_score"]
+    against_score = verdict["team_b_score"] if labels["A"] == "FOR" else verdict["team_a_score"]
+
+    final = {
+        "mode": "agentic",
+        "topic": topic,
+        "labels": labels,
+        "advocate_model": advocate_model,
+        "judge_model": judge_model,
+        "judge_provider": provider,
+        "blind_ab": True,
+        "points": state["points"],
+        "history": state["history"],
+        "clash_ledger": state["clash_ledger"],
+        "verdict": {
+            "winner": winner,
+            "for_score": for_score,
+            "against_score": against_score,
+            "for_quality": verdict["team_a_quality"] if labels["A"] == "FOR" else verdict["team_b_quality"],
+            "against_quality": verdict["team_b_quality"] if labels["A"] == "FOR" else verdict["team_a_quality"],
+            "scoring": verdict["scoring"],
+            "judge_model": verdict["judge_model"],
+            "judge_provider": verdict["judge_provider"],
+            "advocate_model": advocate_model,
+            "blind_ab": True,
+            "reasoning": verdict["reasoning"],
+            "strongest_point": verdict["strongest_point"],
+            "judge_certainty": verdict.get("certainty", 60),
+            "steelman": verdict.get("steelman") or {},
+            "per_point": verdict.get("per_point") or [],
+            "follow_up_questions": verdict.get("follow_up_questions") or [],
+            "clash_ledger": state["clash_ledger"],
+            "margin": (
+                "split" if winner == "TIE" else
+                ("decisive" if abs(for_score - against_score) >= 3 else
+                 "clear" if abs(for_score - against_score) >= 1.5 else "close")
+            ),
+        },
+    }
+    yield ("verdict", final)
+
+
 def run_agentic_debate(topic: str,
                        docs_text: str,
                        user,
@@ -446,12 +675,43 @@ def run_agentic_debate(topic: str,
                        max_rounds: int = MAX_ROUNDS,
                        max_turns: int = MAX_TURNS) -> dict:
     """Drive the whole state machine and return a verdict + full transcript.
-
-    `docs_text` is the pre-formatted sources block (same shape argue_position uses).
+    Kept as a thin wrapper around the streaming generator so tests and any
+    non-SSE caller can still get a single dict back.
     """
     emit = emit or (lambda _msg: None)
+    final = None
+    for kind, payload in stream_agentic_debate(
+        topic=topic, docs_text=docs_text, user=user,
+        provider=provider, api_key=api_key,
+        advocate_model=advocate_model,
+        total_sources=total_sources,
+        usage_sink=usage_sink,
+        max_rounds=max_rounds, max_turns=max_turns,
+    ):
+        if kind == "verdict":
+            final = payload
+        else:
+            emit(f"{kind}: {str(payload)[:180]}")
+    if final:
+        return final
+    # Should never happen — but be honest if the generator bailed early.
+    return {"mode": "agentic", "topic": topic, "verdict": {"winner": "UNSCORED"}}
 
-    # Randomise A/B before we say anything else, so history is entirely blind.
+
+def _legacy_dead_run_kept_for_reference(topic: str,
+                       docs_text: str,
+                       user,
+                       provider: str,
+                       api_key: str,
+                       advocate_model: Optional[str],
+                       total_sources: int = 0,
+                       usage_sink: Optional[dict] = None,
+                       emit: Optional[Callable[[str], None]] = None,
+                       max_rounds: int = MAX_ROUNDS,
+                       max_turns: int = MAX_TURNS) -> dict:
+    """(Kept private for reference only; not called.)"""
+    emit = emit or (lambda _msg: None)
+
     a_is_for = random.random() < 0.5
 
     state: dict = {
